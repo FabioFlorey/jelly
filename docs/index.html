@@ -19,6 +19,8 @@
   <meta property="og:description" content="Inspect live pages, control Chromium, verify outcomes, recover from failures, and preserve evidence for browser-using agents.">
   <meta property="og:url" content="https://fabioflorey.github.io/jelly/">
   <meta property="og:image" content="https://fabioflorey.github.io/jelly/assets/og-jelly-chan.png">
+  <meta property="og:image:secure_url" content="https://fabioflorey.github.io/jelly/assets/og-jelly-chan.png">
+  <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1734">
   <meta property="og:image:height" content="907">
   <meta property="og:image:alt" content="Jelly, browser instrumentation for agents">
@@ -310,6 +312,20 @@
       font-size: .98rem;
     }
 
+    .demo-stage {
+      border: 1px solid var(--line);
+      background: #080807;
+      padding: 10px;
+      box-shadow: 0 24px 70px var(--shadow);
+    }
+
+    .demo-stage video {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #000;
+    }
+
     .card h3 {
       margin: 0 0 10px;
       font-size: 1.03rem;
@@ -490,6 +506,22 @@
         </div>
       </div>
     </div>
+
+    <section id="demo">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-kicker">Live browser trace</div>
+          <h2>Watch Jelly work.</h2>
+        </div>
+        <p class="section-copy">A real headed Chromium run, captured as settled browser states with action overlays, tab switching, dark mode, scrolling, and explicit cleanup.</p>
+        <div class="demo-stage">
+          <video autoplay muted loop playsinline controls preload="metadata" poster="./assets/jelly-demo-poster.png" aria-label="Jelly browser automation demo">
+            <source src="./assets/jelly-demo.mp4" type="video/mp4">
+            Your browser does not support embedded video.
+          </video>
+        </div>
+      </div>
+    </section>
 
     <section id="who">
       <div class="shell">

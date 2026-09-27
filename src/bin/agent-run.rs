@@ -1,4 +1,4 @@
-use jelly::{ACTIVE_TARGET, BROWSER_MODE, LOG_DIR, PAGE_TARGET, new_id, redact_args};
+use jelly::{ACTIVE_TARGET, BROWSER_MODE, LOG_DIR, PAGE_TARGET, new_id, record_step, redact_args};
 use serde_json::json;
 use std::{
     env,
@@ -33,6 +33,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let trace_id = env::var("JELLY_TRACE_ID").unwrap_or_else(|_| new_id("trace"));
     let span_id = new_id("span");
     let source = env::var("JELLY_SOURCE").unwrap_or_else(|_| "agent-run".into());
+    if tool == "close-browser" {
+        let _ = record_step(
+            "agent-close-browser",
+            &redact_args(&args[1..]),
+            0,
+            &trace_id,
+            &span_id,
+        );
+    }
     let status = Command::new(&bin)
         .args(&args[1..])
         .current_dir(ROOT)
@@ -59,6 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         format!("agent-{tool} failed")
     };
+    let redacted_args = redact_args(&args[1..]);
     append(json!({
         "timestamp": OffsetDateTime::now_utc().format(&Rfc3339)?,
         "timestamp_ms": started.duration_since(UNIX_EPOCH)?.as_millis(),
@@ -70,7 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "parent_span_id": env::var("JELLY_PARENT_SPAN_ID").ok(),
         "source": source,
         "tool": format!("agent-{tool}"),
-        "args": redact_args(&args[1..]),
+        "args": redacted_args,
         "duration_ms": duration_ms,
         "ok": ok,
         "exit_code": exit_code,
@@ -78,6 +88,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "process": {"pid": std::process::id()},
         "browser": browser_context(),
     }))?;
+    if ok && tool == "open-browser" {
+        let _ = record_step(
+            "agent-open-browser",
+            &redact_args(&args[1..]),
+            duration_ms,
+            &trace_id,
+            &span_id,
+        );
+    }
     match status {
         Ok(s) if s.success() => Ok(()),
         Ok(s) => std::process::exit(s.code().unwrap_or(1)),

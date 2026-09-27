@@ -78,13 +78,14 @@ These tools are executable capabilities that intentionally do not require a shar
 | `close-browser` | `browser-lifecycle` | `close-browser` | Gracefully stop the persistent jelly Chromium browser service and clean its state files. |
 | `browser-task` | `browser-lifecycle` | `browser-task [--persist] <url> <agent-tool> [args...]` | Open a headed browser, run one agent tool, and close the browser unless persistence is requested. |
 | `profile-import` | `browser-lifecycle` | `profile-import <source> [--force]` | Copy a closed Chromium user-data directory into Jelly-managed runtime state for session reuse. This does not guarantee anti-bot or CAPTCHA behavior. |
-| `screenshot` | `artifacts` | `screenshot [target] [output] [--output path]` | Capture the viewport or a target and register a provenance-bearing screenshot artifact. Capture alone does not establish semantic correctness. |
+| `screenshot` | `artifacts` | `screenshot [target] [output] [--output path] [--desktop-fallback]` | Capture browser-rendered content only: the active page viewport by default or a specific target such as body, main, a CSS selector, or @eN reference. Desktop/window capture is opt-in only. |
+| `record-browser` | `artifacts` | `record-browser start [--mode continuous\|steps] [--interval-ms n] [--hold-ms n] \| record-browser stop` | Start or stop a browser-content recording. Continuous mode streams renderer frames; steps mode captures browser state after relevant actions and turns the trace into a timed video. |
 | `downloads` | `artifacts` | `downloads` | List files downloaded into jelly browser download locations. |
 | `verify-artifact` | `artifacts` | `verify-artifact <artifact-id\|path> [--semantic check...]` | Verify a captured artifact still exists, is nonempty, and has valid format-specific integrity metadata. |
 | `wait-download` | `artifacts` | `wait-download <after-ms> [seconds] [name-contains]` | Wait for a completed download newer than a supplied timestamp baseline and register it as an artifact. |
 | `inspect-network` | `network` | `inspect-network <start\|stop\|show> [filters]` | Start, stop, or query persistent browser network capture with optional filters. |
 | `call-routine` | `routines` | `call-routine <name> [key=value] \| call-routine resume <id> [key=value]` | Execute or resume a routine. JSON graph routines support guarded branches, loops, jumps, budgets, HITL suspension, and owned-browser cleanup. |
-| `hitl` | `hitl` | `hitl <message>` | Request human intervention through Telegram and require an application-level accepted response before reporting delivery success. |
+| `hitl` | `hitl` | `hitl <message> [--screenshot-target target] [--no-screenshot] [--desktop-fallback]` | Request human intervention through Telegram with a browser-content screenshot by default. A specific page element can be attached without capturing the desktop. |
 
 ## Discovery CLI
 

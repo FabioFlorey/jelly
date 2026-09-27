@@ -16,6 +16,7 @@ jelly has a small core dependency set plus a few optional tools used by specific
 | **bash** | Project scripts | Used by scripts under `scripts/` |
 | **core shell utilities** | Common shell operations | `cp`, `mv`, `chmod`, `mktemp`, `grep`, `sed`, `awk`, `date` |
 | **base64** | Screenshot decoding | Used by the screenshot tool |
+| **ffmpeg / ffprobe** | Browser recording export | Encodes renderer frames into MP4 and probes step-frame dimensions for proportional branded overlays |
 
 ## Optional
 

@@ -76,8 +76,14 @@ pub static TOOLS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "screenshot",
-        description: "Capture the viewport or a target and register a provenance-bearing screenshot artifact. Capture alone does not establish semantic correctness.",
-        usage: "screenshot [target] [output] [--output path]",
+        description: "Capture browser-rendered content only: the active page viewport by default or a specific target such as body, main, a CSS selector, or @eN reference. Desktop/window capture is opt-in only.",
+        usage: "screenshot [target] [output] [--output path] [--desktop-fallback]",
+        category: "artifacts",
+    },
+    ToolSpec {
+        name: "record-browser",
+        description: "Start or stop a browser-content recording. Continuous mode streams renderer frames; steps mode captures browser state after relevant actions and turns the trace into a timed video.",
+        usage: "record-browser start [--mode continuous|steps] [--interval-ms n] [--hold-ms n] | record-browser stop",
         category: "artifacts",
     },
     ToolSpec {
@@ -112,8 +118,8 @@ pub static TOOLS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "hitl",
-        description: "Request human intervention through Telegram and require an application-level accepted response before reporting delivery success.",
-        usage: "hitl <message>",
+        description: "Request human intervention through Telegram with a browser-content screenshot by default. A specific page element can be attached without capturing the desktop.",
+        usage: "hitl <message> [--screenshot-target target] [--no-screenshot] [--desktop-fallback]",
         category: "hitl",
     },
 ];
@@ -145,7 +151,7 @@ mod tests {
     fn hitl_tool_uses_telegram_without_exposing_transport_selection() {
         let tool = lookup_tool("hitl").unwrap();
         assert_eq!(tool.category, "hitl");
-        assert_eq!(tool.usage, "hitl <message>");
+        assert!(tool.usage.starts_with("hitl <message>"));
         assert!(tool.description.contains("Telegram"));
         assert_eq!(tool.schema()["kind"], "system");
         assert!(lookup_tool("send-telegram-message").is_none());

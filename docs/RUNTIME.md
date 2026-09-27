@@ -25,11 +25,21 @@ Jelly keeps browser state, profiles, logs, artifacts, and build output outside t
     │   ├── latest.png
     │   └── registered/
     │       └── artifact-*.png
+    ├── recordings/
+    │   ├── active.json
+    │   ├── recording-*/
+    │   │   ├── manifest.json
+    │   │   └── recording.mp4
+    │   └── registered/
+    │       ├── artifact-*.mp4
+    │       └── artifact-*.json
     └── downloads/
         └── registered/
 ```
 
-Screenshot metadata records provenance, dimensions, trace linkage, and verification state. `latest.png` remains a convenience path; reliability-sensitive workflows should pass artifact IDs.
+Screenshot metadata records provenance, dimensions, trace linkage, and verification state. Screenshots capture Chromium-rendered page content by default, not the desktop. A specific target such as `body`, `main`, a CSS selector, or `@eN` can be captured directly. Desktop/window capture is available only when explicitly requested as a fallback.
+
+Browser recordings support two modes. `continuous` streams renderer frames for the active Chromium target directly into FFmpeg, so individual frame files are not written to disk. `steps` captures a temporary browser screenshot after relevant successful actions, records redacted tool metadata, and builds a variable-frame-rate H.264 MP4 where each action frame is held for the configured duration. Step videos use resolution-aware Jelly overlays: honey text, black backing, concise action labels, and a small favicon watermark. On stop, Jelly registers the MP4 and manifest, then removes all temporary recording files. The desktop is never part of either recording mode. `latest.png` remains a convenience path; reliability-sensitive workflows should pass artifact IDs.
 
 Imported Chromium session data is copied into `profiles/headed/`. Profile data and `state/oauth.json` are sensitive local state and stay outside Git.
 

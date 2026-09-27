@@ -8,6 +8,10 @@
 
 ✨ [**Quickstart**](#2-quickstart)　•　⭐ [**Architecture**](./docs/ARCHITECTURE.md)　•　⚡ [**MCP**](./docs/MCP.md)　•　💡 [**Documentation**](./docs/README.md)　•　🍯 [**Tool Index**](./.agent/tools/index.md)
 
+<br>
+
+<img src="./assets/jelly-demo.gif" alt="Jelly controlling a real Chromium browser" width="720">
+
 </div>
 
 ## 1. About
