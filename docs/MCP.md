@@ -96,6 +96,7 @@ close-browser
 browser-task
 profile-import
 screenshot
+record-browser
 downloads
 wait-download
 verify-artifact
@@ -104,7 +105,7 @@ call-routine
 hitl
 ```
 
-`hitl` is transport-agnostic at the MCP/routine surface. Telegram is its current implementation.
+`screenshot` captures browser-rendered content by default and can target a specific page element. Desktop/window fallback must be explicitly enabled. `record-browser` supports `continuous` mode for renderer-frame video and `steps` mode for an action trace video built from browser screenshots held for a configurable duration. Both use FFmpeg and neither records the desktop. `hitl` is transport-agnostic at the MCP/routine surface. Telegram is its current implementation and can attach either the browser viewport or a requested page target.
 
 ## Tool result contract
 

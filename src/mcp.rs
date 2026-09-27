@@ -11,8 +11,9 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Map, Value, json};
-use std::{env, process::Command};
+use std::{env, fs, process::Command};
 
 const SERVER_NAME: &str = "jelly";
 const DEFAULT_PROTOCOL_VERSION: &str = "2025-06-18";
@@ -245,9 +246,21 @@ fn system_input_schema(name: &str) -> Option<Value> {
         "screenshot" => json!({
             "type":"object",
             "properties":{
-                "target":{"type":"string"},
-                "output":{"type":"string","description":"Optional output path."}
+                "target":{"type":"string","description":"Optional browser target such as body, main, css:..., or @eN. Omit for the active page viewport."},
+                "output":{"type":"string","description":"Optional output path."},
+                "desktop_fallback":{"type":"boolean","description":"Explicitly allow headed desktop/window capture only if browser-native capture fails."}
             },
+            "additionalProperties":false
+        }),
+        "record-browser" => json!({
+            "type":"object",
+            "properties":{
+                "action":{"type":"string","enum":["start","stop"]},
+                "mode":{"type":"string","enum":["continuous","steps"],"description":"Recording mode for start. continuous streams frames; steps captures browser state after relevant actions."},
+                "interval_ms":{"type":"integer","minimum":100,"description":"Frame interval for continuous mode; defaults to 500 ms."},
+                "hold_ms":{"type":"integer","minimum":100,"description":"How long each captured action frame is shown in steps mode; defaults to 1000 ms."}
+            },
+            "required":["action"],
             "additionalProperties":false
         }),
         "inspect-network" => json!({
@@ -271,7 +284,12 @@ fn system_input_schema(name: &str) -> Option<Value> {
         }),
         "hitl" => json!({
             "type":"object",
-            "properties":{"message":{"type":"string"}},
+            "properties":{
+                "message":{"type":"string"},
+                "screenshot_target":{"type":"string","description":"Optional browser element to attach instead of the viewport."},
+                "no_screenshot":{"type":"boolean"},
+                "desktop_fallback":{"type":"boolean","description":"Explicitly allow desktop/window capture if browser-native screenshot fails."}
+            },
             "required":["message"],
             "additionalProperties":false
         }),
@@ -343,8 +361,20 @@ async fn call_tool(params: &Value) -> Result<Value, (i64, String)> {
         Err(error) => (failure_envelope(&name, &error), true),
     };
     let text = serde_json::to_string_pretty(&envelope).unwrap_or_else(|_| envelope.to_string());
+    let mut content = vec![json!({"type":"text","text":text})];
+    if !is_error
+        && name == "screenshot"
+        && let Some(path) = envelope["data"]["path"].as_str()
+        && let Ok(bytes) = fs::read(path)
+    {
+        content.push(json!({
+            "type": "image",
+            "data": STANDARD.encode(bytes),
+            "mimeType": "image/png"
+        }));
+    }
     Ok(json!({
-        "content":[{"type":"text","text":text}],
+        "content":content,
         "structuredContent":envelope,
         "isError":is_error
     }))
@@ -417,7 +447,7 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<String, ToolFailure> {
             match name {
                 "open-browser" | "close-browser" | "browser-task" => ErrorKind::BrowserUnavailable,
                 "profile-import" => ErrorKind::InteractionFailed,
-                "screenshot" | "verify-artifact" => ErrorKind::ArtifactFailed,
+                "screenshot" | "record-browser" | "verify-artifact" => ErrorKind::ArtifactFailed,
                 "downloads" | "wait-download" => ErrorKind::DownloadFailed,
                 "hitl" => ErrorKind::DeliveryFailed,
                 _ => ErrorKind::Internal,
@@ -507,7 +537,26 @@ fn system_cli_args(name: &str, object: &Map<String, Value>) -> Result<Vec<String
             if let Some(output) = string("output")? {
                 args.extend(["--output".into(), output]);
             }
+            if bool_value("desktop_fallback")? {
+                args.push("--desktop-fallback".into());
+            }
             args.push("--json".into());
+            Ok(args)
+        }
+        "record-browser" => {
+            let action = string("action")?.ok_or("record-browser requires action")?;
+            let mut args = vec![action.clone()];
+            if action == "start" {
+                if let Some(mode) = string("mode")? {
+                    args.extend(["--mode".into(), mode]);
+                }
+                if let Some(interval_ms) = integer("interval_ms")? {
+                    args.extend(["--interval-ms".into(), interval_ms.max(100).to_string()]);
+                }
+                if let Some(hold_ms) = integer("hold_ms")? {
+                    args.extend(["--hold-ms".into(), hold_ms.max(100).to_string()]);
+                }
+            }
             Ok(args)
         }
         "verify-artifact" => {
@@ -561,7 +610,19 @@ fn system_cli_args(name: &str, object: &Map<String, Value>) -> Result<Vec<String
             }
             Ok(args)
         }
-        "hitl" => Ok(vec![string("message")?.ok_or("hitl requires message")?]),
+        "hitl" => {
+            let mut args = vec![string("message")?.ok_or("hitl requires message")?];
+            if let Some(target) = string("screenshot_target")? {
+                args.extend(["--screenshot-target".into(), target]);
+            }
+            if bool_value("no_screenshot")? {
+                args.push("--no-screenshot".into());
+            }
+            if bool_value("desktop_fallback")? {
+                args.push("--desktop-fallback".into());
+            }
+            Ok(args)
+        }
         _ => Err(format!("tool is not MCP-exposed: {name}")),
     }
 }

@@ -18,6 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let json_output = args.iter().any(|x| x == "--json");
+    let desktop_fallback_enabled = args.iter().any(|x| x == "--desktop-fallback");
     let output_flag = args
         .iter()
         .position(|x| x == "--output")
@@ -64,11 +65,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         thread::sleep(Duration::from_millis(50));
     }
 
-    if fs::read_to_string(BROWSER_MODE).ok().as_deref() == Some("headed") && desktop_fallback(&out)?
+    if desktop_fallback_enabled
+        && fs::read_to_string(BROWSER_MODE).ok().as_deref() == Some("headed")
+        && desktop_fallback(&out)?
     {
         return finish(&out, None, json_output);
     }
-    Err("Chromium viewport screenshot failed".into())
+    Err("Chromium viewport screenshot failed; desktop capture is disabled unless --desktop-fallback is requested".into())
 }
 
 fn ensure_parent(out: &str) -> Result<(), Box<dyn std::error::Error>> {

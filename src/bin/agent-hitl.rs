@@ -4,16 +4,24 @@ use std::{env, process::Command};
 
 const SCREENSHOT_NAME: &str = "latest.png";
 
-fn screenshot() -> Option<String> {
+fn screenshot(target: Option<&str>, desktop_fallback: bool) -> Option<String> {
     let screenshot_bin = env::current_exe().ok()?.parent()?.join("agent-screenshot");
     let path = format!("{SCREENSHOT_DIR}/{SCREENSHOT_NAME}");
-    let status = Command::new(screenshot_bin)
-        .args(["--output", &path])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .ok()?;
-    status.success().then_some(path)
+    let mut command = Command::new(screenshot_bin);
+    if let Some(target) = target {
+        command.arg(target);
+    }
+    command.args(["--output", &path]);
+    if desktop_fallback {
+        command.arg("--desktop-fallback");
+    }
+    let output = command.output().ok()?;
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        eprintln!("HITL browser screenshot failed: {}", error.trim());
+        return None;
+    }
+    Some(path)
 }
 
 fn send_telegram(message: &str, photo: Option<&str>) -> Result<Value, Box<dyn std::error::Error>> {
@@ -83,12 +91,40 @@ fn telegram_result(bytes: &[u8], photo: bool) -> Result<Value, Box<dyn std::erro
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().skip(1).collect();
-    let message = args.join(" ");
+    let mut message_parts = Vec::new();
+    let mut screenshot_target = None;
+    let mut no_screenshot = false;
+    let mut desktop_fallback = false;
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--screenshot-target" => {
+                i += 1;
+                screenshot_target = Some(
+                    args.get(i)
+                        .ok_or("--screenshot-target requires a target")?
+                        .clone(),
+                );
+            }
+            "--no-screenshot" => no_screenshot = true,
+            "--desktop-fallback" => desktop_fallback = true,
+            value => message_parts.push(value.to_owned()),
+        }
+        i += 1;
+    }
+    let message = message_parts.join(" ");
     if message.is_empty() {
-        return Err("usage: hitl <message>".into());
+        return Err(
+            "usage: hitl <message> [--screenshot-target target] [--no-screenshot] [--desktop-fallback]"
+                .into(),
+        );
     }
 
-    let photo = screenshot();
+    let photo = if no_screenshot {
+        None
+    } else {
+        screenshot(screenshot_target.as_deref(), desktop_fallback)
+    };
     let result = send_telegram(&message, photo.as_deref())?;
     println!("{}", serde_json::to_string(&result)?);
     Ok(())

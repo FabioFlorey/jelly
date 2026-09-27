@@ -1,7 +1,7 @@
 use jelly::{
     ACTIVE_TARGET, BROWSER_MODE, BROWSER_PID, BROWSER_READY, BROWSER_STOP, DOWNLOAD_DIR, ENDPOINT,
-    HEADLESS_PROFILE_DIR, INJECTION_DIR, NETWORK_DIR, PAGE_TARGET, PROFILE_DIR, ROUTINE_STATE_DIR,
-    SCREENSHOT_DIR, STATE_DIR,
+    HEADLESS_PROFILE_DIR, INJECTION_DIR, NETWORK_DIR, PAGE_TARGET, PROFILE_DIR, RECORDING_DIR,
+    ROUTINE_STATE_DIR, SCREENSHOT_DIR, STATE_DIR,
 };
 use rustwright::{GotoOptions, LaunchOptions, chromium};
 use serde_json::{Value, json};
@@ -23,6 +23,7 @@ fn main() -> rustwright::Result<()> {
         NETWORK_DIR,
         ROUTINE_STATE_DIR,
         SCREENSHOT_DIR,
+        RECORDING_DIR,
         DOWNLOAD_DIR,
     ] {
         let _ = fs::create_dir_all(dir);

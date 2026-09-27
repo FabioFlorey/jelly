@@ -1,5 +1,6 @@
 use crate::{
-    ARTIFACT_META_DIR, DOWNLOAD_DIR, Error, ErrorKind, SCREENSHOT_DIR, jelly_error, new_id,
+    ARTIFACT_META_DIR, DOWNLOAD_DIR, Error, ErrorKind, RECORDING_DIR, SCREENSHOT_DIR, jelly_error,
+    new_id,
 };
 use serde_json::{Value, json};
 use std::{
@@ -189,6 +190,73 @@ fn resolve_artifact(value: &str) -> Result<(PathBuf, Option<PathBuf>, Value), Er
             "verification": {}
         }),
     ))
+}
+
+pub fn register_recording(
+    video_path: impl AsRef<Path>,
+    manifest_path: impl AsRef<Path>,
+    source_url: Option<&str>,
+    source_title: Option<&str>,
+    target_id: Option<&str>,
+    frame_count: u64,
+) -> Result<Value, Error> {
+    let source_video = absolute(video_path.as_ref());
+    let source_manifest = absolute(manifest_path.as_ref());
+    private_file(&source_video)?;
+    private_file(&source_manifest)?;
+    let video_metadata = fs::metadata(&source_video)?;
+    let manifest_metadata = fs::metadata(&source_manifest)?;
+    if video_metadata.len() == 0 || manifest_metadata.len() == 0 || frame_count == 0 {
+        return Err(jelly_error(
+            ErrorKind::ArtifactFailed,
+            "browser recording is incomplete",
+            false,
+        ));
+    }
+    let id = new_id("artifact");
+    let archive_dir = Path::new(RECORDING_DIR).join("registered");
+    fs::create_dir_all(&archive_dir)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&archive_dir, fs::Permissions::from_mode(0o700))?;
+    }
+    let archived_video = archive_dir.join(format!("{id}.mp4"));
+    let archived_manifest = archive_dir.join(format!("{id}.json"));
+    fs::copy(&source_video, &archived_video)?;
+    fs::copy(&source_manifest, &archived_manifest)?;
+    private_file(&archived_video)?;
+    private_file(&archived_manifest)?;
+    let path = absolute(&archived_video);
+    let manifest_path = absolute(&archived_manifest);
+    let created_at = OffsetDateTime::now_utc().format(&Rfc3339)?;
+    let trace_id = env::var("JELLY_TRACE_ID").ok();
+    let value = json!({
+        "artifact_id": id,
+        "kind": "browser_recording",
+        "path": path,
+        "manifest_path": manifest_path,
+        "created_at": created_at,
+        "source": {
+            "url": safe_source_url(source_url),
+            "title": source_title,
+            "target_id": target_id
+        },
+        "properties": {
+            "mime": "video/mp4",
+            "bytes": video_metadata.len(),
+            "manifest_bytes": manifest_metadata.len(),
+            "frame_count": frame_count
+        },
+        "verification": {
+            "integrity_verified": true,
+            "semantic_verified": false,
+            "checks": ["file_exists", "nonzero_bytes", "manifest_exists", "frame_count"]
+        },
+        "trace_id": trace_id
+    });
+    write_metadata(value["artifact_id"].as_str().unwrap(), &value)?;
+    Ok(value)
 }
 
 pub fn register_download(

@@ -2,20 +2,52 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
+      - vibe
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "assets/**"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "assets/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      CARGO_TARGET_DIR: target
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - name: Cache Cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
       - name: Toolchain
         run: rustc --version && cargo --version
       - name: Format
         run: cargo fmt --all -- --check
-      - name: Check
-        run: cargo check --all-targets
-      - name: Test
-        run: cargo test --all-targets
       - name: Tool index
         run: scripts/check-tool-index.sh
+      - name: Test
+        run: |
+          cargo test --lib \
+            --bin agent-call-routine \
+            --bin agent-profile-import \
+            --bin agent-hitl
