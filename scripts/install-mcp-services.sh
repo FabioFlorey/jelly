@@ -181,18 +181,19 @@ if [[ "$consent_mode" == "paired" ]]; then
     printf '  Pairing page    %s/pair\n' "$local_url"
   fi
   printf '  Pairing secret  JELLY_BOOTSTRAP_SECRET in %s\n' "$ENV_FILE"
-  printf '  Waiting for pairing'
   paired=false
-  for _ in $(seq 1 600); do
+  spinner='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+  for i in $(seq 1 600); do
     if curl -fsS -H "Authorization: Bearer $bootstrap_secret" "$local_url/pair/status" 2>/dev/null \
       | grep -q '"paired":true'; then
       paired=true
       break
     fi
-    printf '.'
+    frame="${spinner:$(((i - 1) % ${#spinner})):1}"
+    printf '\r  %b%s%b  Waiting for owner pairing' "$C_HONEY$C_BOLD" "$frame" "$C_RESET"
     sleep 0.5
   done
-  printf '\n'
+  printf '\r\033[K'
   if [[ "$paired" != "true" ]]; then
     printf '%b✕%b  Pairing timed out; Jelly is still running. Open the pairing page and rerun the status command.\n' \
       "$C_RED$C_BOLD" "$C_RESET" >&2
