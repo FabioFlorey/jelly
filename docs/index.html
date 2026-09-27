@@ -1,0 +1,970 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#ffc107">
+  <meta name="description" content="Jelly is browser instrumentation for agents: inspect live pages, control Chromium, verify outcomes, recover from failures, and preserve evidence.">
+  <meta name="robots" content="index,follow">
+  <meta name="application-name" content="Jelly">
+  <title>Jelly Jelly 🥞 Browser instrumentation for agents</title>
+
+  <link rel="canonical" href="https://fabioflorey.github.io/jelly/">
+  <link rel="icon" type="image/png" href="./assets/favicon.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Jelly">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:title" content="Jelly Jelly 🥞 Browser instrumentation for agents">
+  <meta property="og:description" content="Inspect live pages, control Chromium, verify outcomes, recover from failures, and preserve evidence for browser-using agents.">
+  <meta property="og:url" content="https://fabioflorey.github.io/jelly/">
+  <meta property="og:image" content="https://fabioflorey.github.io/jelly/assets/full-logo.png">
+  <meta property="og:image:width" content="2172">
+  <meta property="og:image:height" content="724">
+  <meta property="og:image:alt" content="Jelly, browser instrumentation for agents">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Jelly Jelly 🥞 Browser instrumentation for agents">
+  <meta name="twitter:description" content="Inspect live pages, control Chromium, verify outcomes, recover from failures, and preserve evidence for browser-using agents.">
+  <meta name="twitter:image" content="https://fabioflorey.github.io/jelly/assets/full-logo.png">
+  <meta name="twitter:image:alt" content="Jelly, browser instrumentation for agents">
+  <style>
+    :root {
+      --bg: #0d0d0b;
+      --panel: #151511;
+      --panel-2: #1a1914;
+      --fg: #f4f1e8;
+      --muted: #aaa492;
+      --line: #343126;
+      --honey: #ffc107;
+      --honey-soft: #e6ad00;
+      --shadow: rgba(0,0,0,.36);
+      --max: 1120px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      background: var(--bg);
+      color-scheme: dark;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 50% -10%, rgba(255,193,7,.13), transparent 34rem),
+        var(--bg);
+      color: var(--fg);
+      font: 15px/1.65 ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .028;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      z-index: 20;
+    }
+
+    a { color: inherit; }
+
+    .shell {
+      width: min(var(--max), calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      background: rgba(13,13,11,.82);
+      backdrop-filter: blur(16px);
+    }
+
+    nav {
+      height: 66px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .wordmark {
+      display: inline-flex;
+      align-items: center;
+      text-decoration: none;
+    }
+
+    .wordmark img {
+      display: block;
+      width: 40px;
+      height: auto;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      color: var(--muted);
+      font-size: .86rem;
+    }
+
+    .nav-links a {
+      text-decoration: none;
+      transition: color .16s ease;
+    }
+
+    .nav-links a:hover { color: var(--fg); }
+
+    .hero {
+      position: relative;
+      min-height: 680px;
+      display: grid;
+      align-items: center;
+      padding: 92px 0 74px;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .hero-liquid {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -2;
+      opacity: .72;
+      pointer-events: none;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, rgba(13,13,11,.12), rgba(13,13,11,.20) 52%, rgba(13,13,11,.36)),
+        linear-gradient(180deg, rgba(13,13,11,.10), rgba(13,13,11,.22));
+    }
+
+    .hero-inner {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(360px, .95fr);
+      align-items: center;
+      gap: 68px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+      color: var(--honey);
+      font-size: .8rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 30px;
+      height: 1px;
+      background: var(--honey);
+    }
+
+    h1 {
+      max-width: 780px;
+      margin: 0;
+      font-size: clamp(2.9rem, 7vw, 6.5rem);
+      line-height: .94;
+      letter-spacing: -.065em;
+      font-weight: 800;
+    }
+
+    h1 em {
+      color: var(--honey);
+      font-style: normal;
+    }
+
+    .lede {
+      max-width: 670px;
+      margin: 28px 0 0;
+      color: var(--muted);
+      font-size: clamp(1rem, 1.7vw, 1.18rem);
+    }
+
+    .cta-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 32px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 17px;
+      border: 1px solid var(--line);
+      text-decoration: none;
+      font-size: .86rem;
+      font-weight: 700;
+      transition: transform .15s ease, background .15s ease, border-color .15s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      border-color: #6a6248;
+    }
+
+    .btn-primary {
+      background: var(--honey);
+      border-color: var(--honey);
+      color: #171300;
+    }
+
+    .btn-primary:hover {
+      background: #ffd13d;
+      border-color: #ffd13d;
+    }
+
+    .hero-mark {
+      position: relative;
+      min-height: 390px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+    }
+
+    .hero-mark img {
+      width: min(100%, 470px);
+      height: auto;
+      display: block;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-user-drag: none;
+      pointer-events: none;
+    }
+
+
+    section {
+      padding: 90px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: 180px minmax(0, 1fr);
+      gap: 36px;
+      margin-bottom: 40px;
+    }
+
+    .section-kicker {
+      color: var(--honey);
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      padding-top: 8px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3.6rem);
+      line-height: 1.02;
+      letter-spacing: -.045em;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-top: 1px solid var(--line);
+      border-left: 1px solid var(--line);
+    }
+
+    .card {
+      min-height: 200px;
+      padding: 26px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.012);
+    }
+
+    .card .index {
+      color: var(--honey);
+      font-size: .76rem;
+      margin-bottom: 32px;
+    }
+
+    .section-copy {
+      max-width: 760px;
+      margin: -12px 0 38px 216px;
+      color: var(--muted);
+      font-size: .98rem;
+    }
+
+    .card h3 {
+      margin: 0 0 10px;
+      font-size: 1.03rem;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: .9rem;
+    }
+
+    .quickstart-stage {
+      position: relative;
+      --chan-peek: clamp(76px, 9vw, 110px);
+    }
+
+    .quickstart-chan {
+      position: absolute;
+      left: -80px;
+      bottom: 0;
+      z-index: 0;
+      height: 108%;
+      width: auto;
+      max-width: 42%;
+      object-fit: contain;
+      object-position: left bottom;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    .terminal {
+      position: relative;
+      z-index: 1;
+      margin-left: var(--chan-peek, 0);
+      border: 1px solid var(--line);
+      background: #080807;
+      box-shadow: 0 24px 70px var(--shadow);
+      overflow: hidden;
+    }
+
+    .terminal-bar {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--line);
+      color: #756f60;
+      font-size: .76rem;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #49463e;
+    }
+
+    pre {
+      margin: 0;
+      padding: 26px;
+      overflow-x: auto;
+      color: #ded9ca;
+      font: 13px/1.8 ui-monospace, "SFMono-Regular", Consolas, monospace;
+    }
+
+    pre .prompt { color: var(--honey); }
+    pre .dim { color: #716d62; }
+
+    .principle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+    }
+
+    .principle > div {
+      background: var(--panel);
+      padding: 34px;
+    }
+
+    .principle strong {
+      display: block;
+      color: var(--honey);
+      margin-bottom: 10px;
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .principle p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 34px 0 46px;
+      color: var(--muted);
+      font-size: .8rem;
+    }
+
+    footer .shell {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    footer a {
+      text-decoration: none;
+      color: var(--fg);
+    }
+
+    ::selection {
+      background: var(--honey);
+      color: #171300;
+    }
+
+    @media (max-width: 860px) {
+      .hero-inner { grid-template-columns: 1fr; }
+      .hero { min-height: auto; }
+      .hero-mark { min-height: 300px; }
+      .grid { grid-template-columns: 1fr; }
+      .section-head { grid-template-columns: 1fr; gap: 10px; }
+      .section-copy { margin-left: 0; }
+      .principle { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 620px) {
+      .shell { width: min(100% - 24px, var(--max)); }
+      .nav-links a:not(:last-child) { display: none; }
+      .hero { padding-top: 64px; }
+      .hero-mark { padding: 28px; }
+      .quickstart-stage { --chan-peek: 58px; }
+      .quickstart-chan { height: 94%; max-width: 48%; }
+      section { padding: 66px 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <nav class="shell" aria-label="Primary">
+      <a class="wordmark" href="#top" aria-label="Jelly home"><img src="./assets/logo.png" alt="Jelly"></a>
+      <div class="nav-links">
+        <a href="#who">Who it is for</a>
+        <a href="#use-cases">Use cases</a>
+        <a href="#quickstart">Quickstart</a>
+        <a href="./README.md">Docs</a>
+        <a href="https://github.com/FabioFlorey/jelly">GitHub ↗</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="top">
+    <div class="hero" id="hero">
+      <canvas class="hero-liquid" id="heroLiquid" aria-hidden="true"></canvas>
+      <div class="shell hero-inner">
+        <div class="hero-mark" aria-label="Jelly logo">
+          <img src="./assets/full-logo.png" alt="Jelly" draggable="false">
+        </div>
+        <div>
+          <div class="eyebrow">Browser instrumentation for agents</div>
+          <h1>Give agents a <em>real browser.</em></h1>
+          <p class="lede">Jelly turns Chromium into a compact, inspectable tool surface for agents: observe pages, act on stable targets, verify outcomes, and preserve evidence.</p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="#quickstart">Run quickstart</a>
+            <a class="btn" href="./ARCHITECTURE.md">Read architecture</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section id="who">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-kicker">Who it is for</div>
+          <h2>Teams that work through websites.</h2>
+        </div>
+        <p class="section-copy">Jelly is for teams whose product or internal automation has to use third-party web apps as part of the job. Log in, move through multi-step flows, upload or download files, change records, and keep going when the page changes.</p>
+        <div class="grid">
+          <article class="card">
+            <div class="index">AGENT PRODUCTS</div>
+            <h3>Building agents that do work for users</h3>
+            <p>Your agent needs to use customer portals, admin panels, CRMs, booking systems, vendor sites, or other browser-only software on a user's behalf.</p>
+          </article>
+          <article class="card">
+            <div class="index">OPERATIONS AUTOMATION</div>
+            <h3>Automating work that still lives in web apps</h3>
+            <p>Finance, support, onboarding, procurement, and back-office workflows often span tools with weak APIs or no useful API at all.</p>
+          </article>
+          <article class="card">
+            <div class="index">AI PLATFORM TEAMS</div>
+            <h3>Giving several agents one browser layer</h3>
+            <p>You want shared browser behavior for inspection, actions, verification, files, failures, and human handoff instead of rebuilding it in every agent.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="use-cases">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-kicker">Real use cases</div>
+          <h2>What people use it for.</h2>
+        </div>
+        <div class="grid">
+          <article class="card">
+            <div class="index">FINANCE / OPS</div>
+            <h3>Download reports and invoices</h3>
+            <p>Open a vendor portal, apply filters, export a report, wait for the download, verify the file, and hand it to the next step.</p>
+          </article>
+          <article class="card">
+            <div class="index">SUPPORT / ADMIN</div>
+            <h3>Update customer accounts</h3>
+            <p>Find an account in an internal admin tool, change a status or setting, and verify that the new state is visible before continuing.</p>
+          </article>
+          <article class="card">
+            <div class="index">ONBOARDING</div>
+            <h3>Complete multi-site setup</h3>
+            <p>Create or update records across SaaS and partner portals, upload required files, and check each step before moving on.</p>
+          </article>
+          <article class="card">
+            <div class="index">RESEARCH</div>
+            <h3>Collect data from dynamic sites</h3>
+            <p>Navigate JavaScript-heavy pages, read structured content, follow links, and save screenshots or downloads when evidence matters.</p>
+          </article>
+          <article class="card">
+            <div class="index">QA / PRODUCT OPS</div>
+            <h3>Run end-to-end browser checks</h3>
+            <p>Have an agent execute a user flow, assert the expected page state, and keep screenshots or files from the run for review.</p>
+          </article>
+          <article class="card">
+            <div class="index">HUMAN IN THE LOOP</div>
+            <h3>Pause when a person is required</h3>
+            <p>Run until authentication, approval, or a human decision is needed, hand off, then inspect the resulting state and continue.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="capabilities">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-kicker">What Jelly handles</div>
+          <h2>Work around the click.</h2>
+        </div>
+        <p class="section-copy">The useful part is not another click command. It is keeping enough state and structure around the browser action for an agent to continue without guessing.</p>
+        <div class="grid">
+          <article class="card">
+            <div class="index">INSPECT</div>
+            <h3>See what is actually on the page</h3>
+            <p>Read content, discover interactive elements, inspect forms, links, images, tabs, accessibility state, and network activity.</p>
+          </article>
+          <article class="card">
+            <div class="index">VERIFY</div>
+            <h3>Check what changed</h3>
+            <p>Wait for or assert URLs, text, visibility, image readiness, downloads, and other conditions the next step depends on.</p>
+          </article>
+          <article class="card">
+            <div class="index">FILES</div>
+            <h3>Know which file came from the run</h3>
+            <p>Register screenshots and downloads with paths, metadata, integrity checks, and verification context.</p>
+          </article>
+          <article class="card">
+            <div class="index">FAILURES</div>
+            <h3>Recover without parsing error prose</h3>
+            <p>Use typed failures to decide when to inspect again, route elsewhere, stop, or ask a human for help.</p>
+          </article>
+          <article class="card">
+            <div class="index">ROUTINES</div>
+            <h3>Reuse flows that need structure</h3>
+            <p>Move repeated sequences into guarded routines when they need branching, loops, recovery, HITL, or explicit cleanup.</p>
+          </article>
+          <article class="card">
+            <div class="index">CLI / MCP</div>
+            <h3>Call it from the system you already have</h3>
+            <p>Use Jelly directly from the CLI or expose the same browser surface through MCP to remote agents and tools.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="fit">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-kicker">Where it fits</div>
+          <h2>Know when not to use it.</h2>
+        </div>
+        <div class="grid">
+          <article class="card">
+            <div class="index">DETERMINISTIC SCRIPT</div>
+            <h3>Use Playwright or Selenium</h3>
+            <p>If you control the flow and a normal browser script is enough, use the simpler tool. Jelly is not trying to replace that.</p>
+          </article>
+          <article class="card">
+            <div class="index">RAW BROWSER CONTROL</div>
+            <h3>Use a smaller browser tool server</h3>
+            <p>If the model only needs basic browser controls, a smaller tool surface may be the better fit.</p>
+          </article>
+          <article class="card">
+            <div class="index">AGENT WORKFLOW</div>
+            <h3>Use Jelly when the run has to hold together</h3>
+            <p>Jelly is useful when the agent needs current state, checks, files, recovery, routines, or human handoff across several browser steps.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="model">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-kicker">How it stays inspectable</div>
+          <h2>How runs stay understandable.</h2>
+        </div>
+        <div class="principle">
+          <div>
+            <strong>Actions report what happened</strong>
+            <p>A successful tool call means Jelly performed the browser action. It does not automatically mean the application reached the intended state.</p>
+          </div>
+          <div>
+            <strong>Checks establish what must be true</strong>
+            <p>When later work depends on a fact, wait for it or assert it explicitly instead of carrying an assumption forward.</p>
+          </div>
+          <div>
+            <strong>Artifacts keep evidence attached</strong>
+            <p>Screenshots and downloads can be registered with the run instead of becoming anonymous files on disk.</p>
+          </div>
+          <div>
+            <strong>Policy stays with your agent</strong>
+            <p>Jelly exposes browser state, failures, and workflow controls. Your agent or routine still decides what to do with them.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="questions">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-kicker">Before adopting it</div>
+          <h2>Start with one task.</h2>
+        </div>
+        <div class="principle">
+          <div>
+            <strong>Do I need routines immediately?</strong>
+            <p>No. Call individual tools directly. Move a sequence into a routine when branching, recovery, HITL, or reuse makes that worthwhile.</p>
+          </div>
+          <div>
+            <strong>Does Jelly replace my agent framework?</strong>
+            <p>No. Jelly does not choose goals or plan the task. It handles browser instrumentation and execution.</p>
+          </div>
+          <div>
+            <strong>What happens when automation cannot continue?</strong>
+            <p>Use HITL for the human step, then re-inspect the browser and continue from the resulting state.</p>
+          </div>
+          <div>
+            <strong>How much do I need to learn?</strong>
+            <p>Start with the tool schemas and direct calls. The deeper reliability and routine model is there when the workflow actually needs it.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="quickstart">
+      <div class="shell">
+        <div class="section-head">
+          <div class="section-kicker">Quickstart</div>
+          <h2>Try Jelly.</h2>
+        </div>
+        <p class="section-copy">The fastest way to evaluate Jelly is to run it, inspect a page, perform one action, and verify the result.</p>
+        <div class="quickstart-stage">
+          <img class="quickstart-chan" src="./assets/jelly-chan.png?v=d0450dff" alt="" aria-hidden="true" draggable="false">
+          <div class="terminal" aria-label="Quickstart terminal example">
+            <div class="terminal-bar">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span>jelly / quickstart</span>
+            </div>
+            <pre><span class="prompt">$</span> git clone https://github.com/FabioFlorey/jelly.git
+<span class="prompt">$</span> cd jelly
+<span class="prompt">$</span> ./quickstart.sh
+
+<span class="dim"># inspect the setup without changing anything</span>
+<span class="prompt">$</span> ./quickstart.sh --dry-run</pre>
+          </div>
+        </div>
+        <div class="cta-row" style="margin-top:28px">
+          <a class="btn btn-primary" href="./DISCOVERY.md">Browse the tools</a>
+          <a class="btn" href="./RELIABILITY.md">Reliability</a>
+          <a class="btn" href="./MCP.md">MCP</a>
+          <a class="btn" href="./ROUTINES.md">Routines</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell">
+      <span>Jelly · Browser instrumentation for agents</span>
+      <span><a href="https://github.com/FabioFlorey/jelly">GitHub</a> · <a href="https://fabioflorey.com/en/">Blog</a> · <a href="https://www.linkedin.com/in/florey/">LinkedIn</a> · <a href="./README.md">Docs</a></span>
+    </div>
+  </footer>
+
+    <script>
+    (() => {
+      const hero = document.getElementById("hero");
+      const canvas = document.getElementById("heroLiquid");
+      if (!hero || !canvas) return;
+
+      const gl = canvas.getContext("webgl", {
+        alpha: false,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        powerPreference: "high-performance"
+      });
+      if (!gl) return;
+
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      let raf = 0;
+      let active = true;
+      let lastFrame = 0;
+
+      const vertexSource = `
+        attribute vec2 aPosition;
+        varying vec2 vUv;
+
+        void main() {
+          vUv = aPosition * .5 + .5;
+          gl_Position = vec4(aPosition, 0.0, 1.0);
+        }
+      `;
+
+      const fragmentSource = `
+        precision mediump float;
+
+        uniform vec2 uResolution;
+        uniform float uTime;
+        varying vec2 vUv;
+
+        float hash21(vec2 p) {
+          p = fract(p * vec2(123.34, 456.21));
+          p += dot(p, p + 45.32);
+          return fract(p.x * p.y);
+        }
+
+        float valueNoise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+
+          float a = hash21(i);
+          float b = hash21(i + vec2(1.0, 0.0));
+          float c = hash21(i + vec2(0.0, 1.0));
+          float d = hash21(i + vec2(1.0, 1.0));
+
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
+
+        float fbm(vec2 p) {
+          float sum = 0.0;
+          float amp = .5;
+          for (int i = 0; i < 3; i++) {
+            sum += valueNoise(p) * amp;
+            p = mat2(1.62, 1.18, -1.18, 1.62) * p + 7.13;
+            amp *= .5;
+          }
+          return sum;
+        }
+
+        float blob(vec2 uv, vec2 center, float radius) {
+          float d = length(uv - center);
+          return 1.0 - smoothstep(radius * .12, radius, d);
+        }
+
+        void main() {
+          vec2 uv = vUv;
+          float aspect = uResolution.x / max(uResolution.y, 1.0);
+          vec2 p = vec2((uv.x - .5) * aspect, uv.y - .5);
+
+          float t = uTime;
+
+          vec2 q = vec2(
+            fbm(p * 2.15 + vec2(t * .055, -t * .037)),
+            fbm(p * 2.15 + vec2(-t * .043, t * .061) + 17.0)
+          );
+
+          vec2 r = vec2(
+            fbm(p * 2.8 + q * 1.75 + vec2(t * .029, t * .041)),
+            fbm(p * 2.8 + q * 1.75 + vec2(-t * .035, t * .027) + 31.0)
+          );
+
+          vec2 warped = p + (q - .5) * .23 + (r - .5) * .13;
+          warped += vec2(sin(t * .18), cos(t * .14)) * .025;
+
+          vec2 c1 = vec2(-.50 + sin(t * .31) * .26,  .10 + cos(t * .24) * .25);
+          vec2 c2 = vec2( .05 + cos(t * .27) * .34, -.18 + sin(t * .33) * .23);
+          vec2 c3 = vec2( .52 + sin(t * .23) * .26,  .20 + cos(t * .29) * .27);
+          vec2 c4 = vec2(-.10 + cos(t * .20) * .42,  .46 + sin(t * .26) * .21);
+          vec2 c5 = vec2( .38 + cos(t * .36) * .28, -.42 + sin(t * .23) * .18);
+
+          float b1 = blob(warped, c1, .76);
+          float b2 = blob(warped, c2, .68);
+          float b3 = blob(warped, c3, .82);
+          float b4 = blob(warped, c4, .72);
+          float b5 = blob(warped, c5, .66);
+
+          vec3 base = vec3(.035, .031, .018);
+          vec3 honey = vec3(1.0, .757, .027);
+          vec3 amber = vec3(1.0, .40, .015);
+          vec3 gold = vec3(1.0, .88, .34);
+          vec3 bronze = vec3(.48, .27, .015);
+
+          vec3 color = base;
+          color += honey * b1 * .96;
+          color += amber * b2 * .70;
+          color += gold * b3 * .56;
+          color += bronze * b4 * .78;
+          color += honey * b5 * .52;
+
+          float folds = fbm(warped * 5.0 + r * 2.0 - t * .06);
+          color *= .76 + folds * .50;
+
+          float sheen = pow(smoothstep(.48, .82, folds), 5.0);
+          color += vec3(1.0, .73, .12) * sheen * .09;
+
+          float grain = hash21(gl_FragCoord.xy + floor(t * 24.0) * vec2(17.0, 29.0)) - .5;
+          color += grain * .038;
+
+          vec2 edge = vUv * (1.0 - vUv);
+          float vignette = pow(clamp(edge.x * edge.y * 18.0, 0.0, 1.0), .22);
+          color *= mix(.52, 1.0, vignette);
+
+          color = pow(max(color, 0.0), vec3(.92));
+          gl_FragColor = vec4(color, 1.0);
+        }
+      `;
+
+      function shader(type, source) {
+        const value = gl.createShader(type);
+        gl.shaderSource(value, source);
+        gl.compileShader(value);
+        if (!gl.getShaderParameter(value, gl.COMPILE_STATUS)) {
+          console.error(gl.getShaderInfoLog(value));
+          gl.deleteShader(value);
+          return null;
+        }
+        return value;
+      }
+
+      const vertex = shader(gl.VERTEX_SHADER, vertexSource);
+      const fragment = shader(gl.FRAGMENT_SHADER, fragmentSource);
+      if (!vertex || !fragment) return;
+
+      const program = gl.createProgram();
+      gl.attachShader(program, vertex);
+      gl.attachShader(program, fragment);
+      gl.linkProgram(program);
+      gl.deleteShader(vertex);
+      gl.deleteShader(fragment);
+
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.error(gl.getProgramInfoLog(program));
+        gl.deleteProgram(program);
+        return;
+      }
+
+      gl.useProgram(program);
+
+      const buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+        gl.STATIC_DRAW
+      );
+
+      const position = gl.getAttribLocation(program, "aPosition");
+      gl.enableVertexAttribArray(position);
+      gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+      const resolution = gl.getUniformLocation(program, "uResolution");
+      const timeUniform = gl.getUniformLocation(program, "uTime");
+
+      function resize() {
+        const rect = hero.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 1);
+        const width = Math.max(1, Math.round(rect.width * dpr));
+        const height = Math.max(1, Math.round(rect.height * dpr));
+
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+          canvas.style.width = rect.width + "px";
+          canvas.style.height = rect.height + "px";
+          gl.viewport(0, 0, width, height);
+        }
+      }
+
+      function draw(ms) {
+        if (!active && !reducedMotion) return;
+
+        if (!reducedMotion && ms - lastFrame < 33) {
+          raf = requestAnimationFrame(draw);
+          return;
+        }
+        lastFrame = ms;
+
+        gl.uniform2f(resolution, canvas.width, canvas.height);
+        gl.uniform1f(timeUniform, reducedMotion ? 0.0 : ms * .001);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+        if (!reducedMotion) raf = requestAnimationFrame(draw);
+      }
+
+      const observer = new ResizeObserver(() => {
+        resize();
+        if (reducedMotion) draw(0);
+      });
+      observer.observe(hero);
+
+      const visibility = new IntersectionObserver(entries => {
+        active = entries[0]?.isIntersecting ?? true;
+        if (active && !reducedMotion) {
+          cancelAnimationFrame(raf);
+          lastFrame = 0;
+          raf = requestAnimationFrame(draw);
+        } else if (!active) {
+          cancelAnimationFrame(raf);
+        }
+      }, { threshold: 0.01 });
+      visibility.observe(hero);
+
+      resize();
+      if (reducedMotion) {
+        draw(0);
+      } else {
+        raf = requestAnimationFrame(draw);
+      }
+
+      window.addEventListener("pagehide", () => {
+        cancelAnimationFrame(raf);
+        observer.disconnect();
+        visibility.disconnect();
+      }, { once: true });
+    })();
+  </script>
+
+
+</body>
+</html>

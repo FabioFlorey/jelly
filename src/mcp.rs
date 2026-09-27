@@ -16,6 +16,7 @@ use std::{env, process::Command};
 
 const SERVER_NAME: &str = "jelly";
 const DEFAULT_PROTOCOL_VERSION: &str = "2025-06-18";
+const SERVER_INSTRUCTIONS: &str = include_str!("../.agent/instructions/mcp.md");
 
 pub fn router(
     token: String,
@@ -100,7 +101,7 @@ fn initialize(params: &Value) -> Value {
             "name": SERVER_NAME,
             "version": env!("CARGO_PKG_VERSION")
         },
-        "instructions": "jelly instruments a persistent Chromium browser. Use inspection tools before mutation tools, prefer stable @eN element references, and use hitl when a human-only step is required."
+        "instructions": SERVER_INSTRUCTIONS
     })
 }
 
@@ -597,6 +598,28 @@ fn run_system_tool(name: &str, args: &[String]) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn initialize_includes_operating_instructions() {
+        let response = initialize(&json!({"protocolVersion": DEFAULT_PROTOCOL_VERSION}));
+        let instructions = response["instructions"].as_str().unwrap();
+        assert!(instructions.contains("Inspect before mutation"));
+        assert!(instructions.contains("Reject nonessential cookies by default"));
+        assert!(instructions.contains("active ChatGPT conversation"));
+        assert!(instructions.contains("through Telegram"));
+        assert!(instructions.contains("exhaust legitimate automatable paths"));
+        assert!(instructions.contains(".agent/tools/index.md"));
+        assert!(instructions.contains("docs/DISCOVERY.md"));
+        assert!(instructions.contains("agent-discover schema <tool>"));
+        assert!(instructions.contains("Use call-routine"));
+        assert!(instructions.contains("Use wait-for"));
+        assert!(instructions.contains("Use assert-*"));
+        assert!(instructions.contains("verified-screenshot"));
+        assert!(instructions.contains("verified-download"));
+        assert!(instructions.contains("inputSchema"));
+        assert!(instructions.contains("agent-run <tool> [args...]"));
+        assert!(instructions.contains("Do not automatically retry side-effecting operations"));
+    }
 
     #[test]
     fn mcp_catalog_covers_both_registries() {

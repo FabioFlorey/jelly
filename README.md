@@ -37,12 +37,6 @@ The wizard checks dependencies, configures OAuth + hosting, and can install/star
 
 Use `./quickstart.sh --dry-run` to preview setup, or `./quickstart.sh --check` for prerequisites only.
 
-<div align="center">
-
-<img src="./assets/cli_quickstart_check.png" alt="Jelly quickstart prerequisite check" width="960">
-
-</div>
-
 Or build the tools directly:
 
 ```bash
