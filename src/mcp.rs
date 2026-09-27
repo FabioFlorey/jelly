@@ -1,0 +1,450 @@
+use crate::{
+    ArgKind, BrowserSession, execute_browser_primitive, is_browser_primitive,
+    mcp_auth::{AuthState, ConsentMode},
+    primitive_specs, tool_specs,
+};
+use axum::{
+    Json, Router,
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
+    routing::{get, post},
+};
+use serde_json::{Map, Value, json};
+use std::{env, process::Command};
+
+const SERVER_NAME: &str = "jelly";
+const DEFAULT_PROTOCOL_VERSION: &str = "2025-06-18";
+
+pub fn router(
+    token: String,
+    oauth_password: String,
+    bootstrap_secret: String,
+    consent_mode: String,
+    public_chatgpt_dcr: bool,
+    public_url: String,
+) -> Result<Router, String> {
+    let consent_mode = ConsentMode::parse(&consent_mode)?;
+    let state = AuthState::new(
+        token,
+        oauth_password,
+        bootstrap_secret,
+        consent_mode,
+        public_chatgpt_dcr,
+        public_url,
+    )?;
+    Ok(Router::new()
+        .route("/health", get(health))
+        .route("/mcp", post(handle_mcp))
+        .merge(crate::mcp_auth::routes())
+        .with_state(state))
+}
+
+async fn health() -> Json<Value> {
+    Json(json!({
+        "name": SERVER_NAME,
+        "version": env!("CARGO_PKG_VERSION"),
+        "status": "ok"
+    }))
+}
+
+async fn handle_mcp(
+    State(state): State<AuthState>,
+    headers: HeaderMap,
+    Json(request): Json<Value>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return state.unauthorized();
+    }
+
+    let id = request.get("id").cloned();
+    let method = request.get("method").and_then(Value::as_str).unwrap_or("");
+    let params = request.get("params").cloned().unwrap_or_else(|| json!({}));
+
+    if id.is_none() {
+        return StatusCode::ACCEPTED.into_response();
+    }
+    let id = id.unwrap_or(Value::Null);
+
+    let result = match method {
+        "initialize" => Ok(initialize(&params)),
+        "ping" => Ok(json!({})),
+        "tools/list" => Ok(json!({"tools": mcp_tools()})),
+        "tools/call" => call_tool(&params).await,
+        _ => Err((-32601, format!("method not found: {method}"))),
+    };
+
+    match result {
+        Ok(result) => Json(json!({"jsonrpc":"2.0","id":id,"result":result})).into_response(),
+        Err((code, message)) => Json(json!({
+            "jsonrpc":"2.0",
+            "id":id,
+            "error":{"code":code,"message":message}
+        }))
+        .into_response(),
+    }
+}
+
+fn initialize(params: &Value) -> Value {
+    let protocol_version = params
+        .get("protocolVersion")
+        .and_then(Value::as_str)
+        .unwrap_or(DEFAULT_PROTOCOL_VERSION);
+    json!({
+        "protocolVersion": protocol_version,
+        "capabilities": {
+            "tools": {"listChanged": false}
+        },
+        "serverInfo": {
+            "name": SERVER_NAME,
+            "version": env!("CARGO_PKG_VERSION")
+        },
+        "instructions": "jelly instruments a persistent Chromium browser. Use inspection tools before mutation tools, prefer stable @eN element references, and use hitl when a human-only step is required."
+    })
+}
+
+pub fn mcp_tools() -> Vec<Value> {
+    let mut tools = primitive_specs
+        .iter()
+        .map(|spec| {
+            json!({
+                "name": spec.name,
+                "description": spec.description,
+                "inputSchema": primitive_input_schema(spec),
+                "securitySchemes": [{"type":"oauth2","scopes":["jelly"]}],
+                "_meta": {
+                    "securitySchemes": [{"type":"oauth2","scopes":["jelly"]}]
+                },
+            })
+        })
+        .collect::<Vec<_>>();
+
+    tools.extend(tool_specs.iter().filter_map(|spec| {
+        system_input_schema(spec.name).map(|input_schema| {
+            json!({
+                "name": spec.name,
+                "description": spec.description,
+                "inputSchema": input_schema,
+                "securitySchemes": [{"type":"oauth2","scopes":["jelly"]}],
+                "_meta": {
+                    "securitySchemes": [{"type":"oauth2","scopes":["jelly"]}]
+                },
+            })
+        })
+    }));
+    tools
+}
+
+fn primitive_input_schema(spec: &crate::PrimitiveSpec) -> Value {
+    let mut properties = Map::new();
+    let mut required = Vec::new();
+    for arg in spec.args {
+        let schema = match arg.kind {
+            ArgKind::Integer => json!({"type":"integer","minimum":0}),
+            ArgKind::Target => json!({
+                "type":"string",
+                "description":"Element target: stable @eN ref, css:<selector>, text:<exact text>, or plain exact text."
+            }),
+            ArgKind::String => json!({"type":"string"}),
+        };
+        properties.insert(arg.name.to_owned(), schema);
+        if arg.required {
+            required.push(Value::String(arg.name.to_owned()));
+        }
+    }
+    json!({
+        "type":"object",
+        "properties":properties,
+        "required":required,
+        "additionalProperties":false
+    })
+}
+
+fn system_input_schema(name: &str) -> Option<Value> {
+    Some(match name {
+        "open-browser" => json!({
+            "type":"object",
+            "properties":{
+                "url":{"type":"string","description":"Optional URL to open after Chromium starts."}
+            },
+            "additionalProperties":false
+        }),
+        "close-browser" | "downloads" => json!({
+            "type":"object","properties":{},"additionalProperties":false
+        }),
+        "browser-task" => json!({
+            "type":"object",
+            "properties":{
+                "url":{"type":"string"},
+                "tool":{"type":"string"},
+                "args":{"type":"array","items":{"type":"string"}},
+                "persist":{"type":"boolean"}
+            },
+            "required":["url","tool"],
+            "additionalProperties":false
+        }),
+        "screenshot" => json!({
+            "type":"object",
+            "properties":{
+                "target":{"type":"string"},
+                "output":{"type":"string","description":"Optional output path."}
+            },
+            "additionalProperties":false
+        }),
+        "inspect-network" => json!({
+            "type":"object",
+            "properties":{
+                "action":{"type":"string","enum":["start","stop","show"]},
+                "filters":{"type":"array","items":{"type":"string"}}
+            },
+            "required":["action"],
+            "additionalProperties":false
+        }),
+        "call-routine" => json!({
+            "type":"object",
+            "properties":{
+                "name":{"type":"string","description":"Routine name when starting a routine."},
+                "resume_id":{"type":"string","description":"Continuation ID when resuming a suspended routine."},
+                "vars":{"type":"object","additionalProperties":{"type":"string"}}
+            },
+            "oneOf":[{"required":["name"]},{"required":["resume_id"]}],
+            "additionalProperties":false
+        }),
+        "hitl" => json!({
+            "type":"object",
+            "properties":{"message":{"type":"string"}},
+            "required":["message"],
+            "additionalProperties":false
+        }),
+        _ => return None,
+    })
+}
+
+async fn call_tool(params: &Value) -> Result<Value, (i64, String)> {
+    let name = params
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| (-32602, "tools/call requires params.name".to_owned()))?
+        .to_owned();
+    let arguments = params
+        .get("arguments")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+
+    let result = tokio::task::spawn_blocking(move || execute_tool(&name, &arguments))
+        .await
+        .map_err(|e| (-32603, format!("tool worker failed: {e}")))?;
+
+    match result {
+        Ok(output) => {
+            let mut result = json!({
+                "content":[{"type":"text","text":output}],
+                "isError":false
+            });
+            if let Ok(value) = serde_json::from_str::<Value>(&output) {
+                result["structuredContent"] = value;
+            }
+            Ok(result)
+        }
+        Err(error) => Ok(json!({
+            "content":[{"type":"text","text":error}],
+            "isError":true
+        })),
+    }
+}
+
+fn execute_tool(name: &str, arguments: &Value) -> Result<String, String> {
+    let object = arguments
+        .as_object()
+        .ok_or_else(|| "tool arguments must be a JSON object".to_owned())?;
+    if is_browser_primitive(name) {
+        let spec = primitive_specs
+            .iter()
+            .find(|spec| spec.name == name)
+            .ok_or_else(|| format!("unknown browser primitive: {name}"))?;
+        let mut args = Vec::new();
+        for arg in spec.args {
+            match object.get(arg.name) {
+                Some(Value::String(value)) => args.push(value.clone()),
+                Some(Value::Number(value)) if matches!(arg.kind, ArgKind::Integer) => {
+                    args.push(value.to_string())
+                }
+                Some(_) => return Err(format!("{} has the wrong type", arg.name)),
+                None if arg.required => {
+                    return Err(format!("missing required argument: {}", arg.name));
+                }
+                None => {}
+            }
+        }
+        let mut browser = BrowserSession::connect().map_err(|e| e.to_string())?;
+        return execute_browser_primitive(&mut browser, name, &args).map_err(|e| e.to_string());
+    }
+
+    if !tool_specs.iter().any(|spec| spec.name == name) || system_input_schema(name).is_none() {
+        return Err(format!("unknown tool: {name}"));
+    }
+    let args = system_cli_args(name, object)?;
+    run_system_tool(name, &args)
+}
+
+fn system_cli_args(name: &str, object: &Map<String, Value>) -> Result<Vec<String>, String> {
+    let string = |key: &str| -> Result<Option<String>, String> {
+        match object.get(key) {
+            Some(Value::String(value)) => Ok(Some(value.clone())),
+            Some(_) => Err(format!("{key} must be a string")),
+            None => Ok(None),
+        }
+    };
+    let bool_value = |key: &str| -> Result<bool, String> {
+        match object.get(key) {
+            Some(Value::Bool(value)) => Ok(*value),
+            Some(_) => Err(format!("{key} must be a boolean")),
+            None => Ok(false),
+        }
+    };
+    let strings = |key: &str| -> Result<Vec<String>, String> {
+        match object.get(key) {
+            Some(Value::Array(values)) => values
+                .iter()
+                .map(|value| {
+                    value
+                        .as_str()
+                        .map(str::to_owned)
+                        .ok_or_else(|| format!("{key} must contain only strings"))
+                })
+                .collect(),
+            Some(_) => Err(format!("{key} must be an array of strings")),
+            None => Ok(Vec::new()),
+        }
+    };
+
+    match name {
+        "open-browser" => Ok(string("url")?.into_iter().collect()),
+        "close-browser" | "downloads" => Ok(Vec::new()),
+        "browser-task" => {
+            let url = string("url")?.ok_or("browser-task requires url")?;
+            let tool = string("tool")?.ok_or("browser-task requires tool")?;
+            let mut args = Vec::new();
+            if bool_value("persist")? {
+                args.push("--persist".into());
+            }
+            args.extend([url, tool]);
+            args.extend(strings("args")?);
+            Ok(args)
+        }
+        "screenshot" => {
+            let mut args = Vec::new();
+            if let Some(target) = string("target")? {
+                args.push(target);
+            }
+            if let Some(output) = string("output")? {
+                args.extend(["--output".into(), output]);
+            }
+            Ok(args)
+        }
+        "inspect-network" => {
+            let action = string("action")?.ok_or("inspect-network requires action")?;
+            let mut args = vec![action];
+            args.extend(strings("filters")?);
+            Ok(args)
+        }
+        "call-routine" => {
+            let name = string("name")?;
+            let resume_id = string("resume_id")?;
+            if name.is_some() == resume_id.is_some() {
+                return Err("provide exactly one of name or resume_id".into());
+            }
+            let mut args = if let Some(id) = resume_id {
+                vec!["resume".into(), id]
+            } else {
+                vec![name.unwrap()]
+            };
+            if let Some(vars) = object.get("vars") {
+                let vars = vars.as_object().ok_or("vars must be an object")?;
+                for (key, value) in vars {
+                    let value = value
+                        .as_str()
+                        .ok_or("routine variable values must be strings")?;
+                    args.push(format!("{key}={value}"));
+                }
+            }
+            Ok(args)
+        }
+        "hitl" => Ok(vec![string("message")?.ok_or("hitl requires message")?]),
+        _ => Err(format!("tool is not MCP-exposed: {name}")),
+    }
+}
+
+fn run_system_tool(name: &str, args: &[String]) -> Result<String, String> {
+    let exe = env::current_exe().map_err(|e| e.to_string())?;
+    let bin_dir = exe
+        .parent()
+        .ok_or("MCP executable has no parent directory")?;
+    let direct = bin_dir.join(format!("agent-{name}"));
+    let output = if direct.is_file() {
+        Command::new(direct).args(args).output()
+    } else {
+        Command::new("cargo")
+            .current_dir(env!("CARGO_MANIFEST_DIR"))
+            .args(["run", "--quiet", "--bin", &format!("agent-{name}"), "--"])
+            .args(args)
+            .output()
+    }
+    .map_err(|e| e.to_string())?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        Err(if stderr.is_empty() {
+            format!("{name} exited with {}", output.status)
+        } else {
+            stderr
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mcp_catalog_covers_both_registries() {
+        let tools = mcp_tools();
+        for spec in primitive_specs {
+            assert!(tools.iter().any(|tool| tool["name"] == spec.name));
+        }
+        for spec in tool_specs {
+            assert!(
+                tools.iter().any(|tool| tool["name"] == spec.name),
+                "system tool missing MCP mapping: {}",
+                spec.name
+            );
+        }
+    }
+
+    #[test]
+    fn primitive_schema_uses_named_arguments() {
+        let click = primitive_specs
+            .iter()
+            .find(|spec| spec.name == "click")
+            .unwrap();
+        let schema = primitive_input_schema(click);
+        assert_eq!(schema["properties"]["target"]["type"], "string");
+        assert_eq!(schema["required"][0], "target");
+    }
+
+    #[test]
+    fn system_args_are_mapped_to_existing_cli_shape() {
+        let open = json!({"url":"https://example.com"});
+        assert_eq!(
+            system_cli_args("open-browser", open.as_object().unwrap()).unwrap(),
+            vec!["https://example.com"]
+        );
+        let hitl = json!({"message":"approve"});
+        assert_eq!(
+            system_cli_args("hitl", hitl.as_object().unwrap()).unwrap(),
+            vec!["approve"]
+        );
+    }
+}

@@ -1,0 +1,17 @@
+[Unit]
+Description=Jelly Cloudflare Tunnel
+After=network-online.target jelly-mcp.service
+Wants=network-online.target jelly-mcp.service
+
+[Service]
+Type=simple
+WorkingDirectory=/data/jelly
+EnvironmentFile=/data/jelly/.env
+ExecStart=/usr/bin/env bash /data/jelly/scripts/run-cloudflare-tunnel.sh
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,27 @@
+[package]
+name = "jelly"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+description = "Browser instrumentation for agents"
+repository = "https://github.com/FabioFlorey/jelly"
+readme = "README.md"
+license-file = "LICENSE"
+publish = false
+
+[dependencies]
+rustwright = "0.1.1"
+serde_json = "1"
+tungstenite = "0.29"
+dotenvy = "0.15"
+time = { version = "0.3", features = ["formatting"] }
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
+base64 = "0.22"
+sha2 = "0.10"
+rand = "0.9"
+url = "2"
+
+[[bin]]
+name = "build-tool-index"
+path = "scripts/build_tool_index.rs"

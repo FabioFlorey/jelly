@@ -1,0 +1,17 @@
+[Unit]
+Description=Jelly MCP server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data/jelly
+EnvironmentFile=/data/jelly/.env
+ExecStart=/usr/bin/env bash /data/jelly/scripts/run-mcp-hosting.sh
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

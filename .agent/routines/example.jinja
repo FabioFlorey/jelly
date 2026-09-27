@@ -1,0 +1,6 @@
+# Example composable routine
+signal inspect-links
+handoff "Choose a link and resume with chosen=..."
+click "{{ chosen }}"
+hitl "Complete any required human-only step, then resume"
+signal inspect-links

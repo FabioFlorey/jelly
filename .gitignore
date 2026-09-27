@@ -1,0 +1,38 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/*
+!logs/.gitkeep
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# Build / generated output
+dist/
+build/
+coverage/
+
+
+# Added by cargo
+
+/target
+
+# Local project notes
+IDEAS.md
