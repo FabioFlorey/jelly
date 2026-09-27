@@ -1,0 +1,79 @@
+{
+  "entry": "open",
+  "max_steps": 32,
+  "nodes": {
+    "open": {
+      "tool": "open-browser",
+      "args": ["{{ url }}"],
+      "next": "verify_url",
+      "on_error": "fail"
+    },
+    "verify_url": {
+      "tool": "assert-url",
+      "args": ["{{ url }}", "exact"],
+      "save": "page",
+      "next": "verify_trigger",
+      "on_error": "fail"
+    },
+    "verify_trigger": {
+      "tool": "assert-visible",
+      "args": ["{{ target }}"],
+      "save": "trigger_evidence",
+      "next": "baseline",
+      "on_error": {
+        "target_not_found": "wait_trigger",
+        "target_not_visible": "wait_trigger",
+        "*": "fail"
+      }
+    },
+    "wait_trigger": {
+      "tool": "wait-for",
+      "args": ["visible", "{{ target }}", "5"],
+      "max_visits": 2,
+      "next": "verify_trigger",
+      "on_error": "fail"
+    },
+    "baseline": {
+      "tool": "evaluate-js",
+      "args": ["Date.now()"],
+      "save": "download_started",
+      "next": "trigger",
+      "on_error": "fail"
+    },
+    "trigger": {
+      "tool": "click",
+      "args": ["{{ target }}"],
+      "save": "trigger_action",
+      "next": "wait_download",
+      "on_error": "fail"
+    },
+    "wait_download": {
+      "tool": "wait-download",
+      "args": ["{{ download_started }}", "30"],
+      "save": "artifact",
+      "next": "verify_artifact",
+      "on_error": "fail"
+    },
+    "verify_artifact": {
+      "tool": "verify-artifact",
+      "args": [
+        "{{ artifact.artifact_id }}",
+        "--semantic",
+        "url",
+        "trigger-visible",
+        "download-complete"
+      ],
+      "save": "artifact",
+      "next": "done",
+      "on_error": "fail"
+    },
+    "done": {
+      "terminal": "success",
+      "message": "verified download captured"
+    },
+    "fail": {
+      "terminal": "failure",
+      "message": "verified download failed: {{ _error.message }}"
+    }
+  }
+}

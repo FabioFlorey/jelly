@@ -14,7 +14,7 @@ pub use tools::{
     TOOL_CATEGORIES as tool_category_specs, TOOLS as tool_specs, ToolCategorySpec, ToolSpec,
     lookup_tool,
 };
-pub use tracing::new_id;
+pub use tracing::{new_id, redact_args};
 
 use crate::{BrowserSession, Error};
 use std::{
@@ -41,8 +41,13 @@ pub fn execute_browser_primitive(
     name: &str,
     args: &[String],
 ) -> Result<String, Error> {
-    let spec =
-        registry::lookup(name).ok_or_else(|| format!("unsupported browser primitive: {name}"))?;
+    let spec = registry::lookup(name).ok_or_else(|| {
+        crate::jelly_error(
+            crate::ErrorKind::Unsupported,
+            format!("unsupported browser primitive: {name}"),
+            false,
+        )
+    })?;
     let started = Instant::now();
     let result = spec
         .validate(args)
@@ -51,7 +56,7 @@ pub fn execute_browser_primitive(
         name,
         args,
         started.elapsed().as_millis(),
-        result.as_ref().err().map(|e| e.to_string()),
+        result.as_ref().err(),
     );
     result
 }
@@ -62,10 +67,10 @@ pub fn run_cli_primitive(name: &str) -> Result<(), Error> {
     let output = execute_browser_primitive(&mut browser, name, &args)?;
     if !output.is_empty() {
         let mut stdout = io::stdout().lock();
-        if let Err(e) = writeln!(stdout, "{output}") {
-            if e.kind() != io::ErrorKind::BrokenPipe {
-                return Err(e.into());
-            }
+        if let Err(e) = writeln!(stdout, "{output}")
+            && e.kind() != io::ErrorKind::BrokenPipe
+        {
+            return Err(e.into());
         }
     }
     Ok(())

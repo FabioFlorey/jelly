@@ -11,6 +11,7 @@ This file is generated from the Rust browser-primitive and system-tool registrie
 | `input` | Interact with page controls through clicks, typing, keys, selection, checks, dialogs, and drag-and-drop. |
 | `navigation` | Navigate documents, wait for browser conditions, and move through page history. |
 | `inspect` | Observe page content, elements, controls, links, images, layout, and accessibility state. |
+| `verify` | Establish explicit browser-state predicates and wait for bounded conditions before dependent actions run. |
 | `tabs` | List, open, switch, and close browser tabs while preserving the active session. |
 | `files` | Move local files into browser-controlled file inputs. |
 | `script` | Evaluate or inject JavaScript as an explicit browser-page escape hatch. |
@@ -29,7 +30,7 @@ This file is generated from the Rust browser-primitive and system-tool registrie
 
 | Tool | Category | Usage | Arguments | Description |
 | --- | --- | --- | --- | --- |
-| `click` | `input` | `click <target>` | `target:target` | Click a visible element using a stable ref, CSS selector, or exact visible text. |
+| `click` | `input` | `click <target>` | `target:target` | Dispatch a click to a visible element. This confirms the interaction was performed, not the resulting application state. |
 | `type-text` | `input` | `type-text <text> [target]` | `text:string` `[target:target]` | Type text into a visible editable element, optionally targeting a specific element. |
 | `fill` | `input` | `fill <text> [target]` | `text:string` `[target:target]` | Replace the current contents of a visible editable element and dispatch input/change events. |
 | `press-key` | `input` | `press-key <key>` | `key:string` | Dispatch a keyboard key to the currently focused page element. |
@@ -38,8 +39,14 @@ This file is generated from the Rust browser-primitive and system-tool registrie
 | `dialog` | `input` | `dialog <accept\|dismiss> [text]` | `action:string` `[text:string]` | Accept or dismiss the active JavaScript dialog, optionally supplying prompt text. |
 | `drag` | `input` | `drag <source> <target\|x:N,y:N>` | `source:target` `destination:string` | Drag an element to another element or explicit viewport coordinates using pointer events. |
 | `wait` | `navigation` | `wait <text\|css\|visible\|url\|gone\|js> <value> [seconds]` | `condition:string` `value:string` `[seconds:integer]` | Wait until text, CSS, visibility, URL, disappearance, or a JavaScript condition is satisfied. |
-| `navigate` | `navigation` | `navigate <url>` | `url:string` | Navigate the active tab to a URL and restore persistent injected scripts. |
+| `navigate` | `navigation` | `navigate <url>` | `url:string` | Navigate the active tab and report the observed URL/title/readiness. Use verification primitives for application-state guarantees. |
 | `tab-history` | `navigation` | `tab-history <back\|forward>` | `direction:string` | Move the active tab backward or forward in its navigation history. |
+| `wait-for` | `verify` | `wait-for <exists\|visible\|hidden\|text\|url\|title\|image-ready> <value> [seconds]` | `condition:string` `value:string` `[seconds:integer]` | Wait with a finite deadline for an explicit page or target condition and return the observed evidence. |
+| `assert-url` | `verify` | `assert-url <expected> [exact\|contains]` | `expected:string` `[match:string]` | Require the current page URL to match the expected value before dependent work continues. |
+| `assert-title` | `verify` | `assert-title <expected> [exact\|contains]` | `expected:string` `[match:string]` | Require the current document title to match the expected value. |
+| `assert-visible` | `verify` | `assert-visible <target>` | `target:target` | Require a target to exist and be visibly rendered, returning geometry as evidence. |
+| `assert-text` | `verify` | `assert-text <target> <text> [exact\|contains]` | `target:target` `text:string` `[match:string]` | Require a target's current text to match an expected value. |
+| `assert-image-ready` | `verify` | `assert-image-ready <target>` | `target:target` | Require a visible image to be complete with nonzero natural dimensions before capture or downstream use. |
 | `snapshot-interactive` | `inspect` | `snapshot-interactive` | — | Return visible interactive elements and assign stable @eN references for subsequent actions. |
 | `read-page` | `inspect` | `read-page` | — | Return the active page title, URL, headings, and main readable text. |
 | `inspect-inputs` | `inspect` | `inspect-inputs` | — | List visible form controls with type, label, placeholder, name, value, and checked state. |
@@ -50,7 +57,7 @@ This file is generated from the Rust browser-primitive and system-tool registrie
 | `get-element` | `inspect` | `get-element <target> [text\|html\|both]` | `target:target` `[mode:string]` | Return the text, outer HTML, or both for a single target element. |
 | `accessibility-tree` | `inspect` | `accessibility-tree [max]` | `[max:integer]` | Return a compact view of non-ignored nodes from the page accessibility tree. |
 | `inspect-links` | `inspect` | `inspect-links` | — | List visible links with normalized visible text and resolved URLs. |
-| `inspect-images` | `inspect` | `inspect-images` | — | List visible images with alt text, resolved source URL, and rendered dimensions. |
+| `inspect-images` | `inspect` | `inspect-images` | — | Inspect images with stable refs, source, visibility, load completion, natural dimensions, and rendered dimensions. |
 | `tabs` | `tabs` | `tabs` | — | List browser page targets with target ID, title, and URL. |
 | `switch-tab` | `tabs` | `switch-tab <id\|title\|url>` | `query:string` | Activate and attach to a tab by target ID or matching title or URL. |
 | `close-tab` | `tabs` | `close-tab` | — | Close the active tab and reattach the session to a remaining page target when available. |
@@ -70,11 +77,14 @@ These tools are executable capabilities that intentionally do not require a shar
 | `open-browser` | `browser-lifecycle` | `open-browser [--headless] [url]` | Start the persistent Chromium browser service, optionally opening a URL. Headed mode is the default. |
 | `close-browser` | `browser-lifecycle` | `close-browser` | Gracefully stop the persistent jelly Chromium browser service and clean its state files. |
 | `browser-task` | `browser-lifecycle` | `browser-task [--persist] <url> <agent-tool> [args...]` | Open a headed browser, run one agent tool, and close the browser unless persistence is requested. |
-| `screenshot` | `artifacts` | `screenshot [target] [output] [--output path]` | Capture the active Chromium viewport or one targeted element to an image file. |
+| `profile-import` | `browser-lifecycle` | `profile-import <source> [--force]` | Copy a closed Chromium user-data directory into Jelly-managed runtime state for session reuse. This does not guarantee anti-bot or CAPTCHA behavior. |
+| `screenshot` | `artifacts` | `screenshot [target] [output] [--output path]` | Capture the viewport or a target and register a provenance-bearing screenshot artifact. Capture alone does not establish semantic correctness. |
 | `downloads` | `artifacts` | `downloads` | List files downloaded into jelly browser download locations. |
+| `verify-artifact` | `artifacts` | `verify-artifact <artifact-id\|path> [--semantic check...]` | Verify a captured artifact still exists, is nonempty, and has valid format-specific integrity metadata. |
+| `wait-download` | `artifacts` | `wait-download <after-ms> [seconds] [name-contains]` | Wait for a completed download newer than a supplied timestamp baseline and register it as an artifact. |
 | `inspect-network` | `network` | `inspect-network <start\|stop\|show> [filters]` | Start, stop, or query persistent browser network capture with optional filters. |
-| `call-routine` | `routines` | `call-routine <name> [key=value] \| call-routine resume <id> [key=value]` | Execute a named routine or resume a suspended routine continuation. |
-| `hitl` | `hitl` | `hitl <message>` | Request human intervention through Telegram and suspend the surrounding workflow for later continuation. |
+| `call-routine` | `routines` | `call-routine <name> [key=value] \| call-routine resume <id> [key=value]` | Execute or resume a routine. JSON graph routines support guarded branches, loops, jumps, budgets, HITL suspension, and owned-browser cleanup. |
+| `hitl` | `hitl` | `hitl <message>` | Request human intervention through Telegram and require an application-level accepted response before reporting delivery success. |
 
 ## Discovery CLI
 

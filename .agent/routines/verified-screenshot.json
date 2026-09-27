@@ -1,0 +1,105 @@
+{
+  "entry": "open",
+  "max_steps": 32,
+  "nodes": {
+    "open": {
+      "tool": "open-browser",
+      "args": ["{{ url }}"],
+      "next": "verify_url",
+      "on_error": "fail"
+    },
+    "verify_url": {
+      "tool": "assert-url",
+      "args": ["{{ url }}", "exact"],
+      "save": "page",
+      "next": "verify_target",
+      "on_error": "fail"
+    },
+    "verify_target": {
+      "tool": "assert-visible",
+      "args": ["{{ target }}"],
+      "save": "target_evidence",
+      "next": "target_kind",
+      "on_error": {
+        "target_stale": "fail",
+        "target_not_found": "wait_target",
+        "target_not_visible": "wait_target",
+        "*": "fail"
+      }
+    },
+    "wait_target": {
+      "tool": "wait-for",
+      "args": ["visible", "{{ target }}", "5"],
+      "save": "target_evidence",
+      "max_visits": 2,
+      "next": "verify_target",
+      "on_error": "fail"
+    },
+    "target_kind": {
+      "guard": {
+        "path": "target_evidence.tag",
+        "op": "equals",
+        "value": "img"
+      },
+      "then": "verify_image",
+      "else": "capture"
+    },
+    "verify_image": {
+      "tool": "assert-image-ready",
+      "args": ["{{ target }}"],
+      "save": "target_evidence",
+      "next": "capture",
+      "on_error": {
+        "condition_failed": "wait_image",
+        "target_not_visible": "wait_image",
+        "*": "fail"
+      }
+    },
+    "wait_image": {
+      "tool": "wait-for",
+      "args": ["image-ready", "{{ target }}", "10"],
+      "save": "target_evidence",
+      "max_visits": 2,
+      "next": "verify_image",
+      "on_error": "fail"
+    },
+    "capture": {
+      "tool": "screenshot",
+      "args": ["{{ target }}"],
+      "save": "artifact",
+      "next": "artifact_kind",
+      "on_error": "fail"
+    },
+    "artifact_kind": {
+      "guard": {
+        "path": "target_evidence.tag",
+        "op": "equals",
+        "value": "img"
+      },
+      "then": "verify_image_artifact",
+      "else": "verify_artifact"
+    },
+    "verify_artifact": {
+      "tool": "verify-artifact",
+      "args": ["{{ artifact.artifact_id }}", "--semantic", "url", "target-visible"],
+      "save": "artifact",
+      "next": "done",
+      "on_error": "fail"
+    },
+    "verify_image_artifact": {
+      "tool": "verify-artifact",
+      "args": ["{{ artifact.artifact_id }}", "--semantic", "url", "target-visible", "image-ready"],
+      "save": "artifact",
+      "next": "done",
+      "on_error": "fail"
+    },
+    "done": {
+      "terminal": "success",
+      "message": "verified screenshot captured"
+    },
+    "fail": {
+      "terminal": "failure",
+      "message": "verified screenshot failed: {{ _error.message }}"
+    }
+  }
+}

@@ -10,6 +10,7 @@ pub const STATE_DIR: &str = "/data/jelly-runtime/state";
 pub const PROFILE_DIR: &str = "/data/jelly-runtime/profiles/headed";
 pub const HEADLESS_PROFILE_DIR: &str = "/data/jelly-runtime/profiles/headless";
 pub const ARTIFACT_DIR: &str = "/data/jelly-runtime/artifacts";
+pub const ARTIFACT_META_DIR: &str = "/data/jelly-runtime/artifacts/metadata";
 pub const SCREENSHOT_DIR: &str = "/data/jelly-runtime/artifacts/screenshots";
 pub const DOWNLOAD_DIR: &str = "/data/jelly-runtime/artifacts/downloads";
 pub const NETWORK_DIR: &str = "/data/jelly-runtime/network";

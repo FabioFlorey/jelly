@@ -1,5 +1,5 @@
 use crate::primitives::target;
-use crate::{ACTIVE_TARGET, BrowserSession, Error};
+use crate::{ACTIVE_TARGET, BrowserSession, Error, ErrorKind, jelly_error};
 use serde_json::json;
 use std::{fs, thread, time::Duration};
 
@@ -19,7 +19,13 @@ pub fn tabs(b: &mut BrowserSession, _: &[String]) -> Result<String, Error> {
     Ok(out.join("\n"))
 }
 pub fn switch_tab(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
-    let q = args.first().ok_or("usage: switch-tab <id|title|url>")?;
+    let q = args.first().ok_or_else(|| {
+        jelly_error(
+            ErrorKind::InvalidArguments,
+            "usage: switch-tab <id|title|url>",
+            false,
+        )
+    })?;
     let v = b.browser_call("Target.getTargets", json!({}))?;
     let t = v["result"]["targetInfos"]
         .as_array()
@@ -32,7 +38,7 @@ pub fn switch_tab(b: &mut BrowserSession, args: &[String]) -> Result<String, Err
             })
         })
         .and_then(|x| x["targetId"].as_str())
-        .ok_or("tab not found")?
+        .ok_or_else(|| jelly_error(ErrorKind::TargetNotFound, "tab not found", true))?
         .to_owned();
     b.switch_target(&t)?;
     Ok(format!("Switched to {t}"))
@@ -56,7 +62,16 @@ pub fn close_tab(b: &mut BrowserSession, _: &[String]) -> Result<String, Error> 
 pub fn open_in_new_tab(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     let t = target(args, 0, "usage: open-in-new-tab <target>")?;
     let v=b.eval(&format!(r#"(()=>{{const e={};if(!e)return null;const a=e.closest('a[href]');return a?.href||(e.tagName==='IMG'?(e.currentSrc||e.src):null)}})()"#,t.js_resolver()))?;
-    let url = v.as_str().ok_or("no link or image URL found")?.to_owned();
+    let url = v
+        .as_str()
+        .ok_or_else(|| {
+            jelly_error(
+                ErrorKind::TargetNotFound,
+                "target has no link or image URL",
+                true,
+            )
+        })?
+        .to_owned();
     let out = b.browser_call("Target.createTarget", json!({"url":url}))?;
     let id = out["result"]["targetId"]
         .as_str()

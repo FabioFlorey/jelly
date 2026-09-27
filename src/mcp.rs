@@ -1,5 +1,6 @@
 use crate::{
-    ArgKind, BrowserSession, execute_browser_primitive, is_browser_primitive,
+    ArgKind, BrowserSession, ErrorKind, classify_error, execute_browser_primitive,
+    is_browser_primitive,
     mcp_auth::{AuthState, ConsentMode},
     primitive_specs, tool_specs,
 };
@@ -111,6 +112,7 @@ pub fn mcp_tools() -> Vec<Value> {
                 "name": spec.name,
                 "description": spec.description,
                 "inputSchema": primitive_input_schema(spec),
+                "outputSchema": tool_output_schema(),
                 "securitySchemes": [{"type":"oauth2","scopes":["jelly"]}],
                 "_meta": {
                     "securitySchemes": [{"type":"oauth2","scopes":["jelly"]}]
@@ -125,6 +127,7 @@ pub fn mcp_tools() -> Vec<Value> {
                 "name": spec.name,
                 "description": spec.description,
                 "inputSchema": input_schema,
+                "outputSchema": tool_output_schema(),
                 "securitySchemes": [{"type":"oauth2","scopes":["jelly"]}],
                 "_meta": {
                     "securitySchemes": [{"type":"oauth2","scopes":["jelly"]}]
@@ -133,6 +136,33 @@ pub fn mcp_tools() -> Vec<Value> {
         })
     }));
     tools
+}
+
+fn tool_output_schema() -> Value {
+    json!({
+        "type":"object",
+        "properties":{
+            "ok":{"type":"boolean"},
+            "data":{},
+            "error":{
+                "type":["object","null"],
+                "properties":{
+                    "kind":{"type":"string"},
+                    "message":{"type":"string"},
+                    "retryable":{"type":"boolean"}
+                },
+                "additionalProperties":false
+            },
+            "meta":{
+                "type":"object",
+                "properties":{"tool":{"type":"string"}},
+                "required":["tool"],
+                "additionalProperties":true
+            }
+        },
+        "required":["ok","data","error","meta"],
+        "additionalProperties":false
+    })
 }
 
 fn primitive_input_schema(spec: &crate::PrimitiveSpec) -> Value {
@@ -172,6 +202,25 @@ fn system_input_schema(name: &str) -> Option<Value> {
         "close-browser" | "downloads" => json!({
             "type":"object","properties":{},"additionalProperties":false
         }),
+        "verify-artifact" => json!({
+            "type":"object",
+            "properties":{
+                "artifact":{"type":"string","description":"Artifact ID or file path."},
+                "semantic_checks":{"type":"array","items":{"type":"string"},"description":"Optional evidence labels already established before capture."}
+            },
+            "required":["artifact"],
+            "additionalProperties":false
+        }),
+        "wait-download" => json!({
+            "type":"object",
+            "properties":{
+                "after_ms":{"type":"integer","minimum":0,"description":"Unix timestamp in milliseconds captured before triggering the download."},
+                "seconds":{"type":"integer","minimum":1,"description":"Maximum wait time; defaults to 30."},
+                "name_contains":{"type":"string","description":"Optional filename substring."}
+            },
+            "required":["after_ms"],
+            "additionalProperties":false
+        }),
         "browser-task" => json!({
             "type":"object",
             "properties":{
@@ -181,6 +230,15 @@ fn system_input_schema(name: &str) -> Option<Value> {
                 "persist":{"type":"boolean"}
             },
             "required":["url","tool"],
+            "additionalProperties":false
+        }),
+        "profile-import" => json!({
+            "type":"object",
+            "properties":{
+                "source":{"type":"string","description":"Closed Chromium user-data directory to copy into Jelly runtime."},
+                "force":{"type":"boolean","description":"Replace an existing Jelly profile."}
+            },
+            "required":["source"],
             "additionalProperties":false
         }),
         "screenshot" => json!({
@@ -220,6 +278,49 @@ fn system_input_schema(name: &str) -> Option<Value> {
     })
 }
 
+#[derive(Debug)]
+struct ToolFailure {
+    kind: ErrorKind,
+    message: String,
+    retryable: bool,
+}
+
+impl ToolFailure {
+    fn new(kind: ErrorKind, message: impl Into<String>, retryable: bool) -> Self {
+        Self {
+            kind,
+            message: message.into(),
+            retryable,
+        }
+    }
+}
+
+fn output_value(output: &str) -> Value {
+    serde_json::from_str::<Value>(output).unwrap_or_else(|_| Value::String(output.to_owned()))
+}
+
+fn success_envelope(name: &str, output: &str) -> Value {
+    json!({
+        "ok": true,
+        "data": output_value(output),
+        "error": Value::Null,
+        "meta": {"tool": name}
+    })
+}
+
+fn failure_envelope(name: &str, failure: &ToolFailure) -> Value {
+    json!({
+        "ok": false,
+        "data": Value::Null,
+        "error": {
+            "kind": failure.kind.as_str(),
+            "message": failure.message,
+            "retryable": failure.retryable
+        },
+        "meta": {"tool": name}
+    })
+}
+
 async fn call_tool(params: &Value) -> Result<Value, (i64, String)> {
     let name = params
         .get("name")
@@ -230,38 +331,43 @@ async fn call_tool(params: &Value) -> Result<Value, (i64, String)> {
         .get("arguments")
         .cloned()
         .unwrap_or_else(|| json!({}));
+    let worker_name = name.clone();
 
-    let result = tokio::task::spawn_blocking(move || execute_tool(&name, &arguments))
+    let result = tokio::task::spawn_blocking(move || execute_tool(&worker_name, &arguments))
         .await
         .map_err(|e| (-32603, format!("tool worker failed: {e}")))?;
 
-    match result {
-        Ok(output) => {
-            let mut result = json!({
-                "content":[{"type":"text","text":output}],
-                "isError":false
-            });
-            if let Ok(value) = serde_json::from_str::<Value>(&output) {
-                result["structuredContent"] = value;
-            }
-            Ok(result)
-        }
-        Err(error) => Ok(json!({
-            "content":[{"type":"text","text":error}],
-            "isError":true
-        })),
-    }
+    let (envelope, is_error) = match result {
+        Ok(output) => (success_envelope(&name, &output), false),
+        Err(error) => (failure_envelope(&name, &error), true),
+    };
+    let text = serde_json::to_string_pretty(&envelope).unwrap_or_else(|_| envelope.to_string());
+    Ok(json!({
+        "content":[{"type":"text","text":text}],
+        "structuredContent":envelope,
+        "isError":is_error
+    }))
 }
 
-fn execute_tool(name: &str, arguments: &Value) -> Result<String, String> {
-    let object = arguments
-        .as_object()
-        .ok_or_else(|| "tool arguments must be a JSON object".to_owned())?;
+fn execute_tool(name: &str, arguments: &Value) -> Result<String, ToolFailure> {
+    let object = arguments.as_object().ok_or_else(|| {
+        ToolFailure::new(
+            ErrorKind::InvalidArguments,
+            "tool arguments must be a JSON object",
+            false,
+        )
+    })?;
     if is_browser_primitive(name) {
         let spec = primitive_specs
             .iter()
             .find(|spec| spec.name == name)
-            .ok_or_else(|| format!("unknown browser primitive: {name}"))?;
+            .ok_or_else(|| {
+                ToolFailure::new(
+                    ErrorKind::Unsupported,
+                    format!("unknown browser primitive: {name}"),
+                    false,
+                )
+            })?;
         let mut args = Vec::new();
         for arg in spec.args {
             match object.get(arg.name) {
@@ -269,22 +375,64 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<String, String> {
                 Some(Value::Number(value)) if matches!(arg.kind, ArgKind::Integer) => {
                     args.push(value.to_string())
                 }
-                Some(_) => return Err(format!("{} has the wrong type", arg.name)),
+                Some(_) => {
+                    return Err(ToolFailure::new(
+                        ErrorKind::InvalidArguments,
+                        format!("{} has the wrong type", arg.name),
+                        false,
+                    ));
+                }
                 None if arg.required => {
-                    return Err(format!("missing required argument: {}", arg.name));
+                    return Err(ToolFailure::new(
+                        ErrorKind::InvalidArguments,
+                        format!("missing required argument: {}", arg.name),
+                        false,
+                    ));
                 }
                 None => {}
             }
         }
-        let mut browser = BrowserSession::connect().map_err(|e| e.to_string())?;
-        return execute_browser_primitive(&mut browser, name, &args).map_err(|e| e.to_string());
+        let mut browser = BrowserSession::connect()
+            .map_err(|e| ToolFailure::new(ErrorKind::BrowserUnavailable, e.to_string(), true))?;
+        return execute_browser_primitive(&mut browser, name, &args).map_err(|e| {
+            let (kind, retryable) = classify_error(e.as_ref());
+            ToolFailure::new(kind, e.to_string(), retryable)
+        });
     }
 
     if !tool_specs.iter().any(|spec| spec.name == name) || system_input_schema(name).is_none() {
-        return Err(format!("unknown tool: {name}"));
+        return Err(ToolFailure::new(
+            ErrorKind::Unsupported,
+            format!("unknown tool: {name}"),
+            false,
+        ));
     }
-    let args = system_cli_args(name, object)?;
-    run_system_tool(name, &args)
+    let args = system_cli_args(name, object)
+        .map_err(|message| ToolFailure::new(ErrorKind::InvalidArguments, message, false))?;
+    run_system_tool(name, &args).map_err(|message| {
+        let kind = if name == "wait-download" && message.contains("timed out") {
+            ErrorKind::ConditionTimeout
+        } else {
+            match name {
+                "open-browser" | "close-browser" | "browser-task" => ErrorKind::BrowserUnavailable,
+                "profile-import" => ErrorKind::InteractionFailed,
+                "screenshot" | "verify-artifact" => ErrorKind::ArtifactFailed,
+                "downloads" | "wait-download" => ErrorKind::DownloadFailed,
+                "hitl" => ErrorKind::DeliveryFailed,
+                _ => ErrorKind::Internal,
+            }
+        };
+        ToolFailure::new(
+            kind,
+            message,
+            matches!(
+                kind,
+                ErrorKind::BrowserUnavailable
+                    | ErrorKind::DeliveryFailed
+                    | ErrorKind::ConditionTimeout
+            ),
+        )
+    })
 }
 
 fn system_cli_args(name: &str, object: &Map<String, Value>) -> Result<Vec<String>, String> {
@@ -300,6 +448,16 @@ fn system_cli_args(name: &str, object: &Map<String, Value>) -> Result<Vec<String
             Some(Value::Bool(value)) => Ok(*value),
             Some(_) => Err(format!("{key} must be a boolean")),
             None => Ok(false),
+        }
+    };
+    let integer = |key: &str| -> Result<Option<u64>, String> {
+        match object.get(key) {
+            Some(Value::Number(value)) => value
+                .as_u64()
+                .map(Some)
+                .ok_or_else(|| format!("{key} must be a non-negative integer")),
+            Some(_) => Err(format!("{key} must be an integer")),
+            None => Ok(None),
         }
     };
     let strings = |key: &str| -> Result<Vec<String>, String> {
@@ -332,6 +490,14 @@ fn system_cli_args(name: &str, object: &Map<String, Value>) -> Result<Vec<String
             args.extend(strings("args")?);
             Ok(args)
         }
+        "profile-import" => {
+            let source = string("source")?.ok_or("profile-import requires source")?;
+            let mut args = vec![source];
+            if bool_value("force")? {
+                args.push("--force".into());
+            }
+            Ok(args)
+        }
         "screenshot" => {
             let mut args = Vec::new();
             if let Some(target) = string("target")? {
@@ -339,6 +505,30 @@ fn system_cli_args(name: &str, object: &Map<String, Value>) -> Result<Vec<String
             }
             if let Some(output) = string("output")? {
                 args.extend(["--output".into(), output]);
+            }
+            args.push("--json".into());
+            Ok(args)
+        }
+        "verify-artifact" => {
+            let mut args = vec![string("artifact")?.ok_or("verify-artifact requires artifact")?];
+            let checks = strings("semantic_checks")?;
+            if !checks.is_empty() {
+                args.push("--semantic".into());
+                args.extend(checks);
+            }
+            Ok(args)
+        }
+        "wait-download" => {
+            let after_ms = integer("after_ms")?.ok_or("wait-download requires after_ms")?;
+            let mut args = vec![after_ms.to_string()];
+            if let Some(seconds) = integer("seconds")? {
+                args.push(seconds.to_string());
+            }
+            if let Some(name) = string("name_contains")? {
+                if args.len() == 1 {
+                    args.push("30".into());
+                }
+                args.push(name);
             }
             Ok(args)
         }
@@ -446,5 +636,30 @@ mod tests {
             system_cli_args("hitl", hitl.as_object().unwrap()).unwrap(),
             vec!["approve"]
         );
+    }
+
+    #[test]
+    fn tool_results_are_always_top_level_objects() {
+        let array = success_envelope("inspect-images", "[1,2,3]");
+        assert!(array.is_object());
+        assert_eq!(array["ok"], true);
+        assert!(array["data"].is_array());
+
+        let text = success_envelope("click", "performed");
+        assert!(text.is_object());
+        assert_eq!(text["data"], "performed");
+
+        let failure = ToolFailure::new(ErrorKind::TargetNotFound, "missing", true);
+        let error = failure_envelope("assert-visible", &failure);
+        assert!(error.is_object());
+        assert_eq!(error["ok"], false);
+        assert_eq!(error["error"]["kind"], "target_not_found");
+    }
+
+    #[test]
+    fn every_tool_declares_object_output_schema() {
+        for tool in mcp_tools() {
+            assert_eq!(tool["outputSchema"]["type"], "object");
+        }
     }
 }

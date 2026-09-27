@@ -69,8 +69,14 @@ pub static TOOLS: &[ToolSpec] = &[
         category: "browser-lifecycle",
     },
     ToolSpec {
+        name: "profile-import",
+        description: "Copy a closed Chromium user-data directory into Jelly-managed runtime state for session reuse. This does not guarantee anti-bot or CAPTCHA behavior.",
+        usage: "profile-import <source> [--force]",
+        category: "browser-lifecycle",
+    },
+    ToolSpec {
         name: "screenshot",
-        description: "Capture the active Chromium viewport or one targeted element to an image file.",
+        description: "Capture the viewport or a target and register a provenance-bearing screenshot artifact. Capture alone does not establish semantic correctness.",
         usage: "screenshot [target] [output] [--output path]",
         category: "artifacts",
     },
@@ -81,6 +87,18 @@ pub static TOOLS: &[ToolSpec] = &[
         category: "artifacts",
     },
     ToolSpec {
+        name: "verify-artifact",
+        description: "Verify a captured artifact still exists, is nonempty, and has valid format-specific integrity metadata.",
+        usage: "verify-artifact <artifact-id|path> [--semantic check...]",
+        category: "artifacts",
+    },
+    ToolSpec {
+        name: "wait-download",
+        description: "Wait for a completed download newer than a supplied timestamp baseline and register it as an artifact.",
+        usage: "wait-download <after-ms> [seconds] [name-contains]",
+        category: "artifacts",
+    },
+    ToolSpec {
         name: "inspect-network",
         description: "Start, stop, or query persistent browser network capture with optional filters.",
         usage: "inspect-network <start|stop|show> [filters]",
@@ -88,13 +106,13 @@ pub static TOOLS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "call-routine",
-        description: "Execute a named routine or resume a suspended routine continuation.",
+        description: "Execute or resume a routine. JSON graph routines support guarded branches, loops, jumps, budgets, HITL suspension, and owned-browser cleanup.",
         usage: "call-routine <name> [key=value] | call-routine resume <id> [key=value]",
         category: "routines",
     },
     ToolSpec {
         name: "hitl",
-        description: "Request human intervention through Telegram and suspend the surrounding workflow for later continuation.",
+        description: "Request human intervention through Telegram and require an application-level accepted response before reporting delivery success.",
         usage: "hitl <message>",
         category: "hitl",
     },

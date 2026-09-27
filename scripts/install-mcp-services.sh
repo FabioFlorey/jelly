@@ -72,12 +72,29 @@ fi
 cd "$ROOT"
 BUILD_DIR="$(cd "$ROOT/.." && pwd)/.jelly-build"
 MCP_BIN="$BUILD_DIR/release/jelly-mcp"
+BUILD_STAMP="$BUILD_DIR/release/.jelly-build-stamp"
 needs_build=false
-if [[ ! -x "$MCP_BIN" ]]; then
+
+if [[ ! -x "$MCP_BIN" || ! -f "$BUILD_STAMP" ]]; then
   needs_build=true
-elif find "$ROOT/src" "$ROOT/Cargo.toml" "$ROOT/Cargo.lock" "$ROOT/scripts/build_tool_index.rs" \
-  -type f -newer "$MCP_BIN" -print -quit 2>/dev/null | grep -q .; then
+elif find \
+  "$ROOT/src" \
+  "$ROOT/Cargo.toml" \
+  "$ROOT/Cargo.lock" \
+  "$ROOT/rust-toolchain.toml" \
+  "$ROOT/scripts/build_tool_index.rs" \
+  "$ROOT/assets/full-logo.png" \
+  "$ROOT/assets/favicon.png" \
+  -type f -newer "$BUILD_STAMP" -print -quit 2>/dev/null | grep -q .; then
   needs_build=true
+else
+  for source in "$ROOT"/src/bin/*.rs; do
+    bin="$BUILD_DIR/release/$(basename "${source%.rs}")"
+    if [[ ! -x "$bin" ]]; then
+      needs_build=true
+      break
+    fi
+  done
 fi
 
 if [[ "$needs_build" == "true" ]]; then
@@ -86,6 +103,7 @@ if [[ "$needs_build" == "true" ]]; then
     printf '%b✕  Build failed.%b\n' "$C_RED$C_BOLD" "$C_RESET" >&2
     exit 1
   fi
+  touch "$BUILD_STAMP"
   printf '%b✓%b  Release binaries ready.\n' "$C_GREEN$C_BOLD" "$C_RESET"
 else
   printf '\n%b✓%b  Release binaries are current; build skipped.\n' "$C_GREEN$C_BOLD" "$C_RESET"

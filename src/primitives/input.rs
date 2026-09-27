@@ -1,16 +1,36 @@
-use crate::primitives::{js, target};
-use crate::{BrowserSession, Error};
+use crate::primitives::{js, missing_target, pretty, target};
+use crate::{BrowserSession, Error, ErrorKind, jelly_error};
 use serde_json::json;
 use std::{thread, time::Duration};
 
 pub fn click(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     let target = target(args, 0, "usage: click <target>")?;
-    let p=b.eval(&format!(r#"(()=>{{const e={};if(!e)return null;e.scrollIntoView({{block:'center',inline:'center'}});const r=e.getBoundingClientRect(),s=getComputedStyle(e);if(r.width<=0||r.height<=0||s.display==='none'||s.visibility==='hidden')return null;return {{x:r.left+r.width/2,y:r.top+r.height/2,tag:e.tagName.toLowerCase(),text:(e.innerText||e.value||e.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim().slice(0,160)}}}})()"#,target.js_resolver()))?;
-    if p.is_null() {
-        return Err("element not found or not visible".into());
+    let p=b.eval(&format!(r#"(()=>{{const e={};if(!e)return {{ok:false,reason:'missing'}};e.scrollIntoView({{block:'center',inline:'center'}});const r=e.getBoundingClientRect(),s=getComputedStyle(e);if(r.width<=0||r.height<=0||s.display==='none'||s.visibility==='hidden'||s.opacity==='0')return {{ok:false,reason:'hidden'}};return {{ok:true,x:r.left+r.width/2,y:r.top+r.height/2,tag:e.tagName.toLowerCase(),text:(e.innerText||e.value||e.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim().slice(0,160)}}}})()"#,target.js_resolver()))?;
+    if p["ok"] != true {
+        return if p["reason"] == "missing" {
+            Err(missing_target(&target))
+        } else {
+            Err(jelly_error(
+                ErrorKind::TargetNotVisible,
+                "target exists but is not visible",
+                true,
+            ))
+        };
     }
-    let x = p["x"].as_f64().ok_or("invalid x")?;
-    let y = p["y"].as_f64().ok_or("invalid y")?;
+    let x = p["x"].as_f64().ok_or_else(|| {
+        jelly_error(
+            ErrorKind::InteractionFailed,
+            "invalid click x coordinate",
+            false,
+        )
+    })?;
+    let y = p["y"].as_f64().ok_or_else(|| {
+        jelly_error(
+            ErrorKind::InteractionFailed,
+            "invalid click y coordinate",
+            false,
+        )
+    })?;
     b.call(
         "Input.dispatchMouseEvent",
         json!({"type":"mouseMoved","x":x,"y":y}),
@@ -23,26 +43,45 @@ pub fn click(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
         "Input.dispatchMouseEvent",
         json!({"type":"mouseReleased","x":x,"y":y,"button":"left","buttons":0,"clickCount":1}),
     )?;
-    Ok(format!(
-        "Clicked {}: {}",
-        p["tag"].as_str().unwrap_or("element"),
-        p["text"].as_str().unwrap_or("")
-    ))
+    Ok(pretty(&json!({
+        "action":"click",
+        "performed":true,
+        "target":{"tag":p["tag"],"text":p["text"]},
+        "point":{"x":x,"y":y}
+    })))
 }
 
 pub fn type_text(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
-    let text = args.first().ok_or("usage: type-text <text> [target]")?;
-    let find = if args.len() > 1 {
-        target(args, 1, "usage: type-text <text> [target]")?.js_resolver()
+    let text = args.first().ok_or_else(|| {
+        jelly_error(
+            ErrorKind::InvalidArguments,
+            "usage: type-text <text> [target]",
+            false,
+        )
+    })?;
+    let explicit_target = if args.len() > 1 {
+        Some(target(args, 1, "usage: type-text <text> [target]")?)
+    } else {
+        None
+    };
+    let find = if let Some(target) = explicit_target.as_ref() {
+        target.js_resolver()
     } else {
         "[...document.querySelectorAll('input:not([type]),input[type=text],input[type=search],input[type=email],input[type=password],input[type=url],input[type=number],textarea,[role=textbox],[contenteditable=true]')].find(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'})".into()
     };
     let p=b.eval(&format!("(()=>{{const e={find};if(!e)return null;e.scrollIntoView({{block:'center'}});const r=e.getBoundingClientRect();return {{x:r.left+r.width/2,y:r.top+r.height/2}}}})()"))?;
     if p.is_null() {
-        return Err("textbox not found".into());
+        return Err(explicit_target
+            .as_ref()
+            .map(missing_target)
+            .unwrap_or_else(|| jelly_error(ErrorKind::TargetNotFound, "textbox not found", true)));
     }
-    let x = p["x"].as_f64().ok_or("textbox x missing")?;
-    let y = p["y"].as_f64().ok_or("textbox y missing")?;
+    let x = p["x"]
+        .as_f64()
+        .ok_or_else(|| jelly_error(ErrorKind::InteractionFailed, "textbox x missing", false))?;
+    let y = p["y"]
+        .as_f64()
+        .ok_or_else(|| jelly_error(ErrorKind::InteractionFailed, "textbox y missing", false))?;
     b.call(
         "Input.dispatchMouseEvent",
         json!({"type":"mousePressed","x":x,"y":y,"button":"left","clickCount":1}),
@@ -56,9 +95,20 @@ pub fn type_text(b: &mut BrowserSession, args: &[String]) -> Result<String, Erro
 }
 
 pub fn fill(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
-    let text = args.first().ok_or("usage: fill <text> [target]")?;
-    let find = if args.len() > 1 {
-        target(args, 1, "usage: fill <text> [target]")?.js_resolver()
+    let text = args.first().ok_or_else(|| {
+        jelly_error(
+            ErrorKind::InvalidArguments,
+            "usage: fill <text> [target]",
+            false,
+        )
+    })?;
+    let explicit_target = if args.len() > 1 {
+        Some(target(args, 1, "usage: fill <text> [target]")?)
+    } else {
+        None
+    };
+    let find = if let Some(target) = explicit_target.as_ref() {
+        target.js_resolver()
     } else {
         "[...document.querySelectorAll('input:not([type]),input[type=text],input[type=search],input[type=email],input[type=password],input[type=url],input[type=number],textarea,[role=textbox],[contenteditable=true]')].find(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'})".into()
     };
@@ -86,17 +136,22 @@ pub fn fill(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
         return {{ok:false,error:'target is not editable'}};
     }})()"#))?;
     if !result["ok"].as_bool().unwrap_or(false) {
-        return Err(result["error"]
-            .as_str()
-            .unwrap_or("fill failed")
-            .to_owned()
-            .into());
+        let message = result["error"].as_str().unwrap_or("fill failed");
+        if message == "textbox not found" {
+            return Err(explicit_target
+                .as_ref()
+                .map(missing_target)
+                .unwrap_or_else(|| jelly_error(ErrorKind::TargetNotFound, message, true)));
+        }
+        return Err(jelly_error(ErrorKind::InteractionFailed, message, false));
     }
     Ok(format!("Filled: {text}"))
 }
 
 pub fn press_key(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
-    let key = args.first().ok_or("usage: press-key <key>")?;
+    let key = args
+        .first()
+        .ok_or_else(|| jelly_error(ErrorKind::InvalidArguments, "usage: press-key <key>", false))?;
     if key == "Enter" {
         for (kind, text) in [("rawKeyDown", None), ("char", Some("\r")), ("keyUp", None)] {
             let mut p = json!({"type":kind,"key":"Enter","code":"Enter","windowsVirtualKeyCode":13,"nativeVirtualKeyCode":13});
@@ -119,16 +174,20 @@ pub fn press_key(b: &mut BrowserSession, args: &[String]) -> Result<String, Erro
 
 pub fn select(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     if args.len() < 2 {
-        return Err("usage: select <target> <value>".into());
+        return Err(jelly_error(
+            ErrorKind::InvalidArguments,
+            "usage: select <target> <value>",
+            false,
+        ));
     }
     let t = target(args, 0, "usage: select <target> <value>")?;
     let v=b.eval(&format!(r#"(()=>{{const e={};if(!e)return {{ok:false,error:'target not found'}};const v={};if(e.tagName!=='SELECT')return {{ok:false,error:'target is not select'}};const o=[...e.options].find(o=>o.value===v||o.text.trim()===v);if(!o)return {{ok:false,error:'option not found'}};e.value=o.value;e.dispatchEvent(new Event('input',{{bubbles:true}}));e.dispatchEvent(new Event('change',{{bubbles:true}}));return {{ok:true,value:o.value}}}})()"#,t.js_resolver(),js(&args[1])))?;
     if !v["ok"].as_bool().unwrap_or(false) {
-        return Err(v["error"]
-            .as_str()
-            .unwrap_or("select failed")
-            .to_owned()
-            .into());
+        let message = v["error"].as_str().unwrap_or("select failed");
+        if message == "target not found" {
+            return Err(missing_target(&t));
+        }
+        return Err(jelly_error(ErrorKind::InteractionFailed, message, false));
     }
     Ok("selected".into())
 }
@@ -137,21 +196,29 @@ pub fn check(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     let t = target(args, 0, "usage: check <target>")?;
     let v=b.eval(&format!(r#"(()=>{{const e={};if(!e)return {{ok:false,error:'target not found'}};if(e.checked===undefined)return {{ok:false,error:'target not checkable'}};if(!e.checked)e.click();return {{ok:true,checked:!!e.checked}}}})()"#,t.js_resolver()))?;
     if !v["ok"].as_bool().unwrap_or(false) {
-        return Err(v["error"]
-            .as_str()
-            .unwrap_or("check failed")
-            .to_owned()
-            .into());
+        let message = v["error"].as_str().unwrap_or("check failed");
+        if message == "target not found" {
+            return Err(missing_target(&t));
+        }
+        return Err(jelly_error(ErrorKind::InteractionFailed, message, false));
     }
     Ok(v["checked"].to_string())
 }
 
 pub fn dialog(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
-    let action = args
-        .first()
-        .ok_or("usage: dialog <accept|dismiss> [text]")?;
+    let action = args.first().ok_or_else(|| {
+        jelly_error(
+            ErrorKind::InvalidArguments,
+            "usage: dialog <accept|dismiss> [text]",
+            false,
+        )
+    })?;
     if action != "accept" && action != "dismiss" {
-        return Err("usage: dialog <accept|dismiss> [text]".into());
+        return Err(jelly_error(
+            ErrorKind::InvalidArguments,
+            "usage: dialog <accept|dismiss> [text]",
+            false,
+        ));
     }
     let mut p = json!({"accept":action=="accept"});
     if let Some(t) = args.get(1) {
@@ -163,13 +230,17 @@ pub fn dialog(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> 
 
 pub fn drag(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     if args.len() < 2 {
-        return Err("usage: drag <source> <target|x:N,y:N>".into());
+        return Err(jelly_error(
+            ErrorKind::InvalidArguments,
+            "usage: drag <source> <target|x:N,y:N>",
+            false,
+        ));
     }
     let source = target(args, 0, "usage: drag <source> <target|x:N,y:N>")?;
     let dest = &args[1];
     let sp=b.eval(&format!(r#"(()=>{{const s={};if(!s)return null;s.scrollIntoView({{block:'center',inline:'center'}});const r=s.getBoundingClientRect();return {{x:r.left+r.width/2,y:r.top+r.height/2}}}})()"#,source.js_resolver()))?;
     if sp.is_null() {
-        return Err("source not found".into());
+        return Err(missing_target(&source));
     }
     let (sx, sy) = (
         sp["x"].as_f64().ok_or("invalid source x")?,
@@ -197,7 +268,7 @@ pub fn drag(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
                 "Input.dispatchMouseEvent",
                 json!({"type":"mouseReleased","x":sx,"y":sy,"button":"left","buttons":0}),
             );
-            return Err("target not found".into());
+            return Err(missing_target(&t));
         }
         (
             tp["x"].as_f64().ok_or("invalid target x")?,

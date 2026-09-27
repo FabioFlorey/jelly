@@ -1,4 +1,4 @@
-use jelly::{ACTIVE_TARGET, BROWSER_MODE, LOG_DIR, PAGE_TARGET, new_id};
+use jelly::{ACTIVE_TARGET, BROWSER_MODE, LOG_DIR, PAGE_TARGET, new_id, redact_args};
 use serde_json::json;
 use std::{
     env,
@@ -30,16 +30,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let started = SystemTime::now();
     let timer = Instant::now();
-    let trace_id = env::var("PBJ_TRACE_ID").unwrap_or_else(|_| new_id("trace"));
+    let trace_id = env::var("JELLY_TRACE_ID").unwrap_or_else(|_| new_id("trace"));
     let span_id = new_id("span");
-    let source = env::var("PBJ_SOURCE").unwrap_or_else(|_| "agent-run".into());
+    let source = env::var("JELLY_SOURCE").unwrap_or_else(|_| "agent-run".into());
     let status = Command::new(&bin)
         .args(&args[1..])
         .current_dir(ROOT)
-        .env("PBJ_TRACE_ID", &trace_id)
-        .env("PBJ_PARENT_SPAN_ID", &span_id)
+        .env("JELLY_TRACE_ID", &trace_id)
+        .env("JELLY_PARENT_SPAN_ID", &span_id)
         .env(
-            "PBJ_SOURCE",
+            "JELLY_SOURCE",
             if tool == "call-routine" {
                 "routine"
             } else {
@@ -67,10 +67,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "message": message,
         "trace_id": trace_id,
         "span_id": span_id,
-        "parent_span_id": env::var("PBJ_PARENT_SPAN_ID").ok(),
+        "parent_span_id": env::var("JELLY_PARENT_SPAN_ID").ok(),
         "source": source,
         "tool": format!("agent-{tool}"),
-        "args": redact(&args[1..]),
+        "args": redact_args(&args[1..]),
         "duration_ms": duration_ms,
         "ok": ok,
         "exit_code": exit_code,
@@ -100,31 +100,4 @@ fn browser_context() -> serde_json::Value {
         "mode": fs::read_to_string(BROWSER_MODE).ok().map(|x|x.trim().to_owned()),
         "target_id": fs::read_to_string(ACTIVE_TARGET).ok().or_else(||fs::read_to_string(PAGE_TARGET).ok()).map(|x|x.trim().to_owned()),
     })
-}
-
-fn redact(args: &[String]) -> Vec<String> {
-    let mut out = Vec::with_capacity(args.len());
-    let mut secret = false;
-    for a in args {
-        if secret {
-            out.push("<redacted>".into());
-            secret = false;
-            continue;
-        }
-        let lower = a.to_ascii_lowercase();
-        if ["--token", "--password", "--secret", "--api-key", "--apikey"].contains(&lower.as_str())
-        {
-            out.push(a.clone());
-            secret = true;
-        } else if lower.contains("token=")
-            || lower.contains("password=")
-            || lower.contains("secret=")
-            || lower.contains("api_key=")
-        {
-            out.push("<redacted>".into());
-        } else {
-            out.push(a.clone());
-        }
-    }
-    out
 }

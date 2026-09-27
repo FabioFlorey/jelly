@@ -37,6 +37,12 @@ The wizard checks dependencies, configures OAuth + hosting, and can install/star
 
 Use `./quickstart.sh --dry-run` to preview setup, or `./quickstart.sh --check` for prerequisites only.
 
+<div align="center">
+
+<img src="./assets/cli_quickstart_check.png" alt="Jelly quickstart prerequisite check" width="960">
+
+</div>
+
 Or build the tools directly:
 
 ```bash
@@ -86,7 +92,8 @@ cargo run --quiet --bin agent-discover -- schema type-text
 | 💡 [**Glossary**](./docs/GLOSSARY.md) | Definitions for technical and project-specific terminology |
 | ⭐ [**Architecture**](./docs/ARCHITECTURE.md) | Browser session, primitives, registry, and execution model |
 | 🔑 [**Tool Discovery**](./docs/DISCOVERY.md) | Capability discovery, search, and schema loading |
-| 🔆 [**Routines**](./docs/ROUTINES.md) | Composable workflows and in-process execution |
+| 🔆 [**Routines**](./docs/ROUTINES.md) | Guarded workflow graphs, branching, loops, and HITL continuation |
+| 🍯 [**Reliability**](./docs/RELIABILITY.md) | Verification, typed failures, artifacts, timeouts, and cleanup |
 | 📂 [**Runtime Layout**](./docs/RUNTIME.md) | Runtime state, build output, logs, screenshots, and cleanup |
 | 🧈 [**Development**](./docs/DEVELOPMENT.md) | Project conventions, tests, and contribution rules |
 | ⚡ [**MCP Server**](./docs/MCP.md) | Local MCP endpoint, authentication, tool mapping, and deployment boundary |

@@ -1,6 +1,6 @@
-use crate::{ACTIVE_TARGET, ENDPOINT, Error, PAGE_TARGET};
+use crate::{ACTIVE_TARGET, DOWNLOAD_DIR, ENDPOINT, Error, ErrorKind, PAGE_TARGET, jelly_error};
 use serde_json::{Value, json};
-use std::{fs, io};
+use std::{env, fs, io, time::Duration};
 use tungstenite::{Message, WebSocket, connect};
 
 pub struct BrowserSession {
@@ -14,13 +14,23 @@ impl BrowserSession {
     pub fn connect() -> Result<Self, Error> {
         let ep = fs::read_to_string(ENDPOINT)?;
         let (mut ws, _) = connect(ep.trim())?;
+        let timeout_secs = env::var("JELLY_CDP_TIMEOUT_SECS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or(30);
+        if let tungstenite::stream::MaybeTlsStream::Plain(stream) = ws.get_mut() {
+            let timeout = Some(Duration::from_secs(timeout_secs));
+            stream.set_read_timeout(timeout)?;
+            stream.set_write_timeout(timeout)?;
+        }
         send(&mut ws, 1, "Target.getTargets", None, json!({}))?;
         let v = recv(&mut ws, 1)?;
         check_error(&v)?;
         let preferred = fs::read_to_string(ACTIVE_TARGET)
             .ok()
             .or_else(|| fs::read_to_string(PAGE_TARGET).ok());
-        let tid = v["result"]["targetInfos"]
+        let target_info = v["result"]["targetInfos"]
             .as_array()
             .and_then(|a| {
                 a.iter()
@@ -37,25 +47,43 @@ impl BrowserSession {
                         })
                     })
             })
-            .and_then(|x| x["targetId"].as_str())
-            .ok_or("no web page target")?
+            .ok_or("no web page target")?;
+        let tid = target_info["targetId"]
+            .as_str()
+            .ok_or("page target has no targetId")?
             .to_owned();
+        let mut download_params = json!({
+            "behavior":"allowAndName",
+            "downloadPath":DOWNLOAD_DIR,
+            "eventsEnabled":true
+        });
+        if let Some(context_id) = target_info["browserContextId"].as_str() {
+            download_params["browserContextId"] = json!(context_id);
+        }
         send(
             &mut ws,
             2,
-            "Target.activateTarget",
+            "Browser.setDownloadBehavior",
             None,
-            json!({"targetId":tid}),
+            download_params,
         )?;
         check_error(&recv(&mut ws, 2)?)?;
         send(
             &mut ws,
             3,
+            "Target.activateTarget",
+            None,
+            json!({"targetId":tid}),
+        )?;
+        check_error(&recv(&mut ws, 3)?)?;
+        send(
+            &mut ws,
+            4,
             "Target.attachToTarget",
             None,
             json!({"targetId":tid,"flatten":true}),
         )?;
-        let v = recv(&mut ws, 3)?;
+        let v = recv(&mut ws, 4)?;
         check_error(&v)?;
         Ok(Self {
             ws,
@@ -64,7 +92,7 @@ impl BrowserSession {
                 .ok_or("attach failed")?
                 .into(),
             target_id: tid,
-            id: 3,
+            id: 4,
         })
     }
 
@@ -132,7 +160,7 @@ impl BrowserSession {
                 .and_then(|e| e["description"].as_str())
                 .or_else(|| ex.get("text").and_then(Value::as_str))
                 .unwrap_or("JavaScript evaluation failed");
-            return Err(msg.to_owned().into());
+            return Err(jelly_error(ErrorKind::JavascriptFailed, msg, false));
         }
         Ok(v["result"]["result"]
             .get("value")
@@ -157,7 +185,23 @@ fn send<S: io::Read + io::Write>(
 }
 fn recv<S: io::Read + io::Write>(ws: &mut WebSocket<S>, id: i64) -> Result<Value, Error> {
     loop {
-        if let Message::Text(t) = ws.read()? {
+        let message = match ws.read() {
+            Ok(message) => message,
+            Err(tungstenite::Error::Io(error))
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+                ) =>
+            {
+                return Err(jelly_error(
+                    ErrorKind::BrowserUnavailable,
+                    "timed out waiting for a CDP response",
+                    true,
+                ));
+            }
+            Err(error) => return Err(error.into()),
+        };
+        if let Message::Text(t) = message {
             let v: Value = serde_json::from_str(&t)?;
             if v.get("id").and_then(Value::as_i64) == Some(id) {
                 return Ok(v);

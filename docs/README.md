@@ -10,7 +10,8 @@ jelly keeps documentation modular. Each document covers one part of the system a
 | [**Glossary**](./GLOSSARY.md) | Definitions for jelly and agent/browser terminology |
 | [**Architecture**](./ARCHITECTURE.md) | How browser actions flow from agent to Chromium |
 | [**Tool Discovery**](./DISCOVERY.md) | How agents discover capabilities and load schemas |
-| [**Routines**](./ROUTINES.md) | How primitives are composed into reusable workflows |
+| [**Routines**](./ROUTINES.md) | Guarded workflow graphs, branching, loops, and continuation |
+| [**Reliability**](./RELIABILITY.md) | Verification, errors, artifacts, timeouts, cleanup, and profile reuse |
 | [**Runtime Layout**](./RUNTIME.md) | Where runtime state, artifacts, profiles, and build output live |
 | [**Development**](./DEVELOPMENT.md) | Design rules, testing, generated docs, and cleanup |
 | [**MCP Server**](./MCP.md) | Local MCP endpoint, tool mapping, and security boundary |

@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Delayed image fixture</title>
+<main>
+  <h1>Delayed image</h1>
+  <img id="artwork" alt="fixture artwork" width="32" height="32">
+</main>
+<script>
+setTimeout(() => {
+  document.querySelector('#artwork').src =
+    'data:image/svg+xml,' +
+    encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32"/></svg>');
+}, 300);
+</script>

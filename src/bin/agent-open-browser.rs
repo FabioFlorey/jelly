@@ -194,21 +194,20 @@ fn launch_service() -> rustwright::Result<()> {
             "failed to start jelly browser service",
         )));
     }
-    let startup_timeout_secs = env::var("PBJ_BROWSER_STARTUP_TIMEOUT_SECS")
+    let startup_timeout_secs = env::var("JELLY_BROWSER_STARTUP_TIMEOUT_SECS")
         .ok()
         .and_then(|value| value.parse::<u64>().ok())
         .filter(|value| *value > 0)
         .unwrap_or(30);
     let deadline = Instant::now() + Duration::from_secs(startup_timeout_secs);
     loop {
-        if fs::metadata(BROWSER_READY).is_ok() {
-            if let Ok(ep) = fs::read_to_string(ENDPOINT) {
-                if tungstenite::connect(ep.trim()).is_ok() {
-                    println!("Browser ready.");
-                    println!("CDP: {}", ep.trim());
-                    return Ok(());
-                }
-            }
+        if fs::metadata(BROWSER_READY).is_ok()
+            && let Ok(ep) = fs::read_to_string(ENDPOINT)
+            && tungstenite::connect(ep.trim()).is_ok()
+        {
+            println!("Browser ready.");
+            println!("CDP: {}", ep.trim());
+            return Ok(());
         }
 
         let state = Command::new("systemctl")

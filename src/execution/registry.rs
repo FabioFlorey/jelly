@@ -1,4 +1,4 @@
-use crate::{BrowserSession, Error, Target};
+use crate::{BrowserSession, Error, ErrorKind, Target, jelly_error};
 use serde_json::{Value, json};
 
 pub type PrimitiveHandler = fn(&mut BrowserSession, &[String]) -> Result<String, Error>;
@@ -60,6 +60,10 @@ pub static CATEGORIES: &[CategorySpec] = &[
         description: "Observe page content, elements, controls, links, images, layout, and accessibility state.",
     },
     CategorySpec {
+        name: "verify",
+        description: "Establish explicit browser-state predicates and wait for bounded conditions before dependent actions run.",
+    },
+    CategorySpec {
         name: "tabs",
         description: "List, open, switch, and close browser tabs while preserving the active session.",
     },
@@ -88,7 +92,11 @@ impl PrimitiveSpec {
     pub fn validate(&self, args: &[String]) -> Result<(), Error> {
         let required = self.args.iter().filter(|a| a.required).count();
         if args.len() < required || self.max_args.is_some_and(|max| args.len() > max) {
-            return Err(format!("usage: {}", self.usage).into());
+            return Err(jelly_error(
+                ErrorKind::InvalidArguments,
+                format!("usage: {}", self.usage),
+                false,
+            ));
         }
         for (value, spec) in args.iter().zip(self.args.iter()) {
             match spec.kind {
@@ -96,9 +104,13 @@ impl PrimitiveSpec {
                     Target::parse(value)?;
                 }
                 ArgKind::Integer => {
-                    value
-                        .parse::<u64>()
-                        .map_err(|_| format!("{} must be an integer", spec.name))?;
+                    value.parse::<u64>().map_err(|_| {
+                        jelly_error(
+                            ErrorKind::InvalidArguments,
+                            format!("{} must be an integer", spec.name),
+                            false,
+                        )
+                    })?;
                 }
                 ArgKind::String => {}
             }
@@ -119,7 +131,7 @@ macro_rules! primitives {
 
 use ArgKind::{Integer, String as Str, Target as Tgt};
 primitives! {
-    "click" => crate::primitives::input::click, description:"Click a visible element using a stable ref, CSS selector, or exact visible text.", usage:"click <target>", category:"input", args:&[ArgSpec::req("target",Tgt)], max:Some(1);
+    "click" => crate::primitives::input::click, description:"Dispatch a click to a visible element. This confirms the interaction was performed, not the resulting application state.", usage:"click <target>", category:"input", args:&[ArgSpec::req("target",Tgt)], max:Some(1);
     "type-text" => crate::primitives::input::type_text, description:"Type text into a visible editable element, optionally targeting a specific element.", usage:"type-text <text> [target]", category:"input", args:&[ArgSpec::req("text",Str),ArgSpec::opt("target",Tgt)], max:Some(2);
     "fill" => crate::primitives::input::fill, description:"Replace the current contents of a visible editable element and dispatch input/change events.", usage:"fill <text> [target]", category:"input", args:&[ArgSpec::req("text",Str),ArgSpec::opt("target",Tgt)], max:Some(2);
     "press-key" => crate::primitives::input::press_key, description:"Dispatch a keyboard key to the currently focused page element.", usage:"press-key <key>", category:"input", args:&[ArgSpec::req("key",Str)], max:Some(1);
@@ -129,8 +141,15 @@ primitives! {
     "drag" => crate::primitives::input::drag, description:"Drag an element to another element or explicit viewport coordinates using pointer events.", usage:"drag <source> <target|x:N,y:N>", category:"input", args:&[ArgSpec::req("source",Tgt),ArgSpec::req("destination",Str)], max:Some(2);
 
     "wait" => crate::primitives::navigation::wait, description:"Wait until text, CSS, visibility, URL, disappearance, or a JavaScript condition is satisfied.", usage:"wait <text|css|visible|url|gone|js> <value> [seconds]", category:"navigation", args:&[ArgSpec::req("condition",Str),ArgSpec::req("value",Str),ArgSpec::opt("seconds",Integer)], max:Some(3);
-    "navigate" => crate::primitives::navigation::navigate, description:"Navigate the active tab to a URL and restore persistent injected scripts.", usage:"navigate <url>", category:"navigation", args:&[ArgSpec::req("url",Str)], max:Some(1);
+    "navigate" => crate::primitives::navigation::navigate, description:"Navigate the active tab and report the observed URL/title/readiness. Use verification primitives for application-state guarantees.", usage:"navigate <url>", category:"navigation", args:&[ArgSpec::req("url",Str)], max:Some(1);
     "tab-history" => crate::primitives::navigation::tab_history, description:"Move the active tab backward or forward in its navigation history.", usage:"tab-history <back|forward>", category:"navigation", args:&[ArgSpec::req("direction",Str)], max:Some(1);
+
+    "wait-for" => crate::primitives::verify::wait_for, description:"Wait with a finite deadline for an explicit page or target condition and return the observed evidence.", usage:"wait-for <exists|visible|hidden|text|url|title|image-ready> <value> [seconds]", category:"verify", args:&[ArgSpec::req("condition",Str),ArgSpec::req("value",Str),ArgSpec::opt("seconds",Integer)], max:Some(3);
+    "assert-url" => crate::primitives::verify::assert_url, description:"Require the current page URL to match the expected value before dependent work continues.", usage:"assert-url <expected> [exact|contains]", category:"verify", args:&[ArgSpec::req("expected",Str),ArgSpec::opt("match",Str)], max:Some(2);
+    "assert-title" => crate::primitives::verify::assert_title, description:"Require the current document title to match the expected value.", usage:"assert-title <expected> [exact|contains]", category:"verify", args:&[ArgSpec::req("expected",Str),ArgSpec::opt("match",Str)], max:Some(2);
+    "assert-visible" => crate::primitives::verify::assert_visible, description:"Require a target to exist and be visibly rendered, returning geometry as evidence.", usage:"assert-visible <target>", category:"verify", args:&[ArgSpec::req("target",Tgt)], max:Some(1);
+    "assert-text" => crate::primitives::verify::assert_text, description:"Require a target's current text to match an expected value.", usage:"assert-text <target> <text> [exact|contains]", category:"verify", args:&[ArgSpec::req("target",Tgt),ArgSpec::req("text",Str),ArgSpec::opt("match",Str)], max:Some(3);
+    "assert-image-ready" => crate::primitives::verify::assert_image_ready, description:"Require a visible image to be complete with nonzero natural dimensions before capture or downstream use.", usage:"assert-image-ready <target>", category:"verify", args:&[ArgSpec::req("target",Tgt)], max:Some(1);
 
     "snapshot-interactive" => crate::primitives::inspect::snapshot_interactive, description:"Return visible interactive elements and assign stable @eN references for subsequent actions.", usage:"snapshot-interactive", category:"inspect", args:&[], max:Some(0);
     "read-page" => crate::primitives::inspect::read_page, description:"Return the active page title, URL, headings, and main readable text.", usage:"read-page", category:"inspect", args:&[], max:Some(0);
@@ -142,7 +161,7 @@ primitives! {
     "get-element" => crate::primitives::inspect::get_element, description:"Return the text, outer HTML, or both for a single target element.", usage:"get-element <target> [text|html|both]", category:"inspect", args:&[ArgSpec::req("target",Tgt),ArgSpec::opt("mode",Str)], max:Some(2);
     "accessibility-tree" => crate::primitives::inspect::accessibility_tree, description:"Return a compact view of non-ignored nodes from the page accessibility tree.", usage:"accessibility-tree [max]", category:"inspect", args:&[ArgSpec::opt("max",Integer)], max:Some(1);
     "inspect-links" => crate::primitives::inspect::inspect_links, description:"List visible links with normalized visible text and resolved URLs.", usage:"inspect-links", category:"inspect", args:&[], max:Some(0);
-    "inspect-images" => crate::primitives::inspect::inspect_images, description:"List visible images with alt text, resolved source URL, and rendered dimensions.", usage:"inspect-images", category:"inspect", args:&[], max:Some(0);
+    "inspect-images" => crate::primitives::inspect::inspect_images, description:"Inspect images with stable refs, source, visibility, load completion, natural dimensions, and rendered dimensions.", usage:"inspect-images", category:"inspect", args:&[], max:Some(0);
 
     "tabs" => crate::primitives::tabs::tabs, description:"List browser page targets with target ID, title, and URL.", usage:"tabs", category:"tabs", args:&[], max:Some(0);
     "switch-tab" => crate::primitives::tabs::switch_tab, description:"Activate and attach to a tab by target ID or matching title or URL.", usage:"switch-tab <id|title|url>", category:"tabs", args:&[ArgSpec::req("query",Str)], max:Some(1);

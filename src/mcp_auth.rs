@@ -429,7 +429,7 @@ async fn authorize_get(
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
     if let Err(response) = validate_authorize_request(&state, &params) {
-        return response;
+        return *response;
     }
     if state.consent_mode == ConsentMode::Paired && !state.has_owner_session(&headers) {
         return (
@@ -477,7 +477,7 @@ async fn authorize_post(
     Form(params): Form<HashMap<String, String>>,
 ) -> Response {
     if let Err(response) = validate_authorize_request(&state, &params) {
-        return response;
+        return *response;
     }
 
     if state.consent_mode == ConsentMode::Paired {
@@ -642,37 +642,55 @@ async fn token(
 fn validate_authorize_request(
     state: &AuthState,
     params: &HashMap<String, String>,
-) -> Result<(), Response> {
+) -> Result<(), Box<Response>> {
     if params.get("response_type").map(String::as_str) != Some("code") {
-        return Err((StatusCode::BAD_REQUEST, "response_type must be code").into_response());
+        return Err(Box::new(
+            (StatusCode::BAD_REQUEST, "response_type must be code").into_response(),
+        ));
     }
     if params.get("code_challenge_method").map(String::as_str) != Some("S256") {
-        return Err((StatusCode::BAD_REQUEST, "PKCE S256 is required").into_response());
+        return Err(Box::new(
+            (StatusCode::BAD_REQUEST, "PKCE S256 is required").into_response(),
+        ));
     }
     let Some(client_id) = params.get("client_id") else {
-        return Err((StatusCode::BAD_REQUEST, "client_id is required").into_response());
+        return Err(Box::new(
+            (StatusCode::BAD_REQUEST, "client_id is required").into_response(),
+        ));
     };
     let Some(redirect_uri) = params.get("redirect_uri") else {
-        return Err((StatusCode::BAD_REQUEST, "redirect_uri is required").into_response());
+        return Err(Box::new(
+            (StatusCode::BAD_REQUEST, "redirect_uri is required").into_response(),
+        ));
     };
     if params.get("code_challenge").is_none() {
-        return Err((StatusCode::BAD_REQUEST, "code_challenge is required").into_response());
+        return Err(Box::new(
+            (StatusCode::BAD_REQUEST, "code_challenge is required").into_response(),
+        ));
     }
     let resource_url = state.resource_url();
     if params.get("resource").map(String::as_str) != Some(resource_url.as_str()) {
-        return Err((StatusCode::BAD_REQUEST, "invalid resource").into_response());
+        return Err(Box::new(
+            (StatusCode::BAD_REQUEST, "invalid resource").into_response(),
+        ));
     }
     let scope = params.get("scope").map(String::as_str).unwrap_or(SCOPE);
     if !scope.split_whitespace().all(|item| item == SCOPE) {
-        return Err((StatusCode::BAD_REQUEST, "unsupported scope").into_response());
+        return Err(Box::new(
+            (StatusCode::BAD_REQUEST, "unsupported scope").into_response(),
+        ));
     }
 
     let store = state.store.lock().unwrap();
     let Some(client) = store.clients.get(client_id) else {
-        return Err((StatusCode::BAD_REQUEST, "unknown client_id").into_response());
+        return Err(Box::new(
+            (StatusCode::BAD_REQUEST, "unknown client_id").into_response(),
+        ));
     };
     if !client.redirect_uris.iter().any(|uri| uri == redirect_uri) {
-        return Err((StatusCode::BAD_REQUEST, "redirect_uri is not registered").into_response());
+        return Err(Box::new(
+            (StatusCode::BAD_REQUEST, "redirect_uri is not registered").into_response(),
+        ));
     }
     Ok(())
 }
@@ -911,7 +929,7 @@ mod tests {
             "abcdef0123456789abcdef0123456789".into(),
             ConsentMode::Browser,
             true,
-            "https://pbj.example".into(),
+            "https://jelly.example".into(),
         )
         .unwrap()
     }
@@ -978,9 +996,44 @@ mod tests {
                 "abcdef0123456789abcdef0123456789".into(),
                 ConsentMode::Paired,
                 false,
-                "https://pbj.example".into(),
+                "https://jelly.example".into(),
             )
             .is_ok()
         );
+    }
+
+    #[test]
+    fn authorize_validation_accepts_registered_pkce_request() {
+        let state = state();
+        state.store.lock().unwrap().clients.insert(
+            "client-1".into(),
+            Client {
+                redirect_uris: vec!["https://client.example/callback".into()],
+            },
+        );
+        let params = HashMap::from([
+            ("response_type".into(), "code".into()),
+            ("client_id".into(), "client-1".into()),
+            (
+                "redirect_uri".into(),
+                "https://client.example/callback".into(),
+            ),
+            ("code_challenge".into(), "challenge".into()),
+            ("code_challenge_method".into(), "S256".into()),
+            ("resource".into(), state.resource_url()),
+            ("scope".into(), SCOPE.into()),
+        ]);
+        assert!(validate_authorize_request(&state, &params).is_ok());
+    }
+
+    #[test]
+    fn authorize_validation_returns_boxed_bad_request() {
+        let state = state();
+        let params = HashMap::from([
+            ("response_type".into(), "token".into()),
+            ("client_id".into(), "missing".into()),
+        ]);
+        let response = validate_authorize_request(&state, &params).unwrap_err();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 }

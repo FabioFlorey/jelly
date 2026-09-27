@@ -71,15 +71,15 @@ fn capture() -> Result<(), Box<dyn std::error::Error>> {
         };
         let v: Value = serde_json::from_str(&text)?;
         if v["method"] == "Target.attachedToTarget" {
-            if v["params"]["targetInfo"]["type"] == "page" {
-                if let Some(s) = v["params"]["sessionId"].as_str() {
-                    ws.send(Message::Text(
-                        json!({"id":next_id,"method":"Network.enable","sessionId":s})
-                            .to_string()
-                            .into(),
-                    ))?;
-                    next_id += 1;
-                }
+            if v["params"]["targetInfo"]["type"] == "page"
+                && let Some(s) = v["params"]["sessionId"].as_str()
+            {
+                ws.send(Message::Text(
+                    json!({"id":next_id,"method":"Network.enable","sessionId":s})
+                        .to_string()
+                        .into(),
+                ))?;
+                next_id += 1;
             }
             continue;
         }
@@ -118,15 +118,14 @@ fn capture() -> Result<(), Box<dyn std::error::Error>> {
 
 fn start() -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(NETWORK_DIR)?;
-    if let Ok(pid) = fs::read_to_string(PID) {
-        if Command::new("kill")
+    if let Ok(pid) = fs::read_to_string(PID)
+        && Command::new("kill")
             .args(["-0", pid.trim()])
             .status()?
             .success()
-        {
-            println!("Network inspection already running.");
-            return Ok(());
-        }
+    {
+        println!("Network inspection already running.");
+        return Ok(());
     }
     fs::write(LOG, "")?;
     let exe = env::current_exe()?;

@@ -66,10 +66,10 @@ Override it with `JELLY_MCP_ADDR`.
 For fixed-domain OAuth behind a tunnel, set the stable public origin explicitly:
 
 ```bash
-JELLY_PUBLIC_URL=https://pbjelly.example.com
+JELLY_PUBLIC_URL=https://jelly.example.com
 ```
 
-Quick Tunnel mode discovers this value automatically. The public URL is used as both the OAuth issuer and protected-resource identifier. It must use HTTPS except for localhost development.
+Quick Tunnel mode discovers this value automatically. The public origin is the OAuth issuer; the protected resource is `<origin>/mcp`. It must use HTTPS except for localhost development.
 
 ## Tool mapping
 
@@ -94,14 +94,33 @@ The current system-tool mappings are:
 open-browser
 close-browser
 browser-task
+profile-import
 screenshot
 downloads
+wait-download
+verify-artifact
 inspect-network
 call-routine
 hitl
 ```
 
 `hitl` is transport-agnostic at the MCP/routine surface. Telegram is its current implementation.
+
+## Tool result contract
+
+Every `tools/call` response uses an object envelope in `structuredContent`:
+
+```json
+{"ok":true,"data":{},"error":null,"meta":{"tool":"read-page"}}
+```
+
+Tool failures keep the same shape and set `isError: true`:
+
+```json
+{"ok":false,"data":null,"error":{"kind":"target_stale","message":"...","retryable":true},"meta":{"tool":"click"}}
+```
+
+The inner `data` value may be an object, array, scalar, or null; clients never receive a raw top-level array/string as `structuredContent`. Verification and graph semantics are documented in [Reliability](./RELIABILITY.md).
 
 All MCP tools declare an OAuth security scheme with the `jelly` scope.
 
@@ -133,7 +152,7 @@ JELLY_BOOTSTRAP_SECRET=<secret>
 
 `paired` consent first requires the owner to pair a browser at `/pair` using `JELLY_BOOTSTRAP_SECRET`. The resulting owner session is an HttpOnly, SameSite=Lax cookie with a 24-hour lifetime. OAuth approvals are rejected unless they come from that paired browser. `JELLY_OAUTH_PASSWORD` is not required in paired mode.
 
-Dynamic Client Registration is policy-gated. When `JELLY_OAUTH_PUBLIC_CHATGPT_DCR=true`, unauthenticated registration is accepted only for a single redirect URI matching ChatGPT's `https://chatgpt.com/connector/oauth/...` callback shape. Other registrations require `Authorization: Bearer <JELLY_BOOTSTRAP_SECRET>`. When public ChatGPT DCR is disabled, the authorization-server metadata omits the registration endpoint.
+Dynamic Client Registration is policy-gated. When `JELLY_OAUTH_PUBLIC_CHATGPT_DCR=true`, unauthenticated registration is accepted only for ChatGPT's HTTPS callback on `chatgpt.com`, including the current `/connector_platform_oauth_redirect` path and the legacy `/connector/oauth/...` form. Other registrations require `Authorization: Bearer <JELLY_BOOTSTRAP_SECRET>`. When public ChatGPT DCR is disabled, the authorization-server metadata omits the registration endpoint.
 
 The MCP endpoint accepts two bearer-token paths:
 
@@ -174,7 +193,7 @@ JELLY_HOSTING_MODE=cloudflare-fixed
 `cloudflare-fixed` is the persistent path. Configure:
 
 ```text
-JELLY_PUBLIC_URL=https://pbjelly.example.com
+JELLY_PUBLIC_URL=https://jelly.example.com
 JELLY_CLOUDFLARE_TUNNEL_TOKEN=<named tunnel token>
 ```
 

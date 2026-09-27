@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Rerender fixture</title>
+<button id="replace">Replace target</button>
+<button id="target">Original target</button>
+<script>
+document.querySelector('#replace').addEventListener('click', () => {
+  const old = document.querySelector('#target');
+  const fresh = document.createElement('button');
+  fresh.id = 'target';
+  fresh.textContent = 'Replacement target';
+  old.replaceWith(fresh);
+});
+</script>

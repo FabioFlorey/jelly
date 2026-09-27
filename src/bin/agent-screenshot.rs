@@ -1,6 +1,7 @@
-use jelly::{BROWSER_MODE, BrowserSession, SCREENSHOT_DIR, Target};
+use jelly::{BROWSER_MODE, BrowserSession, SCREENSHOT_DIR, Target, new_id, register_screenshot};
 use std::{
     env, fs,
+    path::Path,
     process::{Command, Stdio},
     thread,
     time::{Duration, Instant},
@@ -15,6 +16,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let out = args.get(1).ok_or("worker output missing")?;
         return native_viewport(out);
     }
+
+    let json_output = args.iter().any(|x| x == "--json");
     let output_flag = args
         .iter()
         .position(|x| x == "--output")
@@ -32,8 +35,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out = output_flag
         .or_else(|| positional.get(1).cloned())
         .unwrap_or_else(|| format!("{SCREENSHOT_DIR}/{DEFAULT_NAME}"));
-    if let Some(target) = target {
-        return element(&target, &out);
+    ensure_parent(&out)?;
+
+    if let Some(target) = target.as_deref() {
+        capture_element(target, &out)?;
+        return finish(&out, Some(target), json_output);
     }
 
     let exe = env::current_exe()?;
@@ -46,8 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         if let Some(status) = child.try_wait()? {
             if status.success() && fs::metadata(&out).is_ok() {
-                println!("{}", out);
-                return Ok(());
+                return finish(&out, None, json_output);
             }
             break;
         }
@@ -58,38 +63,102 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         thread::sleep(Duration::from_millis(50));
     }
-    if fs::read_to_string(BROWSER_MODE).ok().as_deref() == Some("headed") {
-        if desktop_fallback(&out)? {
-            println!("{}", out);
-            return Ok(());
-        }
+
+    if fs::read_to_string(BROWSER_MODE).ok().as_deref() == Some("headed") && desktop_fallback(&out)?
+    {
+        return finish(&out, None, json_output);
     }
     Err("Chromium viewport screenshot failed".into())
 }
 
+fn ensure_parent(out: &str) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(parent) = Path::new(out)
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent)?;
+    }
+    Ok(())
+}
+
+fn source_context() -> (Option<String>, Option<String>) {
+    let Ok(mut browser) = BrowserSession::connect() else {
+        return (None, None);
+    };
+    let Ok(value) = browser.eval("({url:location.href,title:document.title||''})") else {
+        return (None, None);
+    };
+    (
+        value["url"].as_str().map(str::to_owned),
+        value["title"].as_str().map(str::to_owned),
+    )
+}
+
+fn finish(
+    out: &str,
+    target: Option<&str>,
+    json_output: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let out_path = Path::new(out);
+    let artifact_path = Path::new(SCREENSHOT_DIR).join(format!("{}.png", new_id("screenshot")));
+    fs::copy(out_path, &artifact_path)?;
+    let (url, title) = source_context();
+    let artifact = register_screenshot(&artifact_path, target, url.as_deref(), title.as_deref())?;
+    if json_output {
+        println!("{}", serde_json::to_string(&artifact)?);
+    } else {
+        println!("{out}");
+    }
+    Ok(())
+}
+
 fn native_viewport(out: &str) -> Result<(), Box<dyn std::error::Error>> {
+    ensure_parent(out)?;
     let mut c = BrowserSession::connect()?;
-    let v = c.call("Page.captureScreenshot", serde_json::json!({"format":"png","fromSurface":true,"captureBeyondViewport":false,"optimizeForSpeed":true}))?;
+    let v = c.call(
+        "Page.captureScreenshot",
+        serde_json::json!({
+            "format":"png",
+            "fromSurface":true,
+            "captureBeyondViewport":false,
+            "optimizeForSpeed":true
+        }),
+    )?;
     let data = v["result"]["data"].as_str().ok_or("no screenshot")?;
     fs::write(out, base64_decode(data)?)?;
     Ok(())
 }
 
-fn element(target: &str, out: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn capture_element(target: &str, out: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut c = BrowserSession::connect()?;
-    let r=c.eval(&format!(r#"(()=>{{const e={};if(!e)return null;e.scrollIntoView({{block:'center'}});const r=e.getBoundingClientRect();return {{x:r.x+scrollX,y:r.y+scrollY,width:r.width,height:r.height}}}})()"#,Target::parse(target)?.js_resolver()))?;
+    let r = c.eval(&format!(
+        r#"(()=>{{const e={};if(!e)return null;e.scrollIntoView({{block:'center'}});const r=e.getBoundingClientRect(),s=getComputedStyle(e);if(r.width<=0||r.height<=0||s.display==='none'||s.visibility==='hidden')return null;return {{x:r.x+scrollX,y:r.y+scrollY,width:r.width,height:r.height}}}})()"#,
+        Target::parse(target)?.js_resolver()
+    ))?;
     if r.is_null()
         || r["width"].as_f64().unwrap_or(0.0) <= 0.0
         || r["height"].as_f64().unwrap_or(0.0) <= 0.0
     {
-        return Err("element not found or has no size".into());
+        return Err("element not found or not visible".into());
     }
-    let v=c.call("Page.captureScreenshot",serde_json::json!({"format":"png","captureBeyondViewport":true,"clip":{"x":r["x"],"y":r["y"],"width":r["width"],"height":r["height"],"scale":1}}))?;
+    let v = c.call(
+        "Page.captureScreenshot",
+        serde_json::json!({
+            "format":"png",
+            "captureBeyondViewport":true,
+            "clip":{
+                "x":r["x"],
+                "y":r["y"],
+                "width":r["width"],
+                "height":r["height"],
+                "scale":1
+            }
+        }),
+    )?;
     fs::write(
         out,
         base64_decode(v["result"]["data"].as_str().ok_or("no screenshot")?)?,
     )?;
-    println!("{}", out);
     Ok(())
 }
 

@@ -1,5 +1,5 @@
 use crate::primitives::js;
-use crate::{BrowserSession, Error, INJECTION_DIR};
+use crate::{BrowserSession, Error, ErrorKind, INJECTION_DIR, jelly_error};
 use serde_json::json;
 use std::{
     fs, thread,
@@ -8,7 +8,11 @@ use std::{
 
 pub fn wait(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     if args.len() < 2 {
-        return Err("usage: wait <text|css|visible|url|gone|js> <value> [seconds]".into());
+        return Err(jelly_error(
+            ErrorKind::InvalidArguments,
+            "usage: wait <text|css|visible|url|gone|js> <value> [seconds]",
+            false,
+        ));
     }
     let secs = args.get(2).and_then(|x| x.parse().ok()).unwrap_or(10);
     let start = Instant::now();
@@ -23,21 +27,33 @@ pub fn wait(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
             "url" => format!("location.href.includes({})", js(&args[1])),
             "gone" => format!("!document.querySelector({})", js(&args[1])),
             "js" => format!("!!({})", args[1]),
-            _ => return Err("condition must be text|css|visible|url|gone|js".into()),
+            _ => {
+                return Err(jelly_error(
+                    ErrorKind::InvalidArguments,
+                    "condition must be text|css|visible|url|gone|js",
+                    false,
+                ));
+            }
         };
         match b.eval(&e) {
             Ok(v) if v.as_bool() == Some(true) => return Ok("Condition met.".into()),
             Ok(_) | Err(_) => {}
         }
         if start.elapsed() > Duration::from_secs(secs) {
-            return Err("wait timed out".into());
+            return Err(jelly_error(
+                ErrorKind::ConditionTimeout,
+                format!("wait timed out after {secs}s for {} {:?}", args[0], args[1]),
+                true,
+            ));
         }
         thread::sleep(Duration::from_millis(250))
     }
 }
 
 pub fn navigate(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
-    let url = args.first().ok_or("usage: navigate <url>")?;
+    let url = args
+        .first()
+        .ok_or_else(|| jelly_error(ErrorKind::InvalidArguments, "usage: navigate <url>", false))?;
     for source in injections() {
         b.call(
             "Page.addScriptToEvaluateOnNewDocument",
@@ -46,7 +62,7 @@ pub fn navigate(b: &mut BrowserSession, args: &[String]) -> Result<String, Error
     }
     let v = b.call("Page.navigate", json!({"url":url}))?;
     if let Some(e) = v["result"]["errorText"].as_str() {
-        return Err(e.to_owned().into());
+        return Err(jelly_error(ErrorKind::NavigationFailed, e, true));
     }
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
@@ -60,14 +76,23 @@ pub fn navigate(b: &mut BrowserSession, args: &[String]) -> Result<String, Error
             _ => {}
         }
         if Instant::now() >= deadline {
-            break;
+            return Err(jelly_error(
+                ErrorKind::NavigationTimeout,
+                format!("document did not become interactive within 10s after navigating to {url}"),
+                true,
+            ));
         }
         thread::sleep(Duration::from_millis(50))
     }
     for source in injections() {
         let _ = b.eval(&format!("(()=>{{\n{source}\n}})()"));
     }
-    Ok(format!("Navigating to {url}"))
+    let observed = b.eval("({requested:null,url:location.href,title:document.title||'',ready_state:document.readyState})")?;
+    let mut observed = observed.as_object().cloned().unwrap_or_default();
+    observed.insert("requested".into(), json!(url));
+    Ok(serde_json::to_string_pretty(&serde_json::Value::Object(
+        observed,
+    ))?)
 }
 
 pub fn tab_history(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {

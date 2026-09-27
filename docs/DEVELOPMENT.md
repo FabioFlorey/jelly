@@ -19,6 +19,8 @@ Run the full suite:
 cargo test --all-targets
 ```
 
+Deterministic browser fixtures live in `tests/fixtures/` for delayed images, DOM rerenders, visibility, and downloads. Browser integration runs should use these local fixtures rather than public sites.
+
 ## Generated tool documentation
 
 Regenerate the tool index:

@@ -2,52 +2,55 @@
 
 # Runtime Layout
 
-The repository stays source-only. Browser state, profiles, logs, screenshots, downloads, and Cargo build artifacts live outside the working tree.
-
-Runtime data lives under:
+Jelly keeps browser state, profiles, logs, artifacts, and build output outside the repository.
 
 ```text
 /data/jelly-runtime/
 ├── state/
-│   └── oauth.json
-│   └── oauth.json
+│   ├── oauth.json
+│   └── ... browser/CDP state
 ├── profiles/
 │   ├── headed/
 │   └── headless/
 ├── logs/
 │   └── actions.jsonl
 ├── network/
-│   ├── capture.pid
 │   └── requests.jsonl
-├── nip-io/
-│   ├── Caddyfile
-│   └── caddy-data/
 ├── routines/
 ├── injections/
 └── artifacts/
+    ├── metadata/
+    │   └── artifact-*.json
     ├── screenshots/
-    │   └── latest.png
+    │   ├── latest.png
+    │   └── registered/
+    │       └── artifact-*.png
     └── downloads/
+        └── registered/
 ```
 
-Cargo output is stored separately in:
+Screenshot metadata records provenance, dimensions, trace linkage, and verification state. `latest.png` remains a convenience path; reliability-sensitive workflows should pass artifact IDs.
+
+Imported Chromium session data is copied into `profiles/headed/`. Profile data and `state/oauth.json` are sensitive local state and stay outside Git.
+
+Cargo output lives separately in:
 
 ```text
-../.jelly-build/
+/data/.jelly-build/
 ```
 
-Clean runtime data:
+Clean runtime state:
 
 ```bash
 scripts/clean-runtime.sh
 ```
 
-Clean runtime data and Cargo build output:
+Clean runtime state plus Cargo output:
 
 ```bash
 scripts/clean-runtime.sh --build
 ```
 
-This keeps the repository compact and makes runtime state easy to understand and remove. `state/oauth.json` contains persisted MCP OAuth clients and access tokens with mode `0600`; cleaning the runtime removes that state and requires MCP clients to authorize again. `state/oauth.json` contains persisted MCP OAuth clients and access tokens with mode `0600`; cleaning the runtime removes that state and requires MCP clients to authorize again.
+Cleaning runtime state removes persisted OAuth clients/tokens, browser profiles, artifacts, routine continuations, and other local execution state.
 
 <p align="right"><sub><a href="./README.md">⭐ Documentation index</a></sub></p>
