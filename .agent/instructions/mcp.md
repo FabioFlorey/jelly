@@ -55,6 +55,7 @@ Jelly is a browser instrumentation layer for a persistent Chromium session.
 - Use wait-for when a condition may become true asynchronously and execution should block until a bounded deadline.
 - Use assert-* when the condition should already be true and failure should stop or route immediately.
 - Use screenshot for ad-hoc visual capture; use verified-screenshot when downstream work depends on explicit URL/target/image readiness and registered provenance.
+- Use highlight when a screenshot, recording, demonstration, or HITL request benefits from drawing attention to a specific visible element; clear-highlight when the annotation is no longer needed.
 - Use downloads for observation of existing files; use wait-download / verified-download when the workflow depends on completion and registered provenance.
 - Prefer a reusable routine once the same multi-step sequence appears more than once or requires nontrivial guards.
 

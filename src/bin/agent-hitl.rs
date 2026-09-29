@@ -4,7 +4,7 @@ use std::{env, process::Command};
 
 const SCREENSHOT_NAME: &str = "latest.png";
 
-fn screenshot(target: Option<&str>, desktop_fallback: bool) -> Option<String> {
+fn screenshot(target: Option<&str>) -> Option<String> {
     let screenshot_bin = env::current_exe().ok()?.parent()?.join("agent-screenshot");
     let path = format!("{SCREENSHOT_DIR}/{SCREENSHOT_NAME}");
     let mut command = Command::new(screenshot_bin);
@@ -12,9 +12,6 @@ fn screenshot(target: Option<&str>, desktop_fallback: bool) -> Option<String> {
         command.arg(target);
     }
     command.args(["--output", &path]);
-    if desktop_fallback {
-        command.arg("--desktop-fallback");
-    }
     let output = command.output().ok()?;
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
@@ -94,7 +91,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut message_parts = Vec::new();
     let mut screenshot_target = None;
     let mut no_screenshot = false;
-    let mut desktop_fallback = false;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -107,23 +103,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             "--no-screenshot" => no_screenshot = true,
-            "--desktop-fallback" => desktop_fallback = true,
+            value if value.starts_with("--") => {
+                return Err(format!("unknown option: {value}").into());
+            }
             value => message_parts.push(value.to_owned()),
         }
         i += 1;
     }
     let message = message_parts.join(" ");
     if message.is_empty() {
-        return Err(
-            "usage: hitl <message> [--screenshot-target target] [--no-screenshot] [--desktop-fallback]"
-                .into(),
-        );
+        return Err("usage: hitl <message> [--screenshot-target target] [--no-screenshot]".into());
     }
 
     let photo = if no_screenshot {
         None
     } else {
-        screenshot(screenshot_target.as_deref(), desktop_fallback)
+        screenshot(screenshot_target.as_deref())
     };
     let result = send_telegram(&message, photo.as_deref())?;
     println!("{}", serde_json::to_string(&result)?);

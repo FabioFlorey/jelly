@@ -14,7 +14,7 @@ pub use tools::{
     TOOL_CATEGORIES as tool_category_specs, TOOLS as tool_specs, ToolCategorySpec, ToolSpec,
     lookup_tool,
 };
-pub use tracing::{new_id, record_step, redact_args};
+pub use tracing::{new_id, record_step, redact_args, redact_tool_args};
 
 use crate::{BrowserSession, Error};
 use std::{
@@ -49,14 +49,19 @@ pub fn execute_browser_primitive(
         )
     })?;
     let started = Instant::now();
-    let result = spec
-        .validate(args)
-        .and_then(|_| (spec.handler)(browser, args));
+    let validation = spec.validate(args);
+    let prepared = if validation.is_ok() {
+        tracing::prepare_step(browser, name, args)
+    } else {
+        None
+    };
+    let result = validation.and_then(|_| (spec.handler)(browser, args));
     let _ = tracing::log_primitive(
         name,
         args,
         started.elapsed().as_millis(),
         result.as_ref().err(),
+        prepared.as_ref(),
     );
     result
 }

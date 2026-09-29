@@ -15,6 +15,7 @@ This file is generated from the Rust browser-primitive and system-tool registrie
 | `tabs` | List, open, switch, and close browser tabs while preserving the active session. |
 | `files` | Move local files into browser-controlled file inputs. |
 | `script` | Evaluate or inject JavaScript as an explicit browser-page escape hatch. |
+| `visual` | Add or remove non-interactive visual annotations from browser-rendered content. |
 
 ## System capability groups
 
@@ -63,6 +64,8 @@ This file is generated from the Rust browser-primitive and system-tool registrie
 | `close-tab` | `tabs` | `close-tab` | — | Close the active tab and reattach the session to a remaining page target when available. |
 | `open-in-new-tab` | `tabs` | `open-in-new-tab <target>` | `target:target` | Open the link or image URL represented by a target in a new active tab. |
 | `upload` | `files` | `upload <target> <file>` | `target:target` `file:string` | Set a local file on a targeted HTML file input using the DOM protocol. |
+| `highlight` | `visual` | `highlight <target> [label]` | `target:target` `[label:string]` | Draw a Jelly-owned non-interactive highlight over a visible target without modifying the target element itself. The highlight follows the element until cleared or navigation replaces the document. |
+| `clear-highlight` | `visual` | `clear-highlight` | — | Remove the active Jelly visual highlight from the current page. |
 | `evaluate-js` | `script` | `evaluate-js <expression>` | `expression:string` | Evaluate a JavaScript expression in the active page and return its by-value result. |
 | `inject-js` | `script` | `inject-js [--persistent] [--file path \| <script>]` | `script:string` | Execute a JavaScript body now, optionally persisting it across jelly navigations. |
 
@@ -78,14 +81,14 @@ These tools are executable capabilities that intentionally do not require a shar
 | `close-browser` | `browser-lifecycle` | `close-browser` | Gracefully stop the persistent jelly Chromium browser service and clean its state files. |
 | `browser-task` | `browser-lifecycle` | `browser-task [--persist] <url> <agent-tool> [args...]` | Open a headed browser, run one agent tool, and close the browser unless persistence is requested. |
 | `profile-import` | `browser-lifecycle` | `profile-import <source> [--force]` | Copy a closed Chromium user-data directory into Jelly-managed runtime state for session reuse. This does not guarantee anti-bot or CAPTCHA behavior. |
-| `screenshot` | `artifacts` | `screenshot [target] [output] [--output path] [--desktop-fallback]` | Capture browser-rendered content only: the active page viewport by default or a specific target such as body, main, a CSS selector, or @eN reference. Desktop/window capture is opt-in only. |
+| `screenshot` | `artifacts` | `screenshot [target] [output] [--output path]` | Capture browser-rendered content only: the active page viewport by default or a specific target such as body, main, a CSS selector, or @eN reference. |
 | `record-browser` | `artifacts` | `record-browser start [--mode continuous\|steps] [--interval-ms n] [--hold-ms n] \| record-browser stop` | Start or stop a browser-content recording. Continuous mode streams renderer frames; steps mode captures browser state after relevant actions and turns the trace into a timed video. |
 | `downloads` | `artifacts` | `downloads` | List files downloaded into jelly browser download locations. |
 | `verify-artifact` | `artifacts` | `verify-artifact <artifact-id\|path> [--semantic check...]` | Verify a captured artifact still exists, is nonempty, and has valid format-specific integrity metadata. |
 | `wait-download` | `artifacts` | `wait-download <after-ms> [seconds] [name-contains]` | Wait for a completed download newer than a supplied timestamp baseline and register it as an artifact. |
 | `inspect-network` | `network` | `inspect-network <start\|stop\|show> [filters]` | Start, stop, or query persistent browser network capture with optional filters. |
 | `call-routine` | `routines` | `call-routine <name> [key=value] \| call-routine resume <id> [key=value]` | Execute or resume a routine. JSON graph routines support guarded branches, loops, jumps, budgets, HITL suspension, and owned-browser cleanup. |
-| `hitl` | `hitl` | `hitl <message> [--screenshot-target target] [--no-screenshot] [--desktop-fallback]` | Request human intervention through Telegram with a browser-content screenshot by default. A specific page element can be attached without capturing the desktop. |
+| `hitl` | `hitl` | `hitl <message> [--screenshot-target target] [--no-screenshot]` | Request human intervention through Telegram with a browser-content screenshot by default. A specific page element can be attached without capturing the desktop. |
 
 ## Discovery CLI
 

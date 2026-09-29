@@ -1,4 +1,6 @@
-use jelly::{ACTIVE_TARGET, BROWSER_MODE, LOG_DIR, PAGE_TARGET, new_id, record_step, redact_args};
+use jelly::{
+    ACTIVE_TARGET, BROWSER_MODE, LOG_DIR, PAGE_TARGET, new_id, record_step, redact_tool_args,
+};
 use serde_json::json;
 use std::{
     env,
@@ -36,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if tool == "close-browser" {
         let _ = record_step(
             "agent-close-browser",
-            &redact_args(&args[1..]),
+            &redact_tool_args(tool, &args[1..]),
             0,
             &trace_id,
             &span_id,
@@ -68,7 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         format!("agent-{tool} failed")
     };
-    let redacted_args = redact_args(&args[1..]);
+    let redacted_args = redact_tool_args(tool, &args[1..]);
     append(json!({
         "timestamp": OffsetDateTime::now_utc().format(&Rfc3339)?,
         "timestamp_ms": started.duration_since(UNIX_EPOCH)?.as_millis(),
@@ -91,7 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if ok && tool == "open-browser" {
         let _ = record_step(
             "agent-open-browser",
-            &redact_args(&args[1..]),
+            &redact_tool_args(tool, &args[1..]),
             duration_ms,
             &trace_id,
             &span_id,

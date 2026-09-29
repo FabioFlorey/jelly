@@ -75,6 +75,10 @@ pub static CATEGORIES: &[CategorySpec] = &[
         name: "script",
         description: "Evaluate or inject JavaScript as an explicit browser-page escape hatch.",
     },
+    CategorySpec {
+        name: "visual",
+        description: "Add or remove non-interactive visual annotations from browser-rendered content.",
+    },
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -169,6 +173,10 @@ primitives! {
     "open-in-new-tab" => crate::primitives::tabs::open_in_new_tab, description:"Open the link or image URL represented by a target in a new active tab.", usage:"open-in-new-tab <target>", category:"tabs", args:&[ArgSpec::req("target",Tgt)], max:Some(1);
 
     "upload" => crate::primitives::files::upload, description:"Set a local file on a targeted HTML file input using the DOM protocol.", usage:"upload <target> <file>", category:"files", args:&[ArgSpec::req("target",Tgt),ArgSpec::req("file",Str)], max:Some(2);
+
+    "highlight" => crate::primitives::visual::highlight, description:"Draw a Jelly-owned non-interactive highlight over a visible target without modifying the target element itself. The highlight follows the element until cleared or navigation replaces the document.", usage:"highlight <target> [label]", category:"visual", args:&[ArgSpec::req("target",Tgt),ArgSpec::opt("label",Str)], max:Some(2);
+    "clear-highlight" => crate::primitives::visual::clear_highlight, description:"Remove the active Jelly visual highlight from the current page.", usage:"clear-highlight", category:"visual", args:&[], max:Some(0);
+
     "evaluate-js" => crate::primitives::script::evaluate_js, description:"Evaluate a JavaScript expression in the active page and return its by-value result.", usage:"evaluate-js <expression>", category:"script", args:&[ArgSpec::req("expression",Str)], max:None;
     "inject-js" => crate::primitives::script::inject_js, description:"Execute a JavaScript body now, optionally persisting it across jelly navigations.", usage:"inject-js [--persistent] [--file path | <script>]", category:"script", args:&[ArgSpec::req("script",Str)], max:None;
 }

@@ -37,16 +37,19 @@ fn absolute(path: &Path) -> PathBuf {
     path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
-fn safe_source_url(value: Option<&str>) -> Option<String> {
-    let value = value?;
+pub fn sanitize_url(value: &str) -> String {
     if let Ok(mut parsed) = url::Url::parse(value) {
         let _ = parsed.set_username("");
         let _ = parsed.set_password(None);
         parsed.set_query(None);
         parsed.set_fragment(None);
-        return Some(parsed.to_string());
+        return parsed.to_string();
     }
-    Some(value.split(['?', '#']).next().unwrap_or(value).to_owned())
+    value.split(['?', '#']).next().unwrap_or(value).to_owned()
+}
+
+fn safe_source_url(value: Option<&str>) -> Option<String> {
+    value.map(sanitize_url)
 }
 
 fn metadata_path(id: &str) -> PathBuf {

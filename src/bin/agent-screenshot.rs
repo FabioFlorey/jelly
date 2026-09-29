@@ -1,4 +1,5 @@
-use jelly::{BROWSER_MODE, BrowserSession, SCREENSHOT_DIR, Target, new_id, register_screenshot};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use jelly::{BrowserSession, SCREENSHOT_DIR, Target, new_id, register_screenshot};
 use std::{
     env, fs,
     path::Path,
@@ -17,8 +18,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return native_viewport(out);
     }
 
+    for (i, arg) in args.iter().enumerate() {
+        let is_output_value = i > 0 && args[i - 1] == "--output";
+        if arg.starts_with("--") && arg != "--json" && arg != "--output" && !is_output_value {
+            return Err(format!("unknown option: {arg}").into());
+        }
+    }
+
     let json_output = args.iter().any(|x| x == "--json");
-    let desktop_fallback_enabled = args.iter().any(|x| x == "--desktop-fallback");
     let output_flag = args
         .iter()
         .position(|x| x == "--output")
@@ -65,13 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         thread::sleep(Duration::from_millis(50));
     }
 
-    if desktop_fallback_enabled
-        && fs::read_to_string(BROWSER_MODE).ok().as_deref() == Some("headed")
-        && desktop_fallback(&out)?
-    {
-        return finish(&out, None, json_output);
-    }
-    Err("Chromium viewport screenshot failed; desktop capture is disabled unless --desktop-fallback is requested".into())
+    Err("Chromium viewport screenshot failed".into())
 }
 
 fn ensure_parent(out: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -135,7 +136,7 @@ fn native_viewport(out: &str) -> Result<(), Box<dyn std::error::Error>> {
 fn capture_element(target: &str, out: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut c = BrowserSession::connect()?;
     let r = c.eval(&format!(
-        r#"(()=>{{const e={};if(!e)return null;e.scrollIntoView({{block:'center'}});const r=e.getBoundingClientRect(),s=getComputedStyle(e);if(r.width<=0||r.height<=0||s.display==='none'||s.visibility==='hidden')return null;return {{x:r.x+scrollX,y:r.y+scrollY,width:r.width,height:r.height}}}})()"#,
+        r#"(()=>{{const e={};if(!e)return null;const r=e.getBoundingClientRect(),s=getComputedStyle(e);if(r.width<=0||r.height<=0||s.display==='none'||s.visibility==='hidden')return null;return {{x:r.x+scrollX,y:r.y+scrollY,width:r.width,height:r.height}}}})()"#,
         Target::parse(target)?.js_resolver()
     ))?;
     if r.is_null()
@@ -165,38 +166,6 @@ fn capture_element(target: &str, out: &str) -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
-fn desktop_fallback(out: &str) -> Result<bool, Box<dyn std::error::Error>> {
-    let aw = Command::new("hyprctl")
-        .args(["activewindow", "-j"])
-        .output()?;
-    if !aw.status.success() {
-        return Ok(false);
-    }
-    let v: serde_json::Value = serde_json::from_slice(&aw.stdout)?;
-    let class = v["class"].as_str().unwrap_or("").to_ascii_lowercase();
-    if !class.contains("chromium") {
-        return Ok(false);
-    }
-    let at = v["at"].as_array().ok_or("active window has no position")?;
-    let size = v["size"].as_array().ok_or("active window has no size")?;
-    let geometry = format!("{},{} {}x{}", at[0], at[1], size[0], size[1]);
-    Ok(Command::new("grim")
-        .args(["-g", &geometry, out])
-        .status()?
-        .success())
-}
-
 fn base64_decode(s: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    use std::io::Write;
-    let mut p = Command::new("base64")
-        .arg("-d")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()?;
-    p.stdin.as_mut().unwrap().write_all(s.as_bytes())?;
-    let o = p.wait_with_output()?;
-    if !o.status.success() {
-        return Err("base64 decode failed".into());
-    }
-    Ok(o.stdout)
+    Ok(STANDARD.decode(s)?)
 }

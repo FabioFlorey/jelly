@@ -76,8 +76,8 @@ pub static TOOLS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "screenshot",
-        description: "Capture browser-rendered content only: the active page viewport by default or a specific target such as body, main, a CSS selector, or @eN reference. Desktop/window capture is opt-in only.",
-        usage: "screenshot [target] [output] [--output path] [--desktop-fallback]",
+        description: "Capture browser-rendered content only: the active page viewport by default or a specific target such as body, main, a CSS selector, or @eN reference.",
+        usage: "screenshot [target] [output] [--output path]",
         category: "artifacts",
     },
     ToolSpec {
@@ -119,7 +119,7 @@ pub static TOOLS: &[ToolSpec] = &[
     ToolSpec {
         name: "hitl",
         description: "Request human intervention through Telegram with a browser-content screenshot by default. A specific page element can be attached without capturing the desktop.",
-        usage: "hitl <message> [--screenshot-target target] [--no-screenshot] [--desktop-fallback]",
+        usage: "hitl <message> [--screenshot-target target] [--no-screenshot]",
         category: "hitl",
     },
 ];

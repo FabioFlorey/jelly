@@ -5,6 +5,7 @@ pub mod navigation;
 pub mod script;
 pub mod tabs;
 pub mod verify;
+pub mod visual;
 
 use crate::{Error, ErrorKind, Target, jelly_error};
 

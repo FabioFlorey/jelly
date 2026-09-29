@@ -105,7 +105,7 @@ call-routine
 hitl
 ```
 
-`screenshot` captures browser-rendered content by default and can target a specific page element. Desktop/window fallback must be explicitly enabled. `record-browser` supports `continuous` mode for renderer-frame video and `steps` mode for an action trace video built from browser screenshots held for a configurable duration. Both use FFmpeg and neither records the desktop. `hitl` is transport-agnostic at the MCP/routine surface. Telegram is its current implementation and can attach either the browser viewport or a requested page target.
+`screenshot` captures browser-rendered content and can target a specific page element without scrolling the live page as a side effect. `highlight` draws a subtle Jelly-honey, pointer-transparent overlay around a visible target; `clear-highlight` removes it. Because the overlay is rendered in the page, it appears naturally in viewport screenshots and browser recordings without modifying the target element itself. `record-browser` supports `continuous` mode for renderer-frame video and `steps` mode for an action trace video built from browser screenshots held for a configurable duration. Both use FFmpeg and neither records the desktop. `hitl` is transport-agnostic at the MCP/routine surface. Telegram is its current implementation and can attach either the browser viewport or a requested page target.
 
 ## Tool result contract
 

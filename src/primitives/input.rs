@@ -5,16 +5,20 @@ use std::{thread, time::Duration};
 
 pub fn click(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     let target = target(args, 0, "usage: click <target>")?;
-    let p=b.eval(&format!(r#"(()=>{{const e={};if(!e)return {{ok:false,reason:'missing'}};e.scrollIntoView({{block:'center',inline:'center'}});const r=e.getBoundingClientRect(),s=getComputedStyle(e);if(r.width<=0||r.height<=0||s.display==='none'||s.visibility==='hidden'||s.opacity==='0')return {{ok:false,reason:'hidden'}};return {{ok:true,x:r.left+r.width/2,y:r.top+r.height/2,tag:e.tagName.toLowerCase(),text:(e.innerText||e.value||e.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim().slice(0,160)}}}})()"#,target.js_resolver()))?;
+    let p=b.eval(&format!(r#"(()=>{{const e={};if(!e)return {{ok:false,reason:'missing'}};if(e.matches?.(':disabled')||e.getAttribute('aria-disabled')==='true')return {{ok:false,reason:'disabled'}};e.scrollIntoView({{block:'center',inline:'center'}});const r=e.getBoundingClientRect(),s=getComputedStyle(e);if(r.width<=0||r.height<=0||s.display==='none'||s.visibility==='hidden'||s.opacity==='0')return {{ok:false,reason:'hidden'}};return {{ok:true,x:r.left+r.width/2,y:r.top+r.height/2,tag:e.tagName.toLowerCase(),text:(e.innerText||e.value||e.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim().slice(0,160)}}}})()"#,target.js_resolver()))?;
     if p["ok"] != true {
-        return if p["reason"] == "missing" {
-            Err(missing_target(&target))
-        } else {
-            Err(jelly_error(
+        return match p["reason"].as_str() {
+            Some("missing") => Err(missing_target(&target)),
+            Some("disabled") => Err(jelly_error(
+                ErrorKind::InteractionFailed,
+                "target is disabled",
+                false,
+            )),
+            _ => Err(jelly_error(
                 ErrorKind::TargetNotVisible,
                 "target exists but is not visible",
                 true,
-            ))
+            )),
         };
     }
     let x = p["x"].as_f64().ok_or_else(|| {
@@ -67,14 +71,18 @@ pub fn type_text(b: &mut BrowserSession, args: &[String]) -> Result<String, Erro
     let find = if let Some(target) = explicit_target.as_ref() {
         target.js_resolver()
     } else {
-        "[...document.querySelectorAll('input:not([type]),input[type=text],input[type=search],input[type=email],input[type=password],input[type=url],input[type=number],textarea,[role=textbox],[contenteditable=true]')].find(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'})".into()
+        "[...document.querySelectorAll('input:not([type]),input[type=text],input[type=search],input[type=email],input[type=password],input[type=url],input[type=number],textarea,[role=textbox],[contenteditable=true]')].find(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return !e.disabled&&!e.readOnly&&r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'})".into()
     };
-    let p=b.eval(&format!("(()=>{{const e={find};if(!e)return null;e.scrollIntoView({{block:'center'}});const r=e.getBoundingClientRect();return {{x:r.left+r.width/2,y:r.top+r.height/2}}}})()"))?;
-    if p.is_null() {
-        return Err(explicit_target
-            .as_ref()
-            .map(missing_target)
-            .unwrap_or_else(|| jelly_error(ErrorKind::TargetNotFound, "textbox not found", true)));
+    let p=b.eval(&format!("(()=>{{const e={find};if(!e)return {{ok:false,error:'textbox not found'}};if(e.disabled)return {{ok:false,error:'target is disabled'}};if(e.readOnly)return {{ok:false,error:'target is readonly'}};e.scrollIntoView({{block:'center'}});const r=e.getBoundingClientRect();return {{ok:true,x:r.left+r.width/2,y:r.top+r.height/2}}}})()"))?;
+    if p["ok"] != true {
+        let message = p["error"].as_str().unwrap_or("textbox not found");
+        if message == "textbox not found" {
+            return Err(explicit_target
+                .as_ref()
+                .map(missing_target)
+                .unwrap_or_else(|| jelly_error(ErrorKind::TargetNotFound, message, true)));
+        }
+        return Err(jelly_error(ErrorKind::InteractionFailed, message, false));
     }
     let x = p["x"]
         .as_f64()
@@ -110,12 +118,14 @@ pub fn fill(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     let find = if let Some(target) = explicit_target.as_ref() {
         target.js_resolver()
     } else {
-        "[...document.querySelectorAll('input:not([type]),input[type=text],input[type=search],input[type=email],input[type=password],input[type=url],input[type=number],textarea,[role=textbox],[contenteditable=true]')].find(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'})".into()
+        "[...document.querySelectorAll('input:not([type]),input[type=text],input[type=search],input[type=email],input[type=password],input[type=url],input[type=number],textarea,[role=textbox],[contenteditable=true]')].find(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return !e.disabled&&!e.readOnly&&r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'})".into()
     };
     let value = js(text);
     let result = b.eval(&format!(r#"(()=>{{
         const e={find};
         if(!e)return {{ok:false,error:'textbox not found'}};
+        if(e.disabled)return {{ok:false,error:'target is disabled'}};
+        if(e.readOnly)return {{ok:false,error:'target is readonly'}};
         e.scrollIntoView({{block:'center'}});
         e.focus();
         const tag=e.tagName;
@@ -181,7 +191,7 @@ pub fn select(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> 
         ));
     }
     let t = target(args, 0, "usage: select <target> <value>")?;
-    let v=b.eval(&format!(r#"(()=>{{const e={};if(!e)return {{ok:false,error:'target not found'}};const v={};if(e.tagName!=='SELECT')return {{ok:false,error:'target is not select'}};const o=[...e.options].find(o=>o.value===v||o.text.trim()===v);if(!o)return {{ok:false,error:'option not found'}};e.value=o.value;e.dispatchEvent(new Event('input',{{bubbles:true}}));e.dispatchEvent(new Event('change',{{bubbles:true}}));return {{ok:true,value:o.value}}}})()"#,t.js_resolver(),js(&args[1])))?;
+    let v=b.eval(&format!(r#"(()=>{{const e={};if(!e)return {{ok:false,error:'target not found'}};if(e.disabled)return {{ok:false,error:'target is disabled'}};const v={};if(e.tagName!=='SELECT')return {{ok:false,error:'target is not select'}};const o=[...e.options].find(o=>o.value===v||o.text.trim()===v);if(!o)return {{ok:false,error:'option not found'}};e.value=o.value;e.dispatchEvent(new Event('input',{{bubbles:true}}));e.dispatchEvent(new Event('change',{{bubbles:true}}));return {{ok:true,value:o.value}}}})()"#,t.js_resolver(),js(&args[1])))?;
     if !v["ok"].as_bool().unwrap_or(false) {
         let message = v["error"].as_str().unwrap_or("select failed");
         if message == "target not found" {
@@ -194,7 +204,7 @@ pub fn select(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> 
 
 pub fn check(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     let t = target(args, 0, "usage: check <target>")?;
-    let v=b.eval(&format!(r#"(()=>{{const e={};if(!e)return {{ok:false,error:'target not found'}};if(e.checked===undefined)return {{ok:false,error:'target not checkable'}};if(!e.checked)e.click();return {{ok:true,checked:!!e.checked}}}})()"#,t.js_resolver()))?;
+    let v=b.eval(&format!(r#"(()=>{{const e={};if(!e)return {{ok:false,error:'target not found'}};if(e.disabled)return {{ok:false,error:'target is disabled'}};if(e.checked===undefined)return {{ok:false,error:'target not checkable'}};if(!e.checked)e.click();return {{ok:true,checked:!!e.checked}}}})()"#,t.js_resolver()))?;
     if !v["ok"].as_bool().unwrap_or(false) {
         let message = v["error"].as_str().unwrap_or("check failed");
         if message == "target not found" {

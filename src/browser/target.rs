@@ -42,7 +42,7 @@ impl Target {
             ),
             Self::Css(selector) => format!("document.querySelector({})", js(selector)),
             Self::Text(text) => format!(
-                r#"(()=>{{const q={};const vis=e=>{{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'}};return [...document.querySelectorAll('*')].find(e=>vis(e)&&(e.innerText||e.getAttribute('aria-label')||e.getAttribute('alt')||'').trim()===q)||null}})()"#,
+                r#"(()=>{{const q={};const vis=e=>{{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'}};const matches=e=>vis(e)&&(e.innerText||e.getAttribute('aria-label')||e.getAttribute('alt')||'').trim()===q;const interactive='a[href],button,input,textarea,select,[role=button],[role=link],[role=checkbox],[role=radio],[role=option],[tabindex]';return [...document.querySelectorAll(interactive)].find(matches)||[...document.querySelectorAll('*')].find(matches)||null}})()"#,
                 js(text)
             ),
         }

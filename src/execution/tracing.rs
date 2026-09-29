@@ -1,4 +1,4 @@
-use crate::{BrowserSession, Error, LOG_DIR, classify_error};
+use crate::{BrowserSession, Error, LOG_DIR, Target, classify_error, sanitize_url};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::{
@@ -16,6 +16,7 @@ pub fn log_primitive(
     args: &[String],
     duration_ms: u128,
     error: Option<&Error>,
+    prepared: Option<&PreparedStep>,
 ) -> Result<(), Error> {
     let trace_id = env::var("JELLY_TRACE_ID").unwrap_or_else(|_| new_id("trace"));
     let span_id = new_id("span");
@@ -29,22 +30,92 @@ pub fn log_primitive(
         let (kind, retryable) = classify_error(error.as_ref());
         json!({"kind":kind.as_str(),"message":error.to_string(),"retryable":retryable})
     });
-    let redacted = redact_args(args);
+    let redacted = redact_tool_args(name, args);
     let v = json!({"timestamp":OffsetDateTime::now_utc().format(&Rfc3339)?,"level":if ok{"INFO"}else{"ERROR"},"event":if ok{"primitive.completed"}else{"primitive.failed"},"message":format!("agent-{name} {}",if ok{"completed"}else{"failed"}),"trace_id":trace_id,"span_id":span_id,"parent_span_id":env::var("JELLY_PARENT_SPAN_ID").ok(),"source":env::var("JELLY_SOURCE").unwrap_or_else(|_|"direct".into()),"tool":format!("agent-{name}"),"args":redacted,"duration_ms":duration_ms,"ok":ok,"error":error,"process":{"pid":std::process::id()}});
     writeln!(f, "{v}")?;
     if ok && step_worthy_primitive(name) {
-        let _ = record_step(
+        let _ = record_step_prepared(
             &format!("agent-{name}"),
-            &redact_args(args),
+            &redacted,
             duration_ms,
             &trace_id,
             &span_id,
+            prepared,
         );
     }
     Ok(())
 }
 
 const RECORDING_ACTIVE: &str = "/data/jelly-runtime/artifacts/recordings/active.json";
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct PreparedStep {
+    subject: Option<String>,
+}
+
+pub(crate) fn prepare_step(
+    browser: &mut BrowserSession,
+    name: &str,
+    args: &[String],
+) -> Option<PreparedStep> {
+    let active: Value = serde_json::from_slice(&fs::read(RECORDING_ACTIVE).ok()?).ok()?;
+    if active["mode"].as_str() != Some("steps") || !step_worthy_primitive(name) {
+        return None;
+    }
+
+    let target_index = match name {
+        "click" | "check" | "select" | "drag" | "open-in-new-tab" | "upload" | "highlight" => {
+            Some(0)
+        }
+        "fill" | "type-text" if args.len() > 1 => Some(1),
+        "scroll"
+            if args.first().is_some_and(|value| {
+                !matches!(value.as_str(), "down" | "up" | "top" | "bottom")
+            }) =>
+        {
+            Some(0)
+        }
+        _ => None,
+    };
+
+    let subject = target_index
+        .and_then(|index| args.get(index))
+        .and_then(|value| semantic_target_name(browser, value));
+
+    Some(PreparedStep { subject })
+}
+
+fn semantic_target_name(browser: &mut BrowserSession, value: &str) -> Option<String> {
+    let target = Target::parse(value).ok()?;
+    let resolved = browser
+        .eval(&format!(
+            r#"(() => {{
+                const e = {};
+                if (!e) return null;
+                const clean = value => (value || "").replace(/\s+/g, " ").trim();
+                const labelText = label => {{
+                    const clone = label.cloneNode(true);
+                    clone.querySelectorAll("input, textarea, select, button").forEach(node => node.remove());
+                    return clean(clone.textContent);
+                }};
+                const label = e.labels ? [...e.labels].map(labelText).find(Boolean) : "";
+                const aria = clean(e.getAttribute("aria-label"));
+                const text = /^(BUTTON|A|SUMMARY)$/.test(e.tagName) ? clean(e.innerText) : "";
+                const placeholder = clean(e.getAttribute("placeholder"));
+                const name = clean(e.getAttribute("name"));
+                const role = clean(e.getAttribute("role"));
+                return label || aria || text || placeholder || name || role || e.tagName.toLowerCase();
+            }})()"#,
+            target.js_resolver()
+        ))
+        .ok()?;
+    let name = resolved.as_str()?.trim();
+    if name.is_empty() {
+        None
+    } else {
+        Some(truncate_label(name, 48))
+    }
+}
 
 fn step_worthy_primitive(name: &str) -> bool {
     matches!(
@@ -64,6 +135,7 @@ fn step_worthy_primitive(name: &str) -> bool {
             | "close-tab"
             | "open-in-new-tab"
             | "upload"
+            | "highlight"
             | "evaluate-js"
             | "inject-js"
     )
@@ -75,6 +147,17 @@ pub fn record_step(
     duration_ms: u128,
     trace_id: &str,
     span_id: &str,
+) -> Result<(), Error> {
+    record_step_prepared(tool, args, duration_ms, trace_id, span_id, None)
+}
+
+fn record_step_prepared(
+    tool: &str,
+    args: &[String],
+    duration_ms: u128,
+    trace_id: &str,
+    span_id: &str,
+    prepared: Option<&PreparedStep>,
 ) -> Result<(), Error> {
     let active_bytes = match fs::read(RECORDING_ACTIVE) {
         Ok(bytes) => bytes,
@@ -129,7 +212,8 @@ pub fn record_step(
     let frame_path = dir.join(&frame_name);
     fs::write(&frame_path, bytes)?;
     let hold_ms = active["hold_ms"].as_u64().unwrap_or(1000);
-    let label = step_label(tool, args, &context);
+    let label = step_label(tool, args, &context, prepared);
+    let safe_url = context["url"].as_str().map(sanitize_url);
     let entry = json!({
         "timestamp": OffsetDateTime::now_utc().format(&Rfc3339)?,
         "timestamp_ms": created_at_ms,
@@ -140,7 +224,7 @@ pub fn record_step(
         "label": label,
         "duration_ms": duration_ms,
         "hold_ms": hold_ms,
-        "url": context["url"],
+        "url": safe_url,
         "title": context["title"],
         "frame": frame_name
     });
@@ -208,59 +292,61 @@ fn settle_step_capture(browser: &mut BrowserSession) {
     thread::sleep(Duration::from_millis(80));
 }
 
-fn step_label(tool: &str, args: &[String], context: &Value) -> String {
+fn step_label(
+    tool: &str,
+    args: &[String],
+    context: &Value,
+    prepared: Option<&PreparedStep>,
+) -> String {
     let destination = concise_destination(context);
+    let subject = prepared
+        .and_then(|prepared| prepared.subject.as_deref())
+        .unwrap_or("target");
     let label = match tool.strip_prefix("agent-").unwrap_or(tool) {
-        "open-browser" => format!("opened browser at {destination}"),
+        "open-browser" => format!("opening browser at {destination}"),
         "close-browser" => "closing browser".into(),
-        "navigate" => format!("navigated to {destination}"),
+        "navigate" => format!("navigating to {destination}"),
         "switch-tab" => format!("switching tab to {destination}"),
-        "open-in-new-tab" => format!("opened new tab: {destination}"),
-        "close-tab" => format!("closed tab, now at {destination}"),
-        "click" => format!(
-            "clicked {}",
-            args.first().map(String::as_str).unwrap_or("target")
-        ),
-        "scroll" => format!(
-            "scrolled {}",
-            args.first().map(String::as_str).unwrap_or("page")
-        ),
-        "fill" => format!(
-            "filled {}",
-            args.get(1).map(String::as_str).unwrap_or("input")
-        ),
-        "type-text" => format!(
-            "typed into {}",
-            args.get(1).map(String::as_str).unwrap_or("focused input")
-        ),
+        "open-in-new-tab" => format!("opening {subject} in new tab"),
+        "close-tab" => format!("closing tab, now at {destination}"),
+        "click" => format!("clicking {subject}"),
+        "scroll" => prepared
+            .and_then(|prepared| prepared.subject.as_deref())
+            .map(|subject| format!("scrolling to {subject}"))
+            .unwrap_or_else(|| {
+                format!(
+                    "scrolling {}",
+                    args.first().map(String::as_str).unwrap_or("page")
+                )
+            }),
+        "fill" => format!("filling {subject}"),
+        "type-text" => format!("typing into {subject}"),
         "press-key" => format!(
-            "pressed {}",
+            "pressing {}",
             args.first().map(String::as_str).unwrap_or("key")
         ),
         "select" => format!(
-            "changed {}",
-            args.first().map(String::as_str).unwrap_or("select")
+            "selecting {} in {subject}",
+            args.get(1).map(String::as_str).unwrap_or("option")
         ),
-        "check" => format!(
-            "checked {}",
-            args.first().map(String::as_str).unwrap_or("control")
+        "check" => format!("checking {subject}"),
+        "upload" => format!("uploading file to {subject}"),
+        "highlight" => format!(
+            "highlighting {}",
+            args.get(1).map(String::as_str).unwrap_or(subject)
         ),
-        "upload" => format!(
-            "uploaded file to {}",
-            args.first().map(String::as_str).unwrap_or("input")
-        ),
-        "tab-history" => format!("moved browser history to {destination}"),
-        "drag" => "dragged element".into(),
-        "dialog" => "handled browser dialog".into(),
+        "tab-history" => format!("moving browser history to {destination}"),
+        "drag" => format!("dragging {subject}"),
+        "dialog" => "handling browser dialog".into(),
         "evaluate-js"
             if args.first().is_some_and(|script| {
                 script.contains("data-color-mode") && script.contains("dark")
             }) =>
         {
-            "switched page to dark mode".into()
+            "switching page to dark mode".into()
         }
-        "evaluate-js" => "evaluated page script".into(),
-        "inject-js" => "injected page script".into(),
+        "evaluate-js" => "evaluating page script".into(),
+        "inject-js" => "injecting page script".into(),
         other => other.replace('-', " "),
     };
     truncate_label(&label, 64)
@@ -328,6 +414,24 @@ pub fn new_id(prefix: &str) -> String {
     )
 }
 
+pub fn redact_tool_args(tool: &str, args: &[String]) -> Vec<String> {
+    let mut out = redact_args(args);
+    match tool.strip_prefix("agent-").unwrap_or(tool) {
+        "fill" | "type-text" => {
+            if let Some(value) = out.first_mut() {
+                *value = "<redacted-input>".into();
+            }
+        }
+        "dialog" => {
+            if let Some(value) = out.get_mut(1) {
+                *value = "<redacted-input>".into();
+            }
+        }
+        _ => {}
+    }
+    out
+}
+
 pub fn redact_args(args: &[String]) -> Vec<String> {
     let mut out = Vec::with_capacity(args.len());
     let mut secret = false;
@@ -390,6 +494,50 @@ mod tests {
         assert_eq!(
             redact_args(&args),
             vec!["--token".to_owned(), "<redacted>".to_owned()]
+        );
+    }
+
+    #[test]
+    fn tool_redaction_hides_text_entry_payloads() {
+        assert_eq!(
+            redact_tool_args("fill", &["secret text".into(), "@e2".into()]),
+            vec!["<redacted-input>".to_owned(), "@e2".to_owned()]
+        );
+        assert_eq!(
+            redact_tool_args("agent-type-text", &["private".into(), "@e1".into()]),
+            vec!["<redacted-input>".to_owned(), "@e1".to_owned()]
+        );
+        assert_eq!(
+            redact_tool_args("dialog", &["accept".into(), "private".into()]),
+            vec!["accept".to_owned(), "<redacted-input>".to_owned()]
+        );
+    }
+
+    #[test]
+    fn step_labels_describe_the_visible_action_state() {
+        let context = json!({
+            "url": "https://example.com/complete",
+            "title": "Complete"
+        });
+        let submit = PreparedStep {
+            subject: Some("Submit".into()),
+        };
+        assert_eq!(
+            step_label("agent-click", &["@e14".into()], &context, Some(&submit)),
+            "clicking Submit"
+        );
+
+        let dropdown = PreparedStep {
+            subject: Some("Country".into()),
+        };
+        assert_eq!(
+            step_label(
+                "agent-select",
+                &["@e7".into(), "Italy".into()],
+                &context,
+                Some(&dropdown)
+            ),
+            "selecting Italy in Country"
         );
     }
 }

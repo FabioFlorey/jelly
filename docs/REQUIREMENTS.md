@@ -15,7 +15,6 @@ jelly has a small core dependency set plus a few optional tools used by specific
 | **systemd** | Persistent browser lifecycle | Uses user services through `systemd-run --user` |
 | **bash** | Project scripts | Used by scripts under `scripts/` |
 | **core shell utilities** | Common shell operations | `cp`, `mv`, `chmod`, `mktemp`, `grep`, `sed`, `awk`, `date` |
-| **base64** | Screenshot decoding | Used by the screenshot tool |
 | **ffmpeg / ffprobe** | Browser recording export | Encodes renderer frames into MP4 and probes step-frame dimensions for proportional branded overlays |
 
 ## Optional
@@ -28,8 +27,6 @@ jelly has a small core dependency set plus a few optional tools used by specific
 | **python3** | nip.io public IPv4 validation | Required only for `nip-io` |
 | **iproute2 (`ip`)** | nip.io LAN route discovery | Required only for `nip-io` |
 | **upnpc / natpmpc** | Automatic nip.io router mappings | Optional; manual port forwarding avoids these helpers |
-| **grim** | Headed screenshot fallback | Used when native Chromium capture is unavailable |
-| **hyprctl** | Headed screenshot fallback | Used to determine Chromium window geometry on Hyprland |
 | **Wayland / X11 session** | Headed Chromium | Not required for headless mode |
 
 ## Platform assumptions
@@ -66,7 +63,6 @@ Rust + Cargo
 Chromium
 systemd user services
 bash + core shell utilities
-base64
 ```
 
 Everything else is feature-specific.

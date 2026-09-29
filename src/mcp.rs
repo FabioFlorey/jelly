@@ -247,8 +247,7 @@ fn system_input_schema(name: &str) -> Option<Value> {
             "type":"object",
             "properties":{
                 "target":{"type":"string","description":"Optional browser target such as body, main, css:..., or @eN. Omit for the active page viewport."},
-                "output":{"type":"string","description":"Optional output path."},
-                "desktop_fallback":{"type":"boolean","description":"Explicitly allow headed desktop/window capture only if browser-native capture fails."}
+                "output":{"type":"string","description":"Optional output path."}
             },
             "additionalProperties":false
         }),
@@ -287,8 +286,7 @@ fn system_input_schema(name: &str) -> Option<Value> {
             "properties":{
                 "message":{"type":"string"},
                 "screenshot_target":{"type":"string","description":"Optional browser element to attach instead of the viewport."},
-                "no_screenshot":{"type":"boolean"},
-                "desktop_fallback":{"type":"boolean","description":"Explicitly allow desktop/window capture if browser-native screenshot fails."}
+                "no_screenshot":{"type":"boolean"}
             },
             "required":["message"],
             "additionalProperties":false
@@ -537,9 +535,6 @@ fn system_cli_args(name: &str, object: &Map<String, Value>) -> Result<Vec<String
             if let Some(output) = string("output")? {
                 args.extend(["--output".into(), output]);
             }
-            if bool_value("desktop_fallback")? {
-                args.push("--desktop-fallback".into());
-            }
             args.push("--json".into());
             Ok(args)
         }
@@ -617,9 +612,6 @@ fn system_cli_args(name: &str, object: &Map<String, Value>) -> Result<Vec<String
             }
             if bool_value("no_screenshot")? {
                 args.push("--no-screenshot".into());
-            }
-            if bool_value("desktop_fallback")? {
-                args.push("--desktop-fallback".into());
             }
             Ok(args)
         }

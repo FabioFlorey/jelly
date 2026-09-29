@@ -1,5 +1,5 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use jelly::{BrowserSession, RECORDING_DIR, new_id, register_recording};
+use jelly::{BrowserSession, RECORDING_DIR, new_id, register_recording, sanitize_url};
 use serde_json::{Value, json};
 use std::{
     env, fs,
@@ -99,7 +99,7 @@ fn source_context() -> (Option<String>, Option<String>, Option<String>) {
         .unwrap_or(Value::Null);
     (
         target_id,
-        context["url"].as_str().map(str::to_owned),
+        context["url"].as_str().map(sanitize_url),
         context["title"].as_str().map(str::to_owned),
     )
 }
@@ -489,7 +489,7 @@ fn continuous_worker(dir: &Path, interval_ms: u64) -> Result<(), Box<dyn std::er
         "interval_ms": interval_ms,
         "frame_count": frame_count,
         "video": video,
-        "final_url": context["url"],
+        "final_url": context["url"].as_str().map(sanitize_url),
         "final_title": context["title"]
     });
     fs::write(
