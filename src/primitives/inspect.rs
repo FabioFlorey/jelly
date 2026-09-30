@@ -1,10 +1,104 @@
 use crate::primitives::{js, missing_target, pretty, target};
 use crate::{BrowserSession, Error};
 use serde_json::{Value, json};
+use std::env;
 
-pub fn snapshot_interactive(b: &mut BrowserSession, _: &[String]) -> Result<String, Error> {
-    Ok(pretty(&b.eval(r#"(()=>{const roles=new Set(['button','link','textbox','checkbox','radio','combobox','option','tab','menuitem','switch','slider','spinbutton','treeitem']);document.querySelectorAll('[data-jelly-ref]').forEach(e=>e.removeAttribute('data-jelly-ref'));const els=[...document.querySelectorAll('a,button,input,textarea,select,[role],[tabindex],[contenteditable=true],[draggable=true],[onclick]')].filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e),role=e.getAttribute('role');const interactive=['A','BUTTON','INPUT','TEXTAREA','SELECT'].includes(e.tagName)||roles.has(role)||e.tabIndex>=0||e.isContentEditable||e.draggable||!!e.onclick;return interactive&&r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'});return els.map((e,i)=>{const ref='e'+(i+1);e.setAttribute('data-jelly-ref',ref);const r=e.getBoundingClientRect();const role=e.getAttribute('role')||({A:'link',BUTTON:'button',INPUT:(e.type==='checkbox'?'checkbox':e.type==='radio'?'radio':'textbox'),TEXTAREA:'textbox',SELECT:'combobox'})[e.tagName]||(e.draggable?'draggable':'');const name=(e.getAttribute('aria-label')||e.innerText||e.value||e.placeholder||e.alt||'').replace(/\s+/g,' ').trim().slice(0,160);return {ref:'@'+ref,tag:e.tagName.toLowerCase(),role,name,disabled:!!e.disabled,checked:e.checked??null,draggable:!!e.draggable,x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height)}})})()"#)?))
+fn bounded_usize(value: &str, name: &str, max: usize, allow_zero: bool) -> Result<usize, Error> {
+    let parsed = value.parse::<usize>().map_err(|_| {
+        crate::jelly_error(
+            crate::ErrorKind::InvalidArguments,
+            format!("{name} must be a non-negative integer"),
+            false,
+        )
+    })?;
+    if !allow_zero && parsed == 0 {
+        return Err(crate::jelly_error(
+            crate::ErrorKind::InvalidArguments,
+            format!("{name} must be greater than zero"),
+            false,
+        ));
+    }
+    Ok(parsed.min(max))
 }
+
+fn page_runtime_enabled() -> bool {
+    !env::var("JELLY_PAGE_RUNTIME")
+        .ok()
+        .is_some_and(|value| matches!(value.trim(), "0" | "false" | "off"))
+}
+
+fn eval_page_runtime(b: &mut BrowserSession, expression: &str) -> Result<Value, Error> {
+    let value = b.eval(expression)?;
+    if !value.is_null() {
+        return Ok(value);
+    }
+    b.eval(crate::browser::PAGE_RUNTIME_BOOTSTRAP)?;
+    b.eval(expression)
+}
+
+fn dispose_page_runtime(b: &mut BrowserSession) -> Result<(), Error> {
+    b.eval(
+        "(()=>{const r=globalThis.__jellyRuntimeV1;if(r){r.dispose?.();delete globalThis.__jellyRuntimeV1}return true})()",
+    )?;
+    Ok(())
+}
+
+pub fn snapshot_interactive(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
+    let limit = if let Some(value) = args.first() {
+        bounded_usize(value, "snapshot limit", 1000, true)?
+    } else if let Ok(value) = env::var("JELLY_SNAPSHOT_LIMIT") {
+        bounded_usize(&value, "JELLY_SNAPSHOT_LIMIT", 1000, true)?
+    } else {
+        0
+    };
+    let offset = match args.get(1) {
+        Some(value) => bounded_usize(value, "snapshot offset", 1_000_000, true)?,
+        None => 0,
+    };
+    if page_runtime_enabled() {
+        let expression = crate::browser::snapshot_expression(limit, offset);
+        return Ok(pretty(&eval_page_runtime(b, &expression)?));
+    }
+
+    dispose_page_runtime(b)?;
+    let expression = format!(
+        r#"(()=>{{const limit={limit},offset={offset},roles=new Set(['button','link','textbox','checkbox','radio','combobox','option','tab','menuitem','switch','slider','spinbutton','treeitem']);document.querySelectorAll('[data-jelly-ref]').forEach(e=>e.removeAttribute('data-jelly-ref'));const els=[...document.querySelectorAll('a,button,input,textarea,select,[role],[tabindex],[contenteditable=true],[draggable=true],[onclick]')].filter(e=>{{const r=e.getBoundingClientRect(),s=getComputedStyle(e),role=e.getAttribute('role');const interactive=['A','BUTTON','INPUT','TEXTAREA','SELECT'].includes(e.tagName)||roles.has(role)||e.tabIndex>=0||e.isContentEditable||e.draggable||!!e.onclick;return interactive&&r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0'}});els.forEach((e,i)=>e.setAttribute('data-jelly-ref','e'+(i+1)));const end=limit>0?Math.min(els.length,offset+limit):els.length,out=[];for(let i=Math.min(offset,els.length);i<end;i++){{const e=els[i],ref='e'+(i+1),r=e.getBoundingClientRect(),role=e.getAttribute('role')||({{A:'link',BUTTON:'button',INPUT:(e.type==='checkbox'?'checkbox':e.type==='radio'?'radio':'textbox'),TEXTAREA:'textbox',SELECT:'combobox'}})[e.tagName]||(e.draggable?'draggable':'');const name=(e.getAttribute('aria-label')||e.innerText||e.value||e.placeholder||e.alt||'').replace(/\s+/g,' ').trim().slice(0,160);out.push({{ref:'@'+ref,tag:e.tagName.toLowerCase(),role,name,disabled:!!e.disabled,checked:e.checked??null,draggable:!!e.draggable,x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height)}})}}return out}})()"#,
+        limit = limit,
+        offset = offset
+    );
+    Ok(pretty(&b.eval(&expression)?))
+}
+pub fn find_interactive(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
+    let query = args.first().ok_or_else(|| {
+        crate::jelly_error(
+            crate::ErrorKind::InvalidArguments,
+            "usage: find-interactive <query> [limit] [offset]",
+            false,
+        )
+    })?;
+    let limit = match args.get(1) {
+        Some(value) => bounded_usize(value, "search limit", 100, false)?,
+        None => 30,
+    };
+    let offset = match args.get(2) {
+        Some(value) => bounded_usize(value, "search offset", 1_000_000, true)?,
+        None => 0,
+    };
+    if page_runtime_enabled() {
+        let expression = crate::browser::search_expression(query, limit, offset);
+        return Ok(pretty(&eval_page_runtime(b, &expression)?));
+    }
+
+    dispose_page_runtime(b)?;
+    let expression = format!(
+        r#"(()=>{{const q={query},max={limit},offset={offset},roles=new Set(['button','link','textbox','checkbox','radio','combobox','option','tab','menuitem','switch','slider','spinbutton','treeitem']),selector='a,button,input,textarea,select,[role],[tabindex],[contenteditable=true],[draggable=true],[onclick]',norm=v=>(v||'').replace(/\s+/g,' ').trim(),visible=e=>{{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0'}},interactive=e=>{{const role=e.getAttribute('role');return ['A','BUTTON','INPUT','TEXTAREA','SELECT'].includes(e.tagName)||roles.has(role)||e.tabIndex>=0||e.isContentEditable||e.draggable||!!e.onclick}};document.querySelectorAll('[data-jelly-ref]').forEach(e=>e.removeAttribute('data-jelly-ref'));const all=[...document.querySelectorAll(selector)].filter(interactive);all.forEach((e,i)=>e.setAttribute('data-jelly-ref','e'+(i+1)));const rows=[];for(let i=0;i<all.length;i++){{const e=all[i];if(!visible(e))continue;const name=norm(e.getAttribute('aria-label')||e.textContent||e.value||e.placeholder||e.alt||e.getAttribute('title')||''),n=name.toLowerCase(),needle=norm(q).toLowerCase();let match=99;if(n===needle)match=0;else if(n.startsWith(needle))match=1;else if(n.includes(needle))match=2;else continue;const r=e.getBoundingClientRect(),role=e.getAttribute('role')||({{A:'link',BUTTON:'button',INPUT:(e.type==='checkbox'?'checkbox':e.type==='radio'?'radio':'textbox'),TEXTAREA:'textbox',SELECT:'combobox'}})[e.tagName]||(e.draggable?'draggable':'');const inViewport=r.bottom>0&&r.right>0&&r.top<innerHeight&&r.left<innerWidth;rows.push({{match,disabled:e.disabled?1:0,offscreen:inViewport?0:1,order:i,value:{{ref:'@e'+(i+1),tag:e.tagName.toLowerCase(),role,name:name.slice(0,160),disabled:!!e.disabled,checked:e.checked??null,draggable:!!e.draggable,shadow:false,in_viewport:inViewport,x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height)}}}})}}rows.sort((a,b)=>a.match-b.match||a.disabled-b.disabled||a.offscreen-b.offscreen||a.order-b.order);return rows.slice(offset,offset+max).map(x=>x.value)}})()"#,
+        query = js(query),
+        limit = limit,
+        offset = offset
+    );
+    Ok(pretty(&b.eval(&expression)?))
+}
+
 pub fn read_page(b: &mut BrowserSession, _: &[String]) -> Result<String, Error> {
     Ok(pretty(&b.eval(r#"(()=>{const root=document.querySelector('main,article,[role="main"]')||document.body||document.documentElement;return {title:document.title||'',url:location.href,headings:[...document.querySelectorAll('h1,h2,h3')].filter(e=>e.offsetParent).map(e=>(e.innerText||'').trim()).filter(Boolean).slice(0,30),text:(root?.innerText||'').replace(/\n{3,}/g,'\n\n').slice(0,12000)}})()"#)?))
 }
@@ -33,7 +127,7 @@ pub fn scroll(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> 
         "bottom" => "scrollTo(0,document.body.scrollHeight); 'bottom'".into(),
         _ => {
             let t = crate::Target::parse(raw)?;
-            let resolver = t.js_resolver();
+            let resolver = t.js_scroll_resolver();
             resolved_target = Some(t);
             format!(
                 "(()=>{{const e={resolver};if(!e)return null;e.scrollIntoView({{block:'center'}});return 'ok'}})()"
@@ -133,4 +227,19 @@ pub fn inspect_links(b: &mut BrowserSession, _: &[String]) -> Result<String, Err
 pub fn inspect_images(b: &mut BrowserSession, _: &[String]) -> Result<String, Error> {
     let v=b.eval(r#"(()=>[...document.images].map((img,i)=>{const ref='img'+(i+1);img.setAttribute('data-jelly-ref',ref);const r=img.getBoundingClientRect(),s=getComputedStyle(img),visible=r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0';return {ref:'@'+ref,n:i+1,alt:(img.alt||img.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim(),src:img.currentSrc||img.src||'',visible,complete:img.complete,natural_width:img.naturalWidth,natural_height:img.naturalHeight,width:Math.round(r.width),height:Math.round(r.height)}}).filter(img=>img.src))()"#)?;
     Ok(pretty(&v))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bounded_usize_enforces_limit_contracts() {
+        assert_eq!(bounded_usize("0", "limit", 100, true).unwrap(), 0);
+        assert!(bounded_usize("0", "limit", 100, false).is_err());
+        assert!(bounded_usize("-1", "limit", 100, true).is_err());
+        assert!(bounded_usize("nope", "limit", 100, true).is_err());
+        assert_eq!(bounded_usize("250", "limit", 100, true).unwrap(), 100);
+        assert_eq!(bounded_usize("42", "limit", 100, false).unwrap(), 42);
+    }
 }

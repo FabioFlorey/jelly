@@ -13,7 +13,13 @@ use axum::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Map, Value, json};
-use std::{env, fs, process::Command};
+use std::{
+    env, fs,
+    process::Command,
+    sync::{Mutex, OnceLock},
+};
+
+static MCP_BROWSER_SESSION: OnceLock<Mutex<Option<BrowserSession>>> = OnceLock::new();
 
 const SERVER_NAME: &str = "jelly";
 const DEFAULT_PROTOCOL_VERSION: &str = "2025-06-18";
@@ -378,6 +384,67 @@ async fn call_tool(params: &Value) -> Result<Value, (i64, String)> {
     }))
 }
 
+fn persistent_mcp_session_enabled() -> bool {
+    !env::var("JELLY_MCP_PERSISTENT_SESSION")
+        .ok()
+        .is_some_and(|value| matches!(value.trim(), "0" | "false" | "off"))
+}
+
+fn reset_mcp_browser_session() {
+    if let Some(sessions) = MCP_BROWSER_SESSION.get()
+        && let Ok(mut guard) = sessions.lock()
+    {
+        *guard = None;
+    }
+}
+
+fn map_browser_failure(error: crate::Error) -> ToolFailure {
+    let (kind, retryable) = classify_error(error.as_ref());
+    ToolFailure::new(kind, error.to_string(), retryable)
+}
+
+fn execute_mcp_browser_primitive(name: &str, args: &[String]) -> Result<String, ToolFailure> {
+    if !persistent_mcp_session_enabled() {
+        let mut browser = BrowserSession::connect()
+            .map_err(|e| ToolFailure::new(ErrorKind::BrowserUnavailable, e.to_string(), true))?;
+        return execute_browser_primitive(&mut browser, name, args).map_err(map_browser_failure);
+    }
+
+    let sessions = MCP_BROWSER_SESSION.get_or_init(|| Mutex::new(None));
+    let mut guard = sessions.lock().map_err(|_| {
+        ToolFailure::new(
+            ErrorKind::Internal,
+            "persistent browser session lock is poisoned",
+            true,
+        )
+    })?;
+    if guard.is_none() {
+        *guard =
+            Some(BrowserSession::connect().map_err(|e| {
+                ToolFailure::new(ErrorKind::BrowserUnavailable, e.to_string(), true)
+            })?);
+    }
+
+    let browser = guard.as_mut().expect("session initialized");
+    if let Err(error) = browser.sync_active_target() {
+        let failure = map_browser_failure(error);
+        if failure.kind == ErrorKind::BrowserUnavailable {
+            *guard = None;
+        }
+        return Err(failure);
+    }
+
+    let result = execute_browser_primitive(browser, name, args).map_err(map_browser_failure);
+    if result
+        .as_ref()
+        .err()
+        .is_some_and(|failure| failure.kind == ErrorKind::BrowserUnavailable)
+    {
+        *guard = None;
+    }
+    result
+}
+
 fn execute_tool(name: &str, arguments: &Value) -> Result<String, ToolFailure> {
     let object = arguments.as_object().ok_or_else(|| {
         ToolFailure::new(
@@ -421,12 +488,7 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<String, ToolFailure> {
                 None => {}
             }
         }
-        let mut browser = BrowserSession::connect()
-            .map_err(|e| ToolFailure::new(ErrorKind::BrowserUnavailable, e.to_string(), true))?;
-        return execute_browser_primitive(&mut browser, name, &args).map_err(|e| {
-            let (kind, retryable) = classify_error(e.as_ref());
-            ToolFailure::new(kind, e.to_string(), retryable)
-        });
+        return execute_mcp_browser_primitive(name, &args);
     }
 
     if !tool_specs.iter().any(|spec| spec.name == name) || system_input_schema(name).is_none() {
@@ -438,6 +500,12 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<String, ToolFailure> {
     }
     let args = system_cli_args(name, object)
         .map_err(|message| ToolFailure::new(ErrorKind::InvalidArguments, message, false))?;
+    if matches!(
+        name,
+        "open-browser" | "close-browser" | "browser-task" | "profile-import"
+    ) {
+        reset_mcp_browser_session();
+    }
     run_system_tool(name, &args).map_err(|message| {
         let kind = if name == "wait-download" && message.contains("timed out") {
             ErrorKind::ConditionTimeout

@@ -1,0 +1,5 @@
+# batch<TAB>comma-separated groups
+deterministic	quality,session,runtime,refs,semantic,shadow,ranking,highlight,rollback
+browser	session,runtime,refs,semantic,shadow,ranking,highlight,rollback
+fast	quality,refs,semantic,highlight
+network	framework,real-world

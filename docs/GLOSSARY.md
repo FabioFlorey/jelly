@@ -290,7 +290,7 @@
   **References**: [README](../README.md)
 
 + **Single Source of Truth**  
-  A design principle where one authoritative representation owns a piece of information. In jelly, the primitive registry owns tool metadata and feeds execution, validation, schemas, discovery, and generated documentation.  
+  A design principle where one authoritative representation owns a piece of information. In jelly, the browser primitive registry owns browser-capability metadata while the system tool registry owns lifecycle/integration metadata; discovery, MCP schemas, and generated documentation consume those registries rather than maintaining parallel catalogs.<br>
   **Acronyms**: SSOT  
   **Synonyms**: canonical source  
   **References**: [Architecture](./ARCHITECTURE.md)
@@ -302,7 +302,7 @@
   **References**: [Development](./DEVELOPMENT.md)
 
 + **Stable Reference**  
-  A short jelly identifier such as `@e1` assigned to an interactive page element during inspection. It lets later actions refer to the same discovered element without repeating a selector.  
+  A jelly identifier assigned during inspection so later actions can refer to the same discovered element without repeating a selector. The default runtime uses document-scoped refs such as `@eabc123-7`; rollback mode uses numeric refs such as `@e7`, and `inspect-images` exposes DOM-backed image refs such as `@img2`.<br>
   **Acronyms**: ∅  
   **Synonyms**: element reference, jelly ref  
   **References**: [Tool Index](../.agent/tools/index.md)
@@ -318,19 +318,19 @@
   **References**: [Routines](./ROUTINES.md)
 
 + **Target**  
-  A typed description of the browser element an operation should act on. jelly currently supports stable references such as `@e1`, CSS selectors such as `css:#submit`, and exact visible text.  
+  A typed description of the browser element an operation should act on. jelly supports runtime/DOM-backed references, CSS selectors such as `css:#submit`, `text:<exact text>`, and plain exact visible text.<br>
   **Acronyms**: ∅  
   **Synonyms**: element target  
   **References**: [Tool Index](../.agent/tools/index.md)
 
 + **Tool**  
-  An agent-callable operation. In jelly, many tools are thin CLI adapters around primitives, while discovery metadata comes from the shared primitive registry.  
+  An agent-callable operation. Jelly exposes browser primitives plus system/integration tools; discovery and MCP metadata are derived from their respective Rust registries.<br>
   **Acronyms**: ∅  
   **Synonyms**: callable, primitive  
   **References**: [Tool Discovery](./DISCOVERY.md)
 
 + **Tool Catalog**  
-  The complete set of tool metadata available from a capability provider. jelly can produce a full primitive catalog, while agents normally use lighter discovery views first.  
+  The complete set of tool metadata available from a capability provider. Jelly aggregates browser primitives and system/integration tools, while agents normally use lighter capability/search views before loading a full schema.<br>
   **Acronyms**: ∅  
   **Synonyms**: primitive catalog, capability catalog  
   **References**: [Tool Discovery](./DISCOVERY.md)

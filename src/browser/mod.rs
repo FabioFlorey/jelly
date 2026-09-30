@@ -1,6 +1,9 @@
+mod perf;
+mod runtime;
 mod session;
 mod target;
 
+pub(crate) use runtime::{PAGE_RUNTIME_BOOTSTRAP, search_expression, snapshot_expression};
 pub use session::BrowserSession;
 pub use target::Target;
 

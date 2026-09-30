@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Jelly browser performance fixture</title>
+  <style>
+    body { font-family: sans-serif; margin: 16px; }
+    .offscreen { margin-top: 3000px; }
+  </style>
+</head>
+<body>
+  <main id="app"></main>
+  <script>
+    (() => {
+      const app = document.querySelector('#app');
+
+      const button = (name, disabled = false) => {
+        const e = document.createElement('button');
+        e.textContent = name;
+        e.disabled = disabled;
+        return e;
+      };
+
+      const input = (name, i) => {
+        const label = document.createElement('label');
+        const id = 'field-' + i;
+        label.htmlFor = id;
+        label.textContent = name;
+        const e = document.createElement('input');
+        e.id = id;
+        e.placeholder = 'placeholder ' + i;
+        return [label, e];
+      };
+
+      const filler = count => {
+        const fragment = document.createDocumentFragment();
+        for (let i = 0; i < count; i++) {
+          const div = document.createElement('div');
+          div.textContent = 'non interactive content ' + i;
+          fragment.append(div);
+        }
+        return fragment;
+      };
+
+      const controls = (count, prefix) => {
+        const fragment = document.createDocumentFragment();
+        for (let i = 0; i < count; i++) {
+          if (i % 3 === 0) {
+            fragment.append(button(prefix + ' action ' + i, i % 29 === 0));
+          } else if (i % 3 === 1) {
+            const [label, e] = input(prefix + ' field ' + i, i);
+            fragment.append(label, e);
+          } else {
+            const a = document.createElement('a');
+            a.href = '#item-' + i;
+            a.textContent = prefix + ' link ' + i;
+            fragment.append(a);
+          }
+        }
+        return fragment;
+      };
+
+      const shadowTree = (hosts, controlsPerRoot) => {
+        const fragment = document.createDocumentFragment();
+        for (let h = 0; h < hosts; h++) {
+          const host = document.createElement('section');
+          host.className = 'shadow-host';
+          const root = host.attachShadow({mode: 'open'});
+          const wrapper = document.createElement('div');
+          root.append(wrapper);
+          for (let i = 0; i < controlsPerRoot; i++) {
+            wrapper.append(button('shadow action ' + h + '-' + i));
+          }
+          if (h === 0) {
+            const nestedHost = document.createElement('div');
+            wrapper.append(nestedHost);
+            const nested = nestedHost.attachShadow({mode: 'open'});
+            nested.append(button('nested shadow target'));
+          }
+          fragment.append(host);
+        }
+        return fragment;
+      };
+
+      const cases = {
+        small() {
+          app.replaceChildren(controls(20, 'small'));
+        },
+        medium() {
+          app.replaceChildren(filler(600), controls(300, 'medium'));
+        },
+        large() {
+          app.replaceChildren(filler(5000), controls(1500, 'large'));
+          app.append(button('large exact target'));
+        },
+        mutation() {
+          app.replaceChildren(filler(1000), controls(500, 'mutation'));
+        },
+        shadow() {
+          app.replaceChildren(filler(500), controls(80, 'light'), shadowTree(20, 8));
+        }
+      };
+
+      let mutationCounter = 0;
+      window.__jellyBench = {
+        setCase(name) {
+          if (!cases[name]) throw new Error('unknown benchmark case: ' + name);
+          cases[name]();
+          mutationCounter = 0;
+          return {case: name, childCount: app.querySelectorAll('*').length};
+        },
+        mutateBurst(count = 250) {
+          const fragment = document.createDocumentFragment();
+          for (let i = 0; i < count; i++) {
+            fragment.append(button('dynamic action ' + mutationCounter++));
+          }
+          app.append(fragment);
+          for (let i = 0; i < Math.min(50, app.children.length); i++) {
+            app.children[i]?.setAttribute('data-mutated', String(mutationCounter));
+          }
+          return mutationCounter;
+        }
+      };
+
+      window.__jellyBench.setCase('small');
+    })();
+  </script>
+</body>
+</html>

@@ -48,7 +48,8 @@ This file is generated from the Rust browser-primitive and system-tool registrie
 | `assert-visible` | `verify` | `assert-visible <target>` | `target:target` | Require a target to exist and be visibly rendered, returning geometry as evidence. |
 | `assert-text` | `verify` | `assert-text <target> <text> [exact\|contains]` | `target:target` `text:string` `[match:string]` | Require a target's current text to match an expected value. |
 | `assert-image-ready` | `verify` | `assert-image-ready <target>` | `target:target` | Require a visible image to be complete with nonzero natural dimensions before capture or downstream use. |
-| `snapshot-interactive` | `inspect` | `snapshot-interactive` | — | Return visible interactive elements and assign stable @eN references for subsequent actions. |
+| `snapshot-interactive` | `inspect` | `snapshot-interactive [limit] [offset]` | `[limit:integer]` `[offset:integer]` | Return visible interactive elements with document-scoped refs, optionally bounded and paged by result limit and offset. |
+| `find-interactive` | `inspect` | `find-interactive <query> [limit] [offset]` | `query:string` `[limit:integer]` `[offset:integer]` | Search visible interactive elements by semantic name, rank useful matches in the browser, and return a bounded, pageable result set with document-scoped refs. |
 | `read-page` | `inspect` | `read-page` | — | Return the active page title, URL, headings, and main readable text. |
 | `inspect-inputs` | `inspect` | `inspect-inputs` | — | List visible form controls with type, label, placeholder, name, value, and checked state. |
 | `inspect-elements` | `inspect` | `inspect-elements [css]` | `[css:string]` | Inspect up to 100 visible elements matching a CSS selector with text, attributes, and geometry. |
@@ -58,18 +59,18 @@ This file is generated from the Rust browser-primitive and system-tool registrie
 | `get-element` | `inspect` | `get-element <target> [text\|html\|both]` | `target:target` `[mode:string]` | Return the text, outer HTML, or both for a single target element. |
 | `accessibility-tree` | `inspect` | `accessibility-tree [max]` | `[max:integer]` | Return a compact view of non-ignored nodes from the page accessibility tree. |
 | `inspect-links` | `inspect` | `inspect-links` | — | List visible links with normalized visible text and resolved URLs. |
-| `inspect-images` | `inspect` | `inspect-images` | — | Inspect images with stable refs, source, visibility, load completion, natural dimensions, and rendered dimensions. |
+| `inspect-images` | `inspect` | `inspect-images` | — | Inspect images with DOM-backed page-order refs, source, visibility, load completion, natural dimensions, and rendered dimensions. |
 | `tabs` | `tabs` | `tabs` | — | List browser page targets with target ID, title, and URL. |
 | `switch-tab` | `tabs` | `switch-tab <id\|title\|url>` | `query:string` | Activate and attach to a tab by target ID or matching title or URL. |
 | `close-tab` | `tabs` | `close-tab` | — | Close the active tab and reattach the session to a remaining page target when available. |
 | `open-in-new-tab` | `tabs` | `open-in-new-tab <target>` | `target:target` | Open the link or image URL represented by a target in a new active tab. |
 | `upload` | `files` | `upload <target> <file>` | `target:target` `file:string` | Set a local file on a targeted HTML file input using the DOM protocol. |
-| `highlight` | `visual` | `highlight <target> [label]` | `target:target` `[label:string]` | Draw a Jelly-owned non-interactive highlight over a visible target without modifying the target element itself. The highlight follows the element until cleared or navigation replaces the document. |
+| `highlight` | `visual` | `highlight <target> [label] [auto\|content\|box]` | `target:target` `[label:string]` `[mode:string]` | Draw a Jelly-owned non-interactive halo over a visible target without modifying the target element itself. Auto mode uses rendered text fragments for text-centric elements and a shape halo for controls; content forces text-fragment geometry; box preserves the rectangular outline. The highlight follows the element until cleared or navigation replaces the document. |
 | `clear-highlight` | `visual` | `clear-highlight` | — | Remove the active Jelly visual highlight from the current page. |
 | `evaluate-js` | `script` | `evaluate-js <expression>` | `expression:string` | Evaluate a JavaScript expression in the active page and return its by-value result. |
 | `inject-js` | `script` | `inject-js [--persistent] [--file path \| <script>]` | `script:string` | Execute a JavaScript body now, optionally persisting it across jelly navigations. |
 
-Argument types: `target` accepts stable `@eN` refs, `css:<selector>`, `text:<exact text>`, or plain exact text. Optional arguments are shown in brackets.
+Argument types: `target` accepts document-scoped runtime refs, DOM-backed image refs from `inspect-images`, legacy numeric refs in rollback mode, `css:<selector>`, `text:<exact text>`, or plain exact text. Optional arguments are shown in brackets.
 
 ## System and integration tools
 
@@ -81,7 +82,7 @@ These tools are executable capabilities that intentionally do not require a shar
 | `close-browser` | `browser-lifecycle` | `close-browser` | Gracefully stop the persistent jelly Chromium browser service and clean its state files. |
 | `browser-task` | `browser-lifecycle` | `browser-task [--persist] <url> <agent-tool> [args...]` | Open a headed browser, run one agent tool, and close the browser unless persistence is requested. |
 | `profile-import` | `browser-lifecycle` | `profile-import <source> [--force]` | Copy a closed Chromium user-data directory into Jelly-managed runtime state for session reuse. This does not guarantee anti-bot or CAPTCHA behavior. |
-| `screenshot` | `artifacts` | `screenshot [target] [output] [--output path]` | Capture browser-rendered content only: the active page viewport by default or a specific target such as body, main, a CSS selector, or @eN reference. |
+| `screenshot` | `artifacts` | `screenshot [target] [output] [--output path]` | Capture browser-rendered content only: the active page viewport by default or a specific target such as css:body, css:main, exact text, or a Jelly element reference. |
 | `record-browser` | `artifacts` | `record-browser start [--mode continuous\|steps] [--interval-ms n] [--hold-ms n] \| record-browser stop` | Start or stop a browser-content recording. Continuous mode streams renderer frames; steps mode captures browser state after relevant actions and turns the trace into a timed video. |
 | `downloads` | `artifacts` | `downloads` | List files downloaded into jelly browser download locations. |
 | `verify-artifact` | `artifacts` | `verify-artifact <artifact-id\|path> [--semantic check...]` | Verify a captured artifact still exists, is nonempty, and has valid format-specific integrity metadata. |

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Jelly semantic target fixture</title>
+  <style>
+    body { font-family: sans-serif; margin: 16px; }
+    #offscreen-duplicate { position: absolute; top: 3000px; left: 16px; }
+    #hidden-generic { display: none; }
+    #opacity-hidden-action { opacity: 0; }
+    #references-section { margin-top: 2600px; }
+  </style>
+</head>
+<body>
+  <button id="visible-text">Visible action</button>
+
+  <label for="email">Email label</label>
+  <input id="email">
+
+  <button id="aria-label" aria-label="ARIA action"></button>
+
+  <span id="labelled-name">Labelled action</span>
+  <button id="aria-labelledby" aria-labelledby="labelled-name"></button>
+
+  <input id="placeholder" placeholder="Search placeholder">
+  <input id="value" value="Value target">
+
+  <input id="sibling-label" type="checkbox">
+  <label>Sibling label action</label>
+
+  <img id="alt" role="button" tabindex="0"
+       alt="Image action"
+       src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">
+
+  <div id="title" role="button" tabindex="0" title="Title action" style="width: 24px; height: 24px;"></div>
+
+  <button id="duplicate-disabled" aria-label="Duplicate action" disabled></button>
+  <button id="duplicate-enabled" aria-label="Duplicate action"></button>
+
+  <button id="offscreen-duplicate" aria-label="Viewport action"></button>
+  <button id="onscreen-duplicate" aria-label="Viewport action"></button>
+
+  <button id="priority-disabled" aria-label="Priority action" disabled></button>
+  <button id="priority-enabled-offscreen" aria-label="Priority action" style="position:absolute;top:3400px;left:16px"></button>
+
+  <div id="generic-visible">Generic status text</div>
+  <div id="generic-whitespace">Whitespace   generic<br>target</div>
+  <div id="hidden-generic">Hidden generic text</div>
+
+  <div id="generic-container-choice">Container choice</div>
+  <button id="interactive-container-choice">Container choice</button>
+
+  <button id="opacity-hidden-action">Opacity hidden action</button>
+
+  <button id="rank-exact">Save</button>
+  <button id="rank-prefix">Save draft</button>
+  <button id="rank-contains">Please Save now</button>
+
+  <div id="references-summary">References</div>
+  <h2 id="references-section">References</h2>
+</body>
+</html>

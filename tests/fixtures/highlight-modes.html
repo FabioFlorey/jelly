@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Jelly highlight modes fixture</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 40px; }
+    #complex-link { display: inline-block; width: 360px; text-decoration: none; color: inherit; }
+    #complex-link .meta { display: block; font-size: 13px; color: #666; }
+    #complex-link h3 { margin: 6px 0; font-size: 24px; line-height: 1.2; color: #1267d6; }
+    #complex-link .detail { display: block; font-size: 14px; color: #444; }
+    #control { margin-top: 80px; padding: 12px 18px; border-radius: 12px; }
+    #hidden-heading { visibility: hidden; }
+  </style>
+</head>
+<body>
+  <a id="complex-link" href="#target">
+    <span class="meta">Example source · metadata</span>
+    <h3>Primary result title</h3>
+    <span class="detail">Supporting detail text</span>
+    <h4 id="hidden-heading">Hidden heading must not win</h4>
+  </a>
+  <div><button id="control">Action control</button></div>
+  <div id="target" style="margin-top:1000px">target</div>
+</body>
+</html>

@@ -57,11 +57,13 @@ cargo run --quiet --bin agent-run -- read-page
 cargo run --quiet --bin agent-run -- snapshot-interactive
 ```
 
-Act on a discovered element:
+Act on a discovered element using the ref returned by `snapshot-interactive`:
 
 ```bash
-cargo run --quiet --bin agent-run -- click @e1
+cargo run --quiet --bin agent-run -- click '<ref>'
 ```
+
+Runtime refs are document-scoped tokens such as `@eabc123-7`; legacy rollback mode uses numeric refs such as `@e7`.
 
 Close the browser:
 
@@ -94,6 +96,7 @@ cargo run --quiet --bin agent-discover -- schema type-text
 | 🍯 [**Reliability**](./docs/RELIABILITY.md) | Verification, typed failures, artifacts, timeouts, and cleanup |
 | 📂 [**Runtime Layout**](./docs/RUNTIME.md) | Runtime state, build output, logs, screenshots, and cleanup |
 | 🧈 [**Development**](./docs/DEVELOPMENT.md) | Project conventions, tests, and contribution rules |
+| 🧪 [**Test Index**](./tests/INDEX.md) | Test-suite layout, coverage groups, batches, and executable catalog |
 | ⚡ [**MCP Server**](./docs/MCP.md) | Local MCP endpoint, authentication, tool mapping, and deployment boundary |
 | 🍯 [**Tool Index**](./.agent/tools/index.md) | Generated reference for browser primitives and system tools |
 | 🌟 [**Changelog**](./CHANGELOG.md) | Development history |

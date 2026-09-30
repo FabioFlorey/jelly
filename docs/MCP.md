@@ -137,7 +137,7 @@ tools/call
 notifications such as notifications/initialized
 ```
 
-The HTTP MCP layer is stateless. Browser continuity comes from jelly's persistent Chromium process and runtime state.
+The HTTP MCP transport is stateless. Browser continuity comes from jelly's persistent Chromium process and shared runtime state, while the MCP server also caches one `BrowserSession` for browser primitives by default to avoid repeated CDP connect/attach work. Set `JELLY_MCP_PERSISTENT_SESSION=0` to disable that cache for rollback diagnostics.
 
 ## Authentication
 

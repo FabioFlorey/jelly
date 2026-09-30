@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Jelly Shadow DOM fixture</title>
+  <style>
+    body { font-family: sans-serif; margin: 24px; }
+    #open-host { display: block; margin: 20px; padding: 10px; }
+  </style>
+</head>
+<body>
+  <div id="open-host"></div>
+  <div id="closed-host"></div>
+  <div id="late-open-host"></div>
+  <div id="late-closed-host"></div>
+
+  <script>
+    window.shadowClicks = 0;
+
+    const openHost = document.querySelector('#open-host');
+    const openRoot = openHost.attachShadow({mode:'open'});
+    openRoot.innerHTML = `
+      <style>
+        .panel { margin: 7px; padding: 9px; border: 1px solid transparent; }
+        button, input { margin: 4px; }
+      </style>
+      <div class="panel">
+        <button id="shadow-click">Shadow click</button>
+        <input id="shadow-input" aria-label="Shadow input">
+        <label><input id="shadow-check" type="checkbox" aria-label="Shadow check"> check</label>
+        <select id="shadow-select" aria-label="Shadow select">
+          <option value="one">One</option>
+          <option value="two">Two</option>
+        </select>
+        <button id="shadow-scroll" style="margin-top:1800px">Shadow scroll target</button>
+        <div id="nested-host"></div>
+      </div>
+    `;
+    openRoot.querySelector('#shadow-click').addEventListener('click', () => window.shadowClicks++);
+
+    const nestedHost = openRoot.querySelector('#nested-host');
+    const nestedRoot = nestedHost.attachShadow({mode:'open'});
+    nestedRoot.innerHTML = '<button id="nested-click" style="margin:5px;padding:6px">Nested shadow click</button>';
+
+    const slottedHost = document.createElement('div');
+    slottedHost.id = 'slotted-host';
+    slottedHost.innerHTML = '<span>Slotted shadow action</span>';
+    openRoot.append(slottedHost);
+    const slottedRoot = slottedHost.attachShadow({mode:'open'});
+    slottedRoot.innerHTML = '<button id="slotted-click"><slot></slot></button>';
+    slottedRoot.querySelector('#slotted-click').addEventListener('click', () => window.shadowClicks += 10);
+
+    const closedHost = document.querySelector('#closed-host');
+    const closedRoot = closedHost.attachShadow({mode:'closed'});
+    closedRoot.innerHTML = '<button>Closed shadow action</button>';
+  </script>
+</body>
+</html>

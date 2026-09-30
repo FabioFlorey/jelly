@@ -29,7 +29,7 @@ wait-for
 
 Image readiness requires the element to exist, be visible, report `complete == true`, and have nonzero `naturalWidth` and `naturalHeight`.
 
-Stable `@eN` references are page observations, not permanent object IDs. If a referenced element disappears after navigation or rerendering, Jelly reports `target_stale`; inspect again before continuing.
+Jelly element references are page observations, not permanent object IDs. The default page runtime returns document-scoped refs such as `@eabc123-7`; legacy rollback mode uses numeric refs such as `@e7`. `inspect-images` also returns DOM-backed image refs such as `@img2`. If a referenced element disappears after navigation or rerendering, Jelly reports `target_stale`; inspect again before continuing.
 
 ## Errors
 
@@ -83,7 +83,7 @@ Failures use the same shape:
   "data": null,
   "error": {
     "kind": "target_stale",
-    "message": "stable target @e4 is no longer present; inspect the page again",
+    "message": "stable target @eabc123-4 is no longer present; inspect the page again",
     "retryable": true
   },
   "meta": {

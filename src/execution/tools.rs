@@ -76,7 +76,7 @@ pub static TOOLS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "screenshot",
-        description: "Capture browser-rendered content only: the active page viewport by default or a specific target such as body, main, a CSS selector, or @eN reference.",
+        description: "Capture browser-rendered content only: the active page viewport by default or a specific target such as css:body, css:main, exact text, or a Jelly element reference.",
         usage: "screenshot [target] [output] [--output path]",
         category: "artifacts",
     },

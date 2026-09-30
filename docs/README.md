@@ -14,6 +14,7 @@ jelly keeps documentation modular. Each document covers one part of the system a
 | [**Reliability**](./RELIABILITY.md) | Verification, errors, artifacts, timeouts, cleanup, and profile reuse |
 | [**Runtime Layout**](./RUNTIME.md) | Where runtime state, artifacts, profiles, and build output live |
 | [**Development**](./DEVELOPMENT.md) | Design rules, testing, generated docs, and cleanup |
+| [**Test Index**](../tests/INDEX.md) | Test-suite layout, coverage groups, batches, and executable catalog entry points |
 | [**MCP Server**](./MCP.md) | Local MCP endpoint, tool mapping, and security boundary |
 | [**Tool Index**](../.agent/tools/index.md) | Generated reference for browser primitives and system tools |
 

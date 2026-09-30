@@ -39,11 +39,14 @@ src/
 │   ├── agent-open-browser.rs
 │   └── ...
 ├── browser/
+│   ├── perf.rs
+│   ├── runtime.rs
 │   ├── session.rs
 │   └── target.rs
 ├── artifacts.rs
 ├── error.rs
 ├── mcp.rs
+├── mcp_auth.rs
 ├── primitives/
 │   ├── input.rs
 │   ├── navigation.rs
@@ -51,7 +54,8 @@ src/
 │   ├── verify.rs
 │   ├── tabs.rs
 │   ├── files.rs
-│   └── script.rs
+│   ├── script.rs
+│   └── visual.rs
 └── execution/
     ├── registry.rs
     ├── tools.rs
@@ -59,7 +63,7 @@ src/
     └── tracing.rs
 ```
 
-Most browser primitives share one persistent `BrowserSession` inside a routine. JSON routines are guarded directed graphs: evidence is stored in context, edges can branch/loop/jump, and typed failures can select recovery paths. A graph that starts Chromium owns that browser and finalizes it on terminal completion or unhandled failure; HITL suspension preserves the session for continuation.
+Most browser primitives share one persistent `BrowserSession` inside a routine. MCP browser primitives also reuse a cached `BrowserSession` by default; `JELLY_MCP_PERSISTENT_SESSION=0` restores one connection/attach per MCP call for rollback diagnostics. JSON routines are guarded directed graphs: evidence is stored in context, edges can branch/loop/jump, and typed failures can select recovery paths. A graph that starts Chromium owns that browser and finalizes it on terminal completion or unhandled failure; HITL suspension preserves the session for continuation.
 
 Executable agent entrypoints live in Cargo's native `src/bin/` layout. Standalone system tools continue to execute through the agent-tool dispatch path, which lets them manage process lifetime, files, human-intervention transport, or other concerns that do not belong in a `BrowserSession` handler. `src/mcp.rs` adapts the same registries into MCP `tools/list` and `tools/call` operations; browser primitives execute through `BrowserSession`, while system tools map structured MCP arguments back onto their existing CLI interfaces. The `.agent/` tree is reserved for declarative or generated agent-facing resources such as routines and the generated tool index.
 

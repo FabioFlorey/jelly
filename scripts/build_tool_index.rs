@@ -63,7 +63,7 @@ fn render() -> String {
             md(spec.description),
         ));
     }
-    out.push_str("\nArgument types: `target` accepts stable `@eN` refs, `css:<selector>`, `text:<exact text>`, or plain exact text. Optional arguments are shown in brackets.\n\n");
+    out.push_str("\nArgument types: `target` accepts document-scoped runtime refs, DOM-backed image refs from `inspect-images`, legacy numeric refs in rollback mode, `css:<selector>`, `text:<exact text>`, or plain exact text. Optional arguments are shown in brackets.\n\n");
 
     out.push_str("## System and integration tools\n\n");
     out.push_str("These tools are executable capabilities that intentionally do not require a shared `BrowserSession` primitive handler.\n\n");

@@ -9,24 +9,25 @@ jelly has a small core dependency set plus a few optional tools used by specific
 | Dependency | Purpose | Notes |
 | :--- | :--- | :--- |
 | **Git** | Clone/update the repository | Required by the normal source workflow |
-| **Rust** | Build jelly and its binaries | Use a recent stable toolchain |
+| **Rust** | Build jelly and its binaries | Requires Rust 1.98; `rust-toolchain.toml` currently pins 1.98.1 |
 | **Cargo** | Build and run project binaries | Installed with Rust |
 | **Chromium** | Browser runtime | Currently expected at `/usr/bin/chromium` |
-| **systemd** | Persistent browser lifecycle | Uses user services through `systemd-run --user` |
+| **systemd** | Persistent browser lifecycle | Requires `systemctl`, `systemd-run`, and a working user manager |
 | **bash** | Project scripts | Used by scripts under `scripts/` |
+| **base64** | Setup/auth helper | Required by the quickstart prerequisite check |
 | **core shell utilities** | Common shell operations | `cp`, `mv`, `chmod`, `mktemp`, `grep`, `sed`, `awk`, `date` |
-| **ffmpeg / ffprobe** | Browser recording export | Encodes renderer frames into MP4 and probes step-frame dimensions for proportional branded overlays |
 
 ## Optional
 
 | Dependency | Used by | Notes |
 | :--- | :--- | :--- |
-| **curl** | Telegram HITL | Required for `hitl` requests |
-| **cloudflared** | Quick or fixed public MCP tunnel | Optional; the service wrapper can reuse PiLink's private binary when present |
+| **curl** | Selected integrations and setup flows | Used by Telegram HITL, paired OAuth owner-status checks, and nip.io public IPv4 discovery |
+| **cloudflared** | Quick or fixed public MCP tunnel | Required for `quick-tunnel` and `cloudflare-fixed`; the service wrapper can reuse PiLink's private binary when present |
 | **Caddy** | Direct nip.io HTTPS | Required only for `JELLY_HOSTING_MODE=nip-io` |
 | **python3** | nip.io public IPv4 validation | Required only for `nip-io` |
 | **iproute2 (`ip`)** | nip.io LAN route discovery | Required only for `nip-io` |
-| **upnpc / natpmpc** | Automatic nip.io router mappings | Optional; manual port forwarding avoids these helpers |
+| **upnpc / natpmpc** | Automatic nip.io router mappings | Required only for automatic nip.io router mapping; manual port forwarding avoids these helpers |
+| **ffmpeg / ffprobe** | Browser recording export | Required only when exporting browser recordings; encodes frames into MP4 and probes step-frame dimensions |
 | **Wayland / X11 session** | Headed Chromium | Not required for headless mode |
 
 ## Platform assumptions
@@ -41,6 +42,17 @@ The current implementation assumes:
 - Cargo build output can be written to `../.jelly-build` relative to the repository.
 
 These are implementation assumptions rather than fundamental architectural requirements and may become configurable later.
+
+## Development and verification tools
+
+Some repository regression and performance scripts use additional command-line tools that are not required for normal Jelly runtime:
+
+| Dependency | Used by | Notes |
+| :--- | :--- | :--- |
+| **jq** | Regression and browser verification scripts | Used to inspect and assert JSON output |
+| **curl** | MCP lifecycle and benchmark scripts | Used to call local MCP/health endpoints |
+| **python3** | Browser performance benchmark | Used to summarize benchmark output |
+| **util-linux (`flock`)** | Scenario test suite | Serializes executable suite runs that share Jelly browser/service state |
 
 ## Optional integration configuration
 
@@ -59,10 +71,10 @@ For headless browser automation, the practical minimum is:
 
 ```text
 Git
-Rust + Cargo
+Rust 1.98 + Cargo
 Chromium
-systemd user services
-bash + core shell utilities
+systemd user services (`systemctl` + `systemd-run`)
+bash + base64 + core shell utilities
 ```
 
 Everything else is feature-specific.

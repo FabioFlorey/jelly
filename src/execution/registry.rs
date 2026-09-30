@@ -155,7 +155,8 @@ primitives! {
     "assert-text" => crate::primitives::verify::assert_text, description:"Require a target's current text to match an expected value.", usage:"assert-text <target> <text> [exact|contains]", category:"verify", args:&[ArgSpec::req("target",Tgt),ArgSpec::req("text",Str),ArgSpec::opt("match",Str)], max:Some(3);
     "assert-image-ready" => crate::primitives::verify::assert_image_ready, description:"Require a visible image to be complete with nonzero natural dimensions before capture or downstream use.", usage:"assert-image-ready <target>", category:"verify", args:&[ArgSpec::req("target",Tgt)], max:Some(1);
 
-    "snapshot-interactive" => crate::primitives::inspect::snapshot_interactive, description:"Return visible interactive elements and assign stable @eN references for subsequent actions.", usage:"snapshot-interactive", category:"inspect", args:&[], max:Some(0);
+    "snapshot-interactive" => crate::primitives::inspect::snapshot_interactive, description:"Return visible interactive elements with document-scoped refs, optionally bounded and paged by result limit and offset.", usage:"snapshot-interactive [limit] [offset]", category:"inspect", args:&[ArgSpec::opt("limit",Integer),ArgSpec::opt("offset",Integer)], max:Some(2);
+    "find-interactive" => crate::primitives::inspect::find_interactive, description:"Search visible interactive elements by semantic name, rank useful matches in the browser, and return a bounded, pageable result set with document-scoped refs.", usage:"find-interactive <query> [limit] [offset]", category:"inspect", args:&[ArgSpec::req("query",Str),ArgSpec::opt("limit",Integer),ArgSpec::opt("offset",Integer)], max:Some(3);
     "read-page" => crate::primitives::inspect::read_page, description:"Return the active page title, URL, headings, and main readable text.", usage:"read-page", category:"inspect", args:&[], max:Some(0);
     "inspect-inputs" => crate::primitives::inspect::inspect_inputs, description:"List visible form controls with type, label, placeholder, name, value, and checked state.", usage:"inspect-inputs", category:"inspect", args:&[], max:Some(0);
     "inspect-elements" => crate::primitives::inspect::inspect_elements, description:"Inspect up to 100 visible elements matching a CSS selector with text, attributes, and geometry.", usage:"inspect-elements [css]", category:"inspect", args:&[ArgSpec::opt("css",Str)], max:Some(1);
@@ -165,7 +166,7 @@ primitives! {
     "get-element" => crate::primitives::inspect::get_element, description:"Return the text, outer HTML, or both for a single target element.", usage:"get-element <target> [text|html|both]", category:"inspect", args:&[ArgSpec::req("target",Tgt),ArgSpec::opt("mode",Str)], max:Some(2);
     "accessibility-tree" => crate::primitives::inspect::accessibility_tree, description:"Return a compact view of non-ignored nodes from the page accessibility tree.", usage:"accessibility-tree [max]", category:"inspect", args:&[ArgSpec::opt("max",Integer)], max:Some(1);
     "inspect-links" => crate::primitives::inspect::inspect_links, description:"List visible links with normalized visible text and resolved URLs.", usage:"inspect-links", category:"inspect", args:&[], max:Some(0);
-    "inspect-images" => crate::primitives::inspect::inspect_images, description:"Inspect images with stable refs, source, visibility, load completion, natural dimensions, and rendered dimensions.", usage:"inspect-images", category:"inspect", args:&[], max:Some(0);
+    "inspect-images" => crate::primitives::inspect::inspect_images, description:"Inspect images with DOM-backed page-order refs, source, visibility, load completion, natural dimensions, and rendered dimensions.", usage:"inspect-images", category:"inspect", args:&[], max:Some(0);
 
     "tabs" => crate::primitives::tabs::tabs, description:"List browser page targets with target ID, title, and URL.", usage:"tabs", category:"tabs", args:&[], max:Some(0);
     "switch-tab" => crate::primitives::tabs::switch_tab, description:"Activate and attach to a tab by target ID or matching title or URL.", usage:"switch-tab <id|title|url>", category:"tabs", args:&[ArgSpec::req("query",Str)], max:Some(1);
@@ -174,7 +175,7 @@ primitives! {
 
     "upload" => crate::primitives::files::upload, description:"Set a local file on a targeted HTML file input using the DOM protocol.", usage:"upload <target> <file>", category:"files", args:&[ArgSpec::req("target",Tgt),ArgSpec::req("file",Str)], max:Some(2);
 
-    "highlight" => crate::primitives::visual::highlight, description:"Draw a Jelly-owned non-interactive highlight over a visible target without modifying the target element itself. The highlight follows the element until cleared or navigation replaces the document.", usage:"highlight <target> [label]", category:"visual", args:&[ArgSpec::req("target",Tgt),ArgSpec::opt("label",Str)], max:Some(2);
+    "highlight" => crate::primitives::visual::highlight, description:"Draw a Jelly-owned non-interactive halo over a visible target without modifying the target element itself. Auto mode uses rendered text fragments for text-centric elements and a shape halo for controls; content forces text-fragment geometry; box preserves the rectangular outline. The highlight follows the element until cleared or navigation replaces the document.", usage:"highlight <target> [label] [auto|content|box]", category:"visual", args:&[ArgSpec::req("target",Tgt),ArgSpec::opt("label",Str),ArgSpec::opt("mode",Str)], max:Some(3);
     "clear-highlight" => crate::primitives::visual::clear_highlight, description:"Remove the active Jelly visual highlight from the current page.", usage:"clear-highlight", category:"visual", args:&[], max:Some(0);
 
     "evaluate-js" => crate::primitives::script::evaluate_js, description:"Evaluate a JavaScript expression in the active page and return its by-value result.", usage:"evaluate-js <expression>", category:"script", args:&[ArgSpec::req("expression",Str)], max:None;
@@ -202,6 +203,16 @@ mod tests {
         assert_eq!(click.args[0].name, "target");
         assert_eq!(click.schema()["description"], click.description);
     }
+    #[test]
+    fn every_primitive_has_a_cli_wrapper() {
+        for primitive in PRIMITIVES {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src/bin")
+                .join(format!("agent-{}.rs", primitive.name));
+            assert!(path.is_file(), "missing CLI wrapper for {}", primitive.name);
+        }
+    }
+
     #[test]
     fn generic_validation_checks_arity_and_types() {
         assert!(lookup("click").unwrap().validate(&[]).is_err());
