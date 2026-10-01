@@ -1,8 +1,11 @@
 use super::{
-    AgentBuiltin,
+    AgentBuiltin, RawCdpAccess,
+    catalog_build::{large_surface_specs, small_surface_specs},
     schema::{primitive_input_schema, system_input_schema, tool_output_schema},
 };
-use crate::{PrimitiveSpec, ToolSpec, primitive_specs, tool_specs};
+use crate::{PrimitiveSpec, ToolSpec};
+#[cfg(test)]
+use crate::{primitive_specs, tool_specs};
 use serde_json::Value;
 use std::{collections::HashMap, error::Error as StdError, fmt};
 
@@ -214,29 +217,15 @@ impl AgentToolCatalog {
     }
 
     pub fn large_surface() -> Result<Self, AgentCatalogError> {
-        Self::large_surface_with_raw(crate::RawCdpAccess::Disabled)
+        Self::large_surface_with_raw(RawCdpAccess::Disabled)
     }
 
-    pub fn large_surface_with_raw(raw_cdp: crate::RawCdpAccess) -> Result<Self, AgentCatalogError> {
-        let mut specs = primitive_specs
-            .iter()
-            .map(AgentToolSpec::browser_primitive)
-            .collect::<Vec<_>>();
-        if raw_cdp.enabled() {
-            specs.push(AgentToolSpec::builtin(AgentBuiltin::CdpCall));
-        }
-        specs.extend(tool_specs.iter().map(AgentToolSpec::system_tool));
-        Self::try_new(specs)
+    pub fn large_surface_with_raw(raw_cdp: RawCdpAccess) -> Result<Self, AgentCatalogError> {
+        Self::try_new(large_surface_specs(raw_cdp))
     }
 
-    pub fn small_surface(raw_cdp: crate::RawCdpAccess) -> Result<Self, AgentCatalogError> {
-        let mut specs = vec![
-            AgentToolSpec::builtin(AgentBuiltin::BrowserSchema),
-            AgentToolSpec::builtin(AgentBuiltin::browser_call(raw_cdp)),
-            AgentToolSpec::builtin(AgentBuiltin::BrowserEvents),
-        ];
-        specs.extend(tool_specs.iter().map(AgentToolSpec::system_tool));
-        Self::try_new(specs)
+    pub fn small_surface(raw_cdp: RawCdpAccess) -> Result<Self, AgentCatalogError> {
+        Self::try_new(small_surface_specs(raw_cdp))
     }
 
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &AgentToolEntry> {
