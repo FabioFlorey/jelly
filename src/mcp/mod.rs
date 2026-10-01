@@ -20,9 +20,11 @@ use std::{
 
 static MCP_BROWSER_SESSION: OnceLock<Mutex<Option<BrowserSession>>> = OnceLock::new();
 
-const SERVER_NAME: &str = "jelly";
-const DEFAULT_PROTOCOL_VERSION: &str = "2025-06-18";
-const SERVER_INSTRUCTIONS: &str = include_str!("../.agent/instructions/mcp.md");
+mod protocol;
+
+#[cfg(test)]
+use protocol::DEFAULT_PROTOCOL_VERSION;
+use protocol::{McpRequest, SERVER_NAME, error_response, initialize, success_response};
 
 pub fn router(
     token: String,
@@ -67,52 +69,25 @@ async fn handle_mcp(
         return state.unauthorized();
     }
 
-    let id = request.get("id").cloned();
-    let method = request.get("method").and_then(Value::as_str).unwrap_or("");
-    let params = request.get("params").cloned().unwrap_or_else(|| json!({}));
-
-    if id.is_none() {
+    let request = McpRequest::parse(&request);
+    let Some(id) = request.id else {
         return StatusCode::ACCEPTED.into_response();
-    }
-    let id = id.unwrap_or(Value::Null);
+    };
 
-    let result = match method {
-        "initialize" => Ok(initialize(&params)),
+    let result = match request.method.as_str() {
+        "initialize" => Ok(initialize(&request.params)),
         "ping" => Ok(json!({})),
         "tools/list" => mcp_tools()
             .map(|tools| json!({"tools":tools}))
             .map_err(|message| (-32603, message)),
-        "tools/call" => call_tool(&params).await,
-        _ => Err((-32601, format!("method not found: {method}"))),
+        "tools/call" => call_tool(&request.params).await,
+        _ => Err((-32601, format!("method not found: {}", request.method))),
     };
 
     match result {
-        Ok(result) => Json(json!({"jsonrpc":"2.0","id":id,"result":result})).into_response(),
-        Err((code, message)) => Json(json!({
-            "jsonrpc":"2.0",
-            "id":id,
-            "error":{"code":code,"message":message}
-        }))
-        .into_response(),
+        Ok(result) => Json(success_response(id, result)).into_response(),
+        Err((code, message)) => Json(error_response(id, code, message)).into_response(),
     }
-}
-
-fn initialize(params: &Value) -> Value {
-    let protocol_version = params
-        .get("protocolVersion")
-        .and_then(Value::as_str)
-        .unwrap_or(DEFAULT_PROTOCOL_VERSION);
-    json!({
-        "protocolVersion": protocol_version,
-        "capabilities": {
-            "tools": {"listChanged": false}
-        },
-        "serverInfo": {
-            "name": SERVER_NAME,
-            "version": env!("CARGO_PKG_VERSION")
-        },
-        "instructions": SERVER_INSTRUCTIONS
-    })
 }
 
 pub fn mcp_tools() -> Result<Vec<Value>, String> {
