@@ -1,3 +1,4 @@
+use super::runtime::{IN_VIEWPORT_SOURCE, MEASURE_SOURCE, NORMALIZE_SOURCE};
 use crate::{Error, ErrorKind, jelly_error};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,13 +51,14 @@ impl Target {
             Self::Css(selector) => format!("document.querySelector({})", js(selector)),
             Self::Text(text) => format!(
                 r#"(()=>{{
-                    const norm=v=>(v||'').replace(/\s+/g,' ').trim();
-                    const q=norm({});
+                    const norm={normalize};
+                    const measure={measure};
+                    const q=norm({text});
                     const qParts=q.split(' ').filter(Boolean);
                     const runtime=globalThis.__jellyRuntimeV1;
                     const indexed=runtime?.resolveText(q);
                     if(indexed)return indexed;
-                    const vis=e=>{{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&s.opacity!=='0'}};
+                    const vis=e=>!!measure(e);
                     const exact=e=>vis(e)&&norm(e.innerText||e.getAttribute('aria-label')||e.getAttribute('alt')||'')===q;
                     const likely=e=>{{
                         const aria=norm(e.getAttribute('aria-label'));
@@ -82,7 +84,9 @@ impl Target {
                     if(runtime?.metrics)runtime.metrics.genericTextFallbackMisses++;
                     return null;
                 }})()"#,
-                js(text)
+                text = js(text),
+                normalize = NORMALIZE_SOURCE,
+                measure = MEASURE_SOURCE,
             ),
         }
     }
@@ -91,24 +95,22 @@ impl Target {
         match self {
             Self::Text(text) => format!(
                 r#"(()=>{{
-                    const norm=v=>(v||'').replace(/\s+/g,' ').trim();
-                    const q=norm({});
-                    const visible=e=>{{
-                        if(!e?.isConnected)return false;
-                        const r=e.getBoundingClientRect(),s=getComputedStyle(e);
-                        return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0';
-                    }};
-                    const text=e=>norm(e.innerText||e.getAttribute?.('aria-label')||e.getAttribute?.('alt')||'');
+                    const norm={normalize};
+                    const measure={measure};
+                    const inViewportFn={in_viewport};
+                    const q=norm({text});
+                    const visible=e=>!!measure(e);
+                    const textValue=e=>norm(e.innerText||e.getAttribute?.('aria-label')||e.getAttribute?.('alt')||'');
                     const interactive=e=>e.matches?.('a[href],button,input,textarea,select,[role=button],[role=link],[role=checkbox],[role=radio],[role=option],[tabindex]')||false;
                     const candidates=[];
                     const seen=new Set();
                     let order=0;
                     const add=e=>{{
-                        if(!e||seen.has(e)||!visible(e)||text(e)!==q)return;
+                        if(!e||seen.has(e)||!visible(e)||textValue(e)!==q)return;
                         seen.add(e);
                         const r=e.getBoundingClientRect();
                         const heading=/^H[1-6]$/.test(e.tagName)||e.getAttribute?.('role')==='heading';
-                        const inViewport=r.bottom>0&&r.right>0&&r.top<innerHeight&&r.left<innerWidth;
+                        const inViewport=inViewportFn(r);
                         candidates.push({{e,heading:heading?0:1,interactive:interactive(e)?1:0,offscreen:inViewport?1:0,order:order++}});
                     }};
                     add(globalThis.__jellyRuntimeV1?.resolveText(q));
@@ -125,7 +127,10 @@ impl Target {
                     );
                     return candidates[0]?.e||null;
                 }})()"#,
-                js(text)
+                text = js(text),
+                normalize = NORMALIZE_SOURCE,
+                measure = MEASURE_SOURCE,
+                in_viewport = IN_VIEWPORT_SOURCE,
             ),
             _ => self.js_resolver(),
         }
@@ -179,7 +184,8 @@ mod tests {
         assert!(text.contains("const runtime=globalThis.__jellyRuntimeV1"));
         assert!(text.contains("runtime?.resolveText"));
         assert!(text.contains("genericTextFallbacks"));
-        assert!(text.contains(r#"replace(/\s+/g,' ')"#));
+        assert!(text.contains(NORMALIZE_SOURCE));
+        assert!(text.contains(MEASURE_SOURCE));
         assert!(text.contains("querySelectorAll('*')"));
     }
 
@@ -191,6 +197,8 @@ mod tests {
         assert!(scroll.contains("heading:heading?0:1"));
         assert!(scroll.contains("interactive:interactive(e)?1:0"));
         assert!(scroll.contains("offscreen:inViewport?1:0"));
-        assert!(scroll.contains("s.opacity!=='0'"));
+        assert!(scroll.contains(NORMALIZE_SOURCE));
+        assert!(scroll.contains(MEASURE_SOURCE));
+        assert!(scroll.contains(IN_VIEWPORT_SOURCE));
     }
 }

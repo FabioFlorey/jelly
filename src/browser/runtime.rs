@@ -1,6 +1,51 @@
-pub const PAGE_RUNTIME_BOOTSTRAP: &str = r#"(() => {
+use std::sync::OnceLock;
+
+pub const PAGE_RUNTIME_VERSION: u32 = 19;
+
+const INTERACTIVE_ROLES_SOURCE: &str = "['button','link','textbox','checkbox','radio','combobox','option','tab','menuitem','switch','slider','spinbutton','treeitem']";
+const INTERACTIVE_SELECTOR_SOURCE: &str = "'a,button,input,textarea,select,[role],[tabindex],[contenteditable=true],[draggable=true],[onclick]'";
+pub(super) const NORMALIZE_SOURCE: &str = r#"value => (value || '').replace(/\s+/g, ' ').trim()"#;
+const IS_INTERACTIVE_SOURCE: &str = r#"element => {
+    const role = element.getAttribute('role');
+    return ['A','BUTTON','INPUT','TEXTAREA','SELECT'].includes(element.tagName) ||
+        interactiveRoles.has(role) ||
+        element.tabIndex >= 0 ||
+        element.isContentEditable ||
+        element.draggable ||
+        !!element.onclick;
+}"#;
+pub(super) const MEASURE_SOURCE: &str = r#"element => {
+    if (!element?.isConnected) return null;
+    const rect = element.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    const style = getComputedStyle(element);
+    if (
+        style.display === 'none' ||
+        style.visibility === 'hidden' ||
+        style.opacity === '0'
+    ) return null;
+    return rect;
+}"#;
+const INFER_ROLE_SOURCE: &str = r#"element => element.getAttribute('role') || ({
+    A:'link',
+    BUTTON:'button',
+    INPUT:(element.type === 'checkbox'
+        ? 'checkbox'
+        : element.type === 'radio'
+            ? 'radio'
+            : 'textbox'),
+    TEXTAREA:'textbox',
+    SELECT:'combobox'
+})[element.tagName] || (element.draggable ? 'draggable' : '')"#;
+pub(super) const IN_VIEWPORT_SOURCE: &str = r#"rect =>
+    rect.bottom > 0 &&
+    rect.right > 0 &&
+    rect.top < innerHeight &&
+    rect.left < innerWidth"#;
+
+const PAGE_RUNTIME_TEMPLATE: &str = r#"(() => {
     const key = '__jellyRuntimeV1';
-    const version = 19;
+    const version = __JELLY_RUNTIME_VERSION__;
     if (globalThis[key]?.version === version) return true;
     globalThis[key]?.dispose?.();
     document.querySelectorAll('[data-jelly-ref]').forEach(e => {
@@ -9,13 +54,13 @@ pub const PAGE_RUNTIME_BOOTSTRAP: &str = r#"(() => {
         }
     });
 
-    const interactiveRoles = new Set([
-        'button','link','textbox','checkbox','radio','combobox','option','tab',
-        'menuitem','switch','slider','spinbutton','treeitem'
-    ]);
-    const selector =
-        'a,button,input,textarea,select,[role],[tabindex],[contenteditable=true],[draggable=true],[onclick]';
-    const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
+    const interactiveRoles = new Set(__JELLY_INTERACTIVE_ROLES__);
+    const selector = __JELLY_INTERACTIVE_SELECTOR__;
+    const normalize = __JELLY_NORMALIZE_FN__;
+    const isInteractive = __JELLY_IS_INTERACTIVE_FN__;
+    const measure = __JELLY_MEASURE_FN__;
+    const inferRole = __JELLY_INFER_ROLE_FN__;
+    const inViewport = __JELLY_IN_VIEWPORT_FN__;
     const collectRoots = () => {
         const roots = [document];
         const seen = new Set(roots);
@@ -75,23 +120,6 @@ pub const PAGE_RUNTIME_BOOTSTRAP: &str = r#"(() => {
         };
     };
     const semanticName = (e, labelByFor) => semanticNameInfo(e, labelByFor).name;
-    const isInteractive = e => {
-        const role = e.getAttribute('role');
-        return ['A','BUTTON','INPUT','TEXTAREA','SELECT'].includes(e.tagName) ||
-            interactiveRoles.has(role) ||
-            e.tabIndex >= 0 ||
-            e.isContentEditable ||
-            e.draggable ||
-            !!e.onclick;
-    };
-    const measure = e => {
-        if (!e?.isConnected) return null;
-        const r = e.getBoundingClientRect();
-        if (r.width <= 0 || r.height <= 0) return null;
-        const s = getComputedStyle(e);
-        if (s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') return null;
-        return r;
-    };
     const observerOptions = {
         subtree: true,
         childList: true,
@@ -286,13 +314,7 @@ pub const PAGE_RUNTIME_BOOTSTRAP: &str = r#"(() => {
             const e = item.e;
             const r = measure(e);
             if (!r) return null;
-            const role = e.getAttribute('role') || ({
-                A:'link',
-                BUTTON:'button',
-                INPUT:(e.type === 'checkbox' ? 'checkbox' : e.type === 'radio' ? 'radio' : 'textbox'),
-                TEXTAREA:'textbox',
-                SELECT:'combobox'
-            })[e.tagName] || (e.draggable ? 'draggable' : '');
+            const role = inferRole(e);
             const ariaDisabled = e.getAttribute('aria-disabled');
             const ariaChecked = e.getAttribute('aria-checked');
             const checked = 'checked' in e
@@ -311,7 +333,7 @@ pub const PAGE_RUNTIME_BOOTSTRAP: &str = r#"(() => {
                 checked,
                 draggable:!!e.draggable,
                 shadow:e.getRootNode() instanceof ShadowRoot,
-                in_viewport:r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth,
+                in_viewport:inViewport(r),
                 x:Math.round(r.x),
                 y:Math.round(r.y),
                 width:Math.round(r.width),
@@ -394,7 +416,180 @@ pub const PAGE_RUNTIME_BOOTSTRAP: &str = r#"(() => {
     return true;
 })()"#;
 
-pub const PAGE_RUNTIME_VERSION: u32 = 19;
+pub fn page_runtime_bootstrap() -> &'static str {
+    static SOURCE: OnceLock<String> = OnceLock::new();
+    SOURCE
+        .get_or_init(|| {
+            PAGE_RUNTIME_TEMPLATE
+                .replace(
+                    "__JELLY_RUNTIME_VERSION__",
+                    &PAGE_RUNTIME_VERSION.to_string(),
+                )
+                .replace("__JELLY_INTERACTIVE_ROLES__", INTERACTIVE_ROLES_SOURCE)
+                .replace(
+                    "__JELLY_INTERACTIVE_SELECTOR__",
+                    INTERACTIVE_SELECTOR_SOURCE,
+                )
+                .replace("__JELLY_NORMALIZE_FN__", NORMALIZE_SOURCE)
+                .replace("__JELLY_IS_INTERACTIVE_FN__", IS_INTERACTIVE_SOURCE)
+                .replace("__JELLY_MEASURE_FN__", MEASURE_SOURCE)
+                .replace("__JELLY_INFER_ROLE_FN__", INFER_ROLE_SOURCE)
+                .replace("__JELLY_IN_VIEWPORT_FN__", IN_VIEWPORT_SOURCE)
+        })
+        .as_str()
+}
+
+pub fn legacy_snapshot_expression(limit: usize, offset: usize) -> String {
+    format!(
+        r#"(() => {{
+            const limit = {limit};
+            const offset = {offset};
+            const interactiveRoles = new Set({roles});
+            const selector = {selector};
+            const normalize = {normalize};
+            const isInteractive = {is_interactive};
+            const measure = {measure};
+            const inferRole = {infer_role};
+
+            document.querySelectorAll('[data-jelly-ref]').forEach(element =>
+                element.removeAttribute('data-jelly-ref')
+            );
+
+            const elements = [...document.querySelectorAll(selector)]
+                .filter(element => isInteractive(element) && measure(element));
+            elements.forEach((element, index) =>
+                element.setAttribute('data-jelly-ref', 'e' + (index + 1))
+            );
+
+            const end = limit > 0
+                ? Math.min(elements.length, offset + limit)
+                : elements.length;
+            const out = [];
+            for (let index = Math.min(offset, elements.length); index < end; index++) {{
+                const element = elements[index];
+                const ref = 'e' + (index + 1);
+                const rect = element.getBoundingClientRect();
+                const role = inferRole(element);
+                const name = normalize(
+                    element.getAttribute('aria-label') ||
+                    element.innerText ||
+                    element.value ||
+                    element.placeholder ||
+                    element.alt ||
+                    ''
+                ).slice(0, 160);
+                out.push({{
+                    ref:'@' + ref,
+                    tag:element.tagName.toLowerCase(),
+                    role,
+                    name,
+                    disabled:!!element.disabled,
+                    checked:element.checked ?? null,
+                    draggable:!!element.draggable,
+                    x:Math.round(rect.x),
+                    y:Math.round(rect.y),
+                    width:Math.round(rect.width),
+                    height:Math.round(rect.height)
+                }});
+            }}
+            return out;
+        }})()"#,
+        roles = INTERACTIVE_ROLES_SOURCE,
+        selector = INTERACTIVE_SELECTOR_SOURCE,
+        normalize = NORMALIZE_SOURCE,
+        is_interactive = IS_INTERACTIVE_SOURCE,
+        measure = MEASURE_SOURCE,
+        infer_role = INFER_ROLE_SOURCE,
+    )
+}
+
+pub fn legacy_search_expression(query: &str, limit: usize, offset: usize) -> String {
+    let query = serde_json::to_string(query).expect("query serialization");
+    format!(
+        r#"(() => {{
+            const query = {query};
+            const max = {limit};
+            const offset = {offset};
+            const interactiveRoles = new Set({roles});
+            const selector = {selector};
+            const normalize = {normalize};
+            const isInteractive = {is_interactive};
+            const measure = {measure};
+            const inferRole = {infer_role};
+            const inViewport = {in_viewport};
+
+            document.querySelectorAll('[data-jelly-ref]').forEach(element =>
+                element.removeAttribute('data-jelly-ref')
+            );
+            const all = [...document.querySelectorAll(selector)].filter(isInteractive);
+            all.forEach((element, index) =>
+                element.setAttribute('data-jelly-ref', 'e' + (index + 1))
+            );
+
+            const needle = normalize(query).toLowerCase();
+            const rows = [];
+            for (let index = 0; index < all.length; index++) {{
+                const element = all[index];
+                const rect = measure(element);
+                if (!rect) continue;
+
+                const name = normalize(
+                    element.getAttribute('aria-label') ||
+                    element.textContent ||
+                    element.value ||
+                    element.placeholder ||
+                    element.alt ||
+                    element.getAttribute('title') ||
+                    ''
+                );
+                const normalized = name.toLowerCase();
+                let match = 99;
+                if (normalized === needle) match = 0;
+                else if (normalized.startsWith(needle)) match = 1;
+                else if (normalized.includes(needle)) match = 2;
+                else continue;
+
+                const role = inferRole(element);
+                const visibleInViewport = inViewport(rect);
+                rows.push({{
+                    match,
+                    disabled:element.disabled ? 1 : 0,
+                    offscreen:visibleInViewport ? 0 : 1,
+                    order:index,
+                    value:{{
+                        ref:'@e' + (index + 1),
+                        tag:element.tagName.toLowerCase(),
+                        role,
+                        name:name.slice(0, 160),
+                        disabled:!!element.disabled,
+                        checked:element.checked ?? null,
+                        draggable:!!element.draggable,
+                        shadow:false,
+                        in_viewport:visibleInViewport,
+                        x:Math.round(rect.x),
+                        y:Math.round(rect.y),
+                        width:Math.round(rect.width),
+                        height:Math.round(rect.height)
+                    }}
+                }});
+            }}
+            rows.sort((a, b) =>
+                a.match - b.match ||
+                a.disabled - b.disabled ||
+                a.offscreen - b.offscreen ||
+                a.order - b.order
+            );
+            return rows.slice(offset, offset + max).map(row => row.value);
+        }})()"#,
+        roles = INTERACTIVE_ROLES_SOURCE,
+        selector = INTERACTIVE_SELECTOR_SOURCE,
+        normalize = NORMALIZE_SOURCE,
+        is_interactive = IS_INTERACTIVE_SOURCE,
+        measure = MEASURE_SOURCE,
+        infer_role = INFER_ROLE_SOURCE,
+        in_viewport = IN_VIEWPORT_SOURCE,
+    )
+}
 
 pub fn snapshot_expression(limit: usize, offset: usize) -> String {
     format!(
@@ -422,18 +617,50 @@ mod tests {
 
     #[test]
     fn runtime_keeps_visibility_live_and_names_invalidatable() {
-        assert!(PAGE_RUNTIME_BOOTSTRAP.contains("getBoundingClientRect"));
-        assert!(PAGE_RUNTIME_BOOTSTRAP.contains("aria-labelledby"));
-        assert!(PAGE_RUNTIME_BOOTSTRAP.contains("assignedNodes({flatten:true})"));
-        assert!(PAGE_RUNTIME_BOOTSTRAP.contains("MutationObserver"));
-        assert!(PAGE_RUNTIME_BOOTSTRAP.contains("attachShadowHook"));
-        assert!(PAGE_RUNTIME_BOOTSTRAP.contains("this.dirty = true"));
+        let source = page_runtime_bootstrap();
+        assert!(source.contains("getBoundingClientRect"));
+        assert!(source.contains("aria-labelledby"));
+        assert!(source.contains("assignedNodes({flatten:true})"));
+        assert!(source.contains("MutationObserver"));
+        assert!(source.contains("attachShadowHook"));
+        assert!(source.contains("this.dirty = true"));
+        assert!(!source.contains("__JELLY_"));
     }
 
     #[test]
     fn rust_and_page_runtime_versions_stay_in_sync() {
         assert!(
-            PAGE_RUNTIME_BOOTSTRAP.contains(&format!("const version = {PAGE_RUNTIME_VERSION};"))
+            page_runtime_bootstrap().contains(&format!("const version = {PAGE_RUNTIME_VERSION};"))
         );
+    }
+
+    #[test]
+    fn runtime_and_legacy_paths_share_core_dom_helpers() {
+        let runtime = page_runtime_bootstrap();
+        let snapshot = legacy_snapshot_expression(10, 2);
+        let search = legacy_search_expression("save", 5, 1);
+
+        for helper in [
+            INTERACTIVE_ROLES_SOURCE,
+            INTERACTIVE_SELECTOR_SOURCE,
+            NORMALIZE_SOURCE,
+            IS_INTERACTIVE_SOURCE,
+            MEASURE_SOURCE,
+            INFER_ROLE_SOURCE,
+        ] {
+            assert!(runtime.contains(helper));
+            assert!(snapshot.contains(helper));
+            assert!(search.contains(helper));
+        }
+        assert!(runtime.contains(IN_VIEWPORT_SOURCE));
+        assert!(search.contains(IN_VIEWPORT_SOURCE));
+    }
+
+    #[test]
+    fn legacy_search_expression_serializes_untrusted_query_text() {
+        let expression = legacy_search_expression("Save \"draft\"\nnow", 12, 4);
+        assert!(expression.contains("Save \\\"draft\\\"\\nnow"));
+        assert!(expression.contains("const max = 12"));
+        assert!(expression.contains("const offset = 4"));
     }
 }

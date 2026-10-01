@@ -11,7 +11,10 @@ pub use events::{
     MAX_CDP_EVENT_POLL_LIMIT, MAX_CDP_EVENT_SUBSCRIPTIONS,
 };
 pub(crate) use events::{CdpEventRing, CdpEventSubscriptions};
-pub(crate) use runtime::{PAGE_RUNTIME_BOOTSTRAP, search_expression, snapshot_expression};
+pub(crate) use runtime::{
+    legacy_search_expression, legacy_snapshot_expression, page_runtime_bootstrap,
+    search_expression, snapshot_expression,
+};
 pub use session::BrowserSession;
 pub use target::Target;
 pub use targets::{LogicalTarget, TargetRegistry};
