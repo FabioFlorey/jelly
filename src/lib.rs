@@ -7,6 +7,7 @@ pub mod execution;
 pub mod mcp;
 mod mcp_auth;
 pub mod primitives;
+pub mod recording;
 
 pub use agent::{
     AgentBuiltin, AgentBuiltinExecution, AgentCatalogError, AgentToolBinding, AgentToolCatalog,
