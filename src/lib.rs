@@ -1,6 +1,7 @@
 pub mod agent;
 pub mod artifacts;
 pub mod browser;
+pub mod browser_launcher;
 pub mod error;
 pub mod execution;
 pub mod mcp;
