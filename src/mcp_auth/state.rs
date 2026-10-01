@@ -7,7 +7,7 @@ use axum::{
 };
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
 };
 use url::Url;
 
@@ -88,6 +88,18 @@ impl AuthState {
         })
     }
 
+    pub(super) fn store_guard(&self) -> MutexGuard<'_, AuthStore> {
+        self.store
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    pub(super) fn owner_sessions_guard(&self) -> MutexGuard<'_, HashMap<String, u64>> {
+        self.owner_sessions
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     pub fn public_url(&self) -> &str {
         &self.public_url
     }
@@ -106,7 +118,7 @@ impl AuthState {
         }
 
         let now = now();
-        let mut store = self.store.lock().unwrap();
+        let mut store = self.store_guard();
         store.tokens.retain(|_, grant| grant.expires_at > now);
         store.tokens.get(token).is_some_and(|grant| {
             grant.resource == self.resource_url()
@@ -148,7 +160,7 @@ impl AuthState {
         };
 
         let now = now();
-        let mut sessions = self.owner_sessions.lock().unwrap();
+        let mut sessions = self.owner_sessions_guard();
         sessions.retain(|_, expiry| *expiry > now);
         sessions.get(token).is_some_and(|expiry| *expiry > now)
     }

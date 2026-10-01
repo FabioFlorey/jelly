@@ -229,9 +229,18 @@ fn legacy_run(
         }
     }
     if let Some(id) = id {
-        let _ = fs::remove_file(format!("{STATE}/{id}.state"));
+        remove_state_file(&id)?;
     }
     Ok(())
+}
+
+fn remove_state_file(id: &str) -> Result<(), std::io::Error> {
+    let path = format!("{STATE}/{id}.state");
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 fn context_from_vars(vars: HashMap<String, String>) -> Map<String, Value> {
@@ -407,7 +416,13 @@ impl GraphFinalizer {
             self.browser_owned = false;
         }
         if let Some(id) = self.state.as_deref() {
-            let _ = fs::remove_file(format!("{STATE}/{id}.state"));
+            remove_state_file(id).map_err(|error| {
+                RoutineFailure::new(
+                    "internal",
+                    format!("failed to remove routine state {id}: {error}"),
+                    false,
+                )
+            })?;
         }
         Ok(())
     }
@@ -427,7 +442,7 @@ impl Drop for GraphFinalizer {
             self.browser_owned = false;
         }
         if let Some(id) = self.state.as_deref() {
-            let _ = fs::remove_file(format!("{STATE}/{id}.state"));
+            let _ = remove_state_file(id);
         }
     }
 }
@@ -529,7 +544,9 @@ fn graph_run(
                 );
                 return Ok(());
             }
-            let _ = finalizer.finalize();
+            if let Err(cleanup) = finalizer.finalize() {
+                return Err(format!("{message}; cleanup failed: {}", cleanup.message).into());
+            }
             return Err(message.into());
         }
 

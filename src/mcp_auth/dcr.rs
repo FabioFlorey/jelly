@@ -94,7 +94,7 @@ pub(super) async fn register_client(
     }
 
     let client_id = {
-        let mut store = state.store.lock().unwrap();
+        let mut store = state.store_guard();
         if public_chatgpt_registration {
             if let Some((id, _)) = store
                 .clients

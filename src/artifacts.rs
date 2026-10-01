@@ -52,8 +52,30 @@ fn safe_source_url(value: Option<&str>) -> Option<String> {
     value.map(sanitize_url)
 }
 
-fn metadata_path(id: &str) -> PathBuf {
-    Path::new(ARTIFACT_META_DIR).join(format!("{id}.json"))
+fn valid_artifact_id(id: &str) -> bool {
+    let mut parts = id.split('-');
+    matches!(parts.next(), Some("artifact"))
+        && parts
+            .next()
+            .is_some_and(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+        && parts
+            .next()
+            .is_some_and(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+        && parts
+            .next()
+            .is_some_and(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+        && parts.next().is_none()
+}
+
+fn metadata_path(id: &str) -> Result<PathBuf, Error> {
+    if !valid_artifact_id(id) {
+        return Err(jelly_error(
+            ErrorKind::ArtifactFailed,
+            format!("invalid artifact id: {id}"),
+            false,
+        ));
+    }
+    Ok(Path::new(ARTIFACT_META_DIR).join(format!("{id}.json")))
 }
 
 #[cfg(unix)]
@@ -68,14 +90,23 @@ fn private_file(_: &Path) -> Result<(), Error> {
     Ok(())
 }
 
-fn write_metadata(id: &str, value: &Value) -> Result<(), Error> {
-    fs::create_dir_all(ARTIFACT_META_DIR)?;
-    let path = metadata_path(id);
-    let tmp = path.with_extension("json.tmp");
+fn write_metadata_path(path: &Path, value: &Value) -> Result<(), Error> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let tmp = path.with_extension(format!("json.tmp.{}", new_id("write")));
     fs::write(&tmp, serde_json::to_vec_pretty(value)?)?;
     private_file(&tmp)?;
-    fs::rename(tmp, path)?;
+    if let Err(error) = fs::rename(&tmp, path) {
+        let _ = fs::remove_file(&tmp);
+        return Err(error.into());
+    }
     Ok(())
+}
+
+fn write_metadata(id: &str, value: &Value) -> Result<(), Error> {
+    let path = metadata_path(id)?;
+    write_metadata_path(&path, value)
 }
 
 pub fn register_screenshot(
@@ -137,8 +168,15 @@ pub fn register_screenshot(
 }
 
 fn resolve_artifact(value: &str) -> Result<(PathBuf, Option<PathBuf>, Value), Error> {
-    let by_id = metadata_path(value);
-    if by_id.is_file() {
+    if valid_artifact_id(value) {
+        let by_id = metadata_path(value)?;
+        if !by_id.is_file() {
+            return Err(jelly_error(
+                ErrorKind::ArtifactFailed,
+                format!("artifact not found: {value}"),
+                false,
+            ));
+        }
         let metadata: Value = serde_json::from_slice(&fs::read(&by_id)?)?;
         let path = metadata["path"]
             .as_str()
@@ -352,8 +390,7 @@ pub fn verify_artifact(value: &str) -> Result<Value, Error> {
     record["verification"]["checks"] = Value::Array(checks);
 
     if let Some(path) = metadata_path {
-        fs::write(&path, serde_json::to_vec_pretty(&record)?)?;
-        private_file(&path)?;
+        write_metadata_path(&path, &record)?;
     }
     Ok(record)
 }
@@ -382,8 +419,7 @@ pub fn mark_artifact_verified(value: &str, checks: &[String]) -> Result<Value, E
         record["verification"]["captured_after_verification"] = json!(true);
     }
     record["verification"]["checks"] = Value::Array(combined);
-    fs::write(&metadata_path, serde_json::to_vec_pretty(&record)?)?;
-    private_file(&metadata_path)?;
+    write_metadata_path(&metadata_path, &record)?;
     Ok(record)
 }
 
@@ -413,6 +449,33 @@ mod tests {
         fs::write(&path, bytes).unwrap();
         assert_eq!(png_dimensions(&path).unwrap(), (640, 480));
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn metadata_updates_replace_valid_json_without_leaving_temp_files() {
+        let dir = std::env::temp_dir().join(format!(
+            "jelly-artifact-metadata-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("artifact.json");
+
+        write_metadata_path(&path, &json!({"version": 1})).unwrap();
+        write_metadata_path(&path, &json!({"version": 2})).unwrap();
+        let stored: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(stored["version"], 2);
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn artifact_ids_are_strict_and_cannot_escape_metadata_directory() {
+        assert!(valid_artifact_id("artifact-123-456-7"));
+        assert!(!valid_artifact_id("../../state/secret"));
+        assert!(!valid_artifact_id("artifact-123-456-7/../../secret"));
+        assert!(metadata_path("../../state/secret").is_err());
     }
 
     #[test]

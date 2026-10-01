@@ -41,7 +41,7 @@ pub(super) async fn pair_status(State(state): State<AuthState>, headers: HeaderM
         return StatusCode::UNAUTHORIZED.into_response();
     }
     let now = now();
-    let mut sessions = state.owner_sessions.lock().unwrap();
+    let mut sessions = state.owner_sessions_guard();
     sessions.retain(|_, expiry| *expiry > now);
     Json(json!({"paired": !sessions.is_empty()})).into_response()
 }
@@ -180,7 +180,7 @@ pub(super) async fn authorize_post(
     let scope = params.get("scope").cloned().unwrap_or_else(|| SCOPE.into());
     let code = random_token(32);
 
-    state.store.lock().unwrap().codes.insert(
+    state.store_guard().codes.insert(
         code.clone(),
         CodeGrant {
             client_id,
@@ -252,7 +252,7 @@ pub(super) async fn token(
         );
     };
 
-    let grant = state.store.lock().unwrap().codes.remove(code);
+    let grant = state.store_guard().codes.remove(code);
     let Some(grant) = grant else {
         return oauth_json_error(
             StatusCode::BAD_REQUEST,
@@ -281,7 +281,7 @@ pub(super) async fn token(
     let access_token = random_token(32);
     let expires_at = now() + TOKEN_TTL_SECS;
     {
-        let mut store = state.store.lock().unwrap();
+        let mut store = state.store_guard();
         store.tokens.insert(
             access_token.clone(),
             AccessGrant {
@@ -353,7 +353,7 @@ pub(super) fn validate_authorize_request(
         ));
     }
 
-    let store = state.store.lock().unwrap();
+    let store = state.store_guard();
     let Some(client) = store.clients.get(client_id) else {
         return Err(Box::new(
             (StatusCode::BAD_REQUEST, "unknown client_id").into_response(),

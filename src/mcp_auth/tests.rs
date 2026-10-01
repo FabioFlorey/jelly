@@ -116,6 +116,20 @@ fn authorize_validation_returns_boxed_bad_request() {
 }
 
 #[test]
+fn poisoned_auth_store_lock_is_recoverable() {
+    let state = state();
+    let poisoned = state.clone();
+    let _ = std::thread::spawn(move || {
+        let _guard = poisoned.store.lock().unwrap();
+        panic!("poison auth store for recovery test");
+    })
+    .join();
+
+    let mut store = state.store_guard();
+    store.clients.clear();
+}
+
+#[test]
 fn authorize_action_accepts_only_explicit_consent_values() {
     let approve = HashMap::from([("action".into(), "approve".into())]);
     let deny = HashMap::from([("action".into(), "deny".into())]);

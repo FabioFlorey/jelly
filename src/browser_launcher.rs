@@ -27,7 +27,7 @@ pub fn run_from_env() -> rustwright::Result<()> {
         RECORDING_DIR,
         DOWNLOAD_DIR,
     ] {
-        let _ = fs::create_dir_all(dir);
+        fs::create_dir_all(dir).map_err(rustwright::Error::Io)?;
     }
     let _ = fs::remove_file(BROWSER_STOP);
     for stale in [
