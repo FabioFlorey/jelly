@@ -57,9 +57,9 @@ Browser/build runtime state likewise stays outside the repository.
 
 | Group | Scope |
 | --- | --- |
-| `quality` | Formatting, compilation, Rust tests, Clippy, generated documentation, suite metadata/syntax, `test-jelly` CLI contract, compact MCP instruction/discovery/raw-CDP documentation contracts, auxiliary Rust lockfile alignment, compact MCP surface budget, test-index coverage, and suite locking |
+| `quality` | Formatting, compilation, Rust tests, Clippy, generated documentation, suite metadata/syntax, `test-jelly` CLI contract, small-surface MCP instruction/discovery/raw-CDP documentation contracts, auxiliary Rust lockfile alignment, small-surface MCP surface budget, test-index coverage, and suite locking |
 | `session` | Persistent MCP/CDP session reuse, active-target synchronization, and reconnect behavior |
-| `agent-api` | Compact/legacy Agent API catalog, discovery, browser-call, raw-CDP, logical-target, event, stale-ref, and failure-policy regressions |
+| `agent-api` | Small-surface/large-surface Agent API catalog, discovery, browser-call, raw-CDP, logical-target, event, stale-ref, and failure-policy regressions |
 | `events` | Idle CDP notification recovery, synchronous poll-barrier completeness, and bounded-loss accounting |
 | `runtime` | In-page runtime indexing, mutation invalidation, live state, ref stability, and runtime reinstall/rollback |
 | `refs` | Document-scoped refs, DOM identity, stale-ref collision resistance, and namespace transitions |

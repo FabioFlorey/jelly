@@ -2,7 +2,7 @@
 
 # Requirements
 
-jelly has a small core dependency set plus a few optional tools used by specific integrations. The compact MCP Agent API is the default surface and requires no additional runtime dependency beyond the normal Jelly stack; the legacy MCP surface remains available only as an explicit compatibility rollback.
+jelly has a small core dependency set plus a few optional tools used by specific integrations. The small-surface MCP Agent API is the default surface and requires no additional runtime dependency beyond the normal Jelly stack; large-surface remains available as the explicit individual-tool compatibility mode.
 
 ## Required
 

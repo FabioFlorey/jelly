@@ -279,7 +279,8 @@ impl AgentToolCatalog {
         Self::try_new(specs)
     }
 
-    // Compatibility wrappers for callers compiled against the previous terminology.
+    // Temporary source-compatibility wrappers for callers compiled against the previous
+    // terminology. New internal code must use large_surface / small_surface.
     pub fn legacy() -> Result<Self, AgentCatalogError> {
         Self::large_surface()
     }
@@ -342,6 +343,8 @@ pub fn large_surface_agent_catalog_with_raw(
     })
 }
 
+// Temporary source-compatibility wrappers for the pre-rename public API. New internal
+// callers must use large_surface_agent_catalog / small_surface_agent_catalog.
 pub fn legacy_agent_catalog() -> &'static AgentToolCatalog {
     large_surface_agent_catalog()
 }
@@ -411,8 +414,8 @@ mod tests {
     }
 
     #[test]
-    fn legacy_catalog_preserves_registry_order_and_metadata() {
-        let catalog = AgentToolCatalog::legacy().unwrap();
+    fn large_surface_catalog_preserves_registry_order_and_metadata() {
+        let catalog = AgentToolCatalog::large_surface().unwrap();
         assert_eq!(catalog.len(), primitive_specs.len() + tool_specs.len());
 
         let mut expected = primitive_specs
@@ -600,27 +603,25 @@ mod tests {
 
     #[test]
     fn rollout_config_applies_raw_cdp_policy_to_both_surfaces() {
-        let legacy_disabled = agent_catalog_from_config(Some("large-surface"), None).unwrap();
-        assert!(legacy_disabled.get("cdp-call").is_none());
+        let large_disabled = agent_catalog_from_config(Some("large-surface"), None).unwrap();
+        assert!(large_disabled.get("cdp-call").is_none());
 
-        let legacy_enabled =
-            agent_catalog_from_config(Some("large-surface"), Some("true")).unwrap();
-        assert!(legacy_enabled.get("click").is_some());
-        assert!(legacy_enabled.get("cdp-call").is_some());
-        assert!(legacy_enabled.get("browser-call").is_none());
+        let large_enabled = agent_catalog_from_config(Some("large-surface"), Some("true")).unwrap();
+        assert!(large_enabled.get("click").is_some());
+        assert!(large_enabled.get("cdp-call").is_some());
+        assert!(large_enabled.get("browser-call").is_none());
 
-        let compact_disabled = agent_catalog_from_config(Some("small-surface"), None).unwrap();
+        let small_disabled = agent_catalog_from_config(Some("small-surface"), None).unwrap();
         assert!(
-            compact_disabled.get("browser-call").unwrap().input_schema()["properties"]["calls"]
+            small_disabled.get("browser-call").unwrap().input_schema()["properties"]["calls"]
                 ["items"]
                 .get("oneOf")
                 .is_none()
         );
 
-        let compact_enabled =
-            agent_catalog_from_config(Some("small-surface"), Some("true")).unwrap();
+        let small_enabled = agent_catalog_from_config(Some("small-surface"), Some("true")).unwrap();
         assert_eq!(
-            compact_enabled.get("browser-call").unwrap().input_schema()["properties"]["calls"]
+            small_enabled.get("browser-call").unwrap().input_schema()["properties"]["calls"]
                 ["items"]["oneOf"]
                 .as_array()
                 .unwrap()
@@ -634,45 +635,45 @@ mod tests {
     }
 
     #[test]
-    fn compact_catalog_replaces_browser_primitives_but_preserves_system_tools() {
-        let catalog = AgentToolCatalog::compact(crate::RawCdpAccess::Disabled).unwrap();
+    fn small_surface_catalog_replaces_browser_primitives_but_preserves_system_tools() {
+        let catalog = AgentToolCatalog::small_surface(crate::RawCdpAccess::Disabled).unwrap();
         assert_eq!(catalog.len(), tool_specs.len() + 3);
 
         for name in ["browser-schema", "browser-call", "browser-events"] {
             assert!(
                 catalog.get(name).is_some(),
-                "compact catalog missing {name}"
+                "small-surface catalog missing {name}"
             );
         }
         for spec in tool_specs {
             assert!(
                 catalog.get(spec.name).is_some(),
-                "compact catalog missing system tool {}",
+                "small-surface catalog missing system tool {}",
                 spec.name
             );
         }
         for spec in primitive_specs {
             assert!(
                 catalog.get(spec.name).is_none(),
-                "compact catalog unexpectedly publishes primitive {}",
+                "small-surface catalog unexpectedly publishes primitive {}",
                 spec.name
             );
         }
     }
 
     #[test]
-    fn system_tool_surface_is_identical_between_legacy_and_compact_rollout() {
-        let legacy = legacy_agent_catalog();
-        let compact = compact_agent_catalog(crate::RawCdpAccess::Disabled);
+    fn system_tool_surface_is_identical_between_large_and_small_surfaces() {
+        let large = large_surface_agent_catalog();
+        let small = small_surface_agent_catalog(crate::RawCdpAccess::Disabled);
 
-        let legacy_system = legacy
+        let large_system = large
             .iter()
             .filter_map(|entry| match entry.binding() {
                 AgentToolBinding::SystemTool(spec) => Some((entry.name(), spec.name)),
                 _ => None,
             })
             .collect::<Vec<_>>();
-        let compact_system = compact
+        let small_system = small
             .iter()
             .filter_map(|entry| match entry.binding() {
                 AgentToolBinding::SystemTool(spec) => Some((entry.name(), spec.name)),
@@ -684,15 +685,15 @@ mod tests {
             .map(|spec| (spec.name, spec.name))
             .collect::<Vec<_>>();
 
-        assert_eq!(legacy_system, registry);
-        assert_eq!(compact_system, registry);
+        assert_eq!(large_system, registry);
+        assert_eq!(small_system, registry);
     }
 
     #[test]
     fn hitl_and_profile_import_remain_explicit_system_tools_during_browser_rollout() {
         for catalog in [
-            legacy_agent_catalog(),
-            compact_agent_catalog(crate::RawCdpAccess::Disabled),
+            large_surface_agent_catalog(),
+            small_surface_agent_catalog(crate::RawCdpAccess::Disabled),
         ] {
             let hitl = catalog.get("hitl").expect("hitl must remain published");
             assert!(
@@ -709,15 +710,15 @@ mod tests {
     }
 
     #[test]
-    fn compact_catalog_raw_cdp_policy_is_reflected_in_browser_call_schema() {
-        let disabled = compact_agent_catalog(crate::RawCdpAccess::Disabled);
+    fn small_surface_raw_cdp_policy_is_reflected_in_browser_call_schema() {
+        let disabled = small_surface_agent_catalog(crate::RawCdpAccess::Disabled);
         assert!(
             disabled.get("browser-call").unwrap().input_schema()["properties"]["calls"]["items"]
                 .get("oneOf")
                 .is_none()
         );
 
-        let enabled = compact_agent_catalog(crate::RawCdpAccess::Enabled);
+        let enabled = small_surface_agent_catalog(crate::RawCdpAccess::Enabled);
         assert_eq!(
             enabled.get("browser-call").unwrap().input_schema()["properties"]["calls"]["items"]
                 ["oneOf"]
@@ -729,9 +730,16 @@ mod tests {
     }
 
     #[test]
-    fn cached_legacy_catalog_is_valid_and_nonempty() {
-        assert!(!legacy_agent_catalog().is_empty());
-        assert!(legacy_agent_catalog().get("click").is_some());
-        assert!(legacy_agent_catalog().get("hitl").is_some());
+    fn previous_catalog_names_remain_compatibility_wrappers() {
+        let legacy = legacy_agent_catalog();
+        let large = large_surface_agent_catalog();
+        assert!(std::ptr::eq(legacy, large));
+        assert!(legacy.get("click").is_some());
+        assert!(legacy.get("hitl").is_some());
+
+        let compact = compact_agent_catalog(crate::RawCdpAccess::Disabled);
+        let small = small_surface_agent_catalog(crate::RawCdpAccess::Disabled);
+        assert!(std::ptr::eq(compact, small));
+        assert!(compact.get("browser-call").is_some());
     }
 }

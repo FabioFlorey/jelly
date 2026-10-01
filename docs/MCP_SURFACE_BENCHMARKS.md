@@ -18,7 +18,7 @@ Runtime measurements use one warm persistent `BrowserSession` against `tests/fix
 
 ## Published surface
 
-| Metric | Legacy | Compact raw off | Compact raw on |
+| Metric | Large-surface | Small-surface raw off | Small-surface raw on |
 | --- | ---: | ---: | ---: |
 | Published tools | 50 | 15 | 15 |
 | Browser-facing entries | 38 | 3 | 3 |
@@ -31,7 +31,7 @@ Runtime measurements use one warm persistent `BrowserSession` against `tests/fix
 | Description bytes | 5,036 | 1,862 | 2,009 |
 | Approx. 4-byte/token footprint | 12,087 | 4,341 | 4,769 |
 
-Compact with raw CDP disabled reduces:
+Small-surface with raw CDP disabled reduces:
 
 - published tool count by **70%** (50 → 15);
 - `tools/list` bytes by **64.1%** (48,346 → 17,361);
@@ -47,7 +47,7 @@ Latency is intentionally treated as a noisy local microbenchmark. Three paired r
 
 p50 latency in microseconds:
 
-| Run | Direct `read-page` | Compact `read-page` | Direct 3-step workflow | Compact batched workflow | Raw target | Raw browser |
+| Run | Large-surface direct `read-page` | Small-surface `read-page` | Large-surface direct 3-step workflow | Small-surface batched workflow | Raw target | Raw browser |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | A | 860 | 855 | 1,542 | 1,682 | 394 | 188 |
 | B | 2,742 | 2,946 | 1,511 | 1,540 | 1,846 | 1,144 |
@@ -69,7 +69,7 @@ The benchmark workflow is:
 2. assert the new title;
 3. read the page.
 
-Legacy/direct execution requires three independently dispatched semantic primitive operations. Compact execution expresses all three in one ordered `browser-call` batch:
+Large-surface direct execution requires three independently dispatched semantic primitive operations. Small-surface execution expresses all three in one ordered `browser-call` batch:
 
 ```text
 large-surface direct agent-facing round trips: 3

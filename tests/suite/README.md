@@ -40,9 +40,9 @@ Generated run artifacts are intentionally outside the repository at `/data/jelly
 
 | Group | Prefix | What it validates |
 | --- | --- | --- |
-| `quality` | `QLT` | Rust/tooling quality gates plus test-harness metadata, `test-jelly` CLI contract, compact MCP instruction/discovery/raw-CDP documentation contracts, auxiliary Rust lockfile alignment, compact MCP surface budget, syntax, test-index coverage, and concurrency locking |
+| `quality` | `QLT` | Rust/tooling quality gates plus test-harness metadata, `test-jelly` CLI contract, small-surface MCP instruction/discovery/raw-CDP documentation contracts, auxiliary Rust lockfile alignment, small-surface MCP surface budget, syntax, test-index coverage, and concurrency locking |
 | `session` | `SES` | Persistent MCP/CDP reuse and browser/target recovery |
-| `agent-api` | `API` | Dedicated compact/legacy Agent API regressions across catalog, discovery, browser-call, raw CDP, logical targets, events, stale refs, and failure policy |
+| `agent-api` | `API` | Dedicated small-surface/large-surface Agent API regressions across catalog, discovery, browser-call, raw CDP, logical targets, events, stale refs, and failure policy |
 | `events` | `EVT` | Idle CDP notification recovery, poll-barrier completeness, and explicit bounded-loss behavior |
 | `runtime` | `RUN` | Page runtime indexing, invalidation, live state, ref stability, and rollback/reinstall |
 | `refs` | `REF` | Document-scoped refs, DOM identity, stale refs, and namespace transitions |

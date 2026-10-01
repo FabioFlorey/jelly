@@ -15,8 +15,8 @@ jelly keeps documentation modular. Each document covers one part of the system a
 | [**Runtime Layout**](./RUNTIME.md) | Where runtime state, artifacts, profiles, and build output live |
 | [**Development**](./DEVELOPMENT.md) | Design rules, testing, generated docs, and cleanup |
 | [**Test Index**](../tests/INDEX.md) | Test-suite layout, coverage groups, batches, and executable catalog entry points |
-| [**MCP Server**](./MCP.md) | Local MCP endpoint, compact-default Agent API, legacy rollback, tool mapping, and security boundary |
-| [**MCP Surface Benchmarks**](./MCP_SURFACE_BENCHMARKS.md) | Legacy vs compact tool/schema footprint, latency, and agent round-trip measurements |
+| [**MCP Server**](./MCP.md) | Local MCP endpoint, small-surface Agent API, large-surface compatibility mode, tool mapping, and security boundary |
+| [**MCP Surface Benchmarks**](./MCP_SURFACE_BENCHMARKS.md) | Large-surface vs small-surface tool/schema footprint, latency, and agent round-trip measurements |
 | [**Internal Capability Index**](../.agent/tools/index.md) | Generated reference for semantic browser primitives and system capabilities; not the MCP catalog |
 
 <p align="right"><sub><a href="../README.md">⭐ Back to README</a></sub></p>

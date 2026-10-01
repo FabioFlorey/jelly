@@ -91,8 +91,8 @@ fn large_surface_catalog() -> Result<(), Box<dyn Error>> {
 }
 
 fn system_parity() -> Result<(), Box<dyn Error>> {
-    let legacy = agent_catalog_for_surface(McpSurface::LargeSurface, RawCdpAccess::Disabled);
-    let compact = agent_catalog_for_surface(McpSurface::SmallSurface, RawCdpAccess::Disabled);
+    let large = agent_catalog_for_surface(McpSurface::LargeSurface, RawCdpAccess::Disabled);
+    let small = agent_catalog_for_surface(McpSurface::SmallSurface, RawCdpAccess::Disabled);
     let system_names = |catalog: &jelly::AgentToolCatalog| {
         catalog
             .iter()
@@ -104,11 +104,11 @@ fn system_parity() -> Result<(), Box<dyn Error>> {
     };
     let expected = tool_specs.iter().map(|spec| spec.name).collect::<Vec<_>>();
     ensure(
-        system_names(legacy) == expected,
+        system_names(large) == expected,
         "large-surface system projection mismatch",
     )?;
     ensure(
-        system_names(compact) == expected,
+        system_names(small) == expected,
         "small-surface system projection mismatch",
     )
 }
@@ -234,14 +234,17 @@ fn explicit_large_surface() -> Result<(), Box<dyn Error>> {
 }
 
 fn large_surface_raw() -> Result<(), Box<dyn Error>> {
-    let legacy = agent_catalog_from_config(Some("large-surface"), Some("1"))?;
-    ensure(legacy.get("click").is_some(), "large-surface missing click")?;
+    let catalog = agent_catalog_from_config(Some("large-surface"), Some("1"))?;
     ensure(
-        legacy.get("cdp-call").is_some(),
+        catalog.get("click").is_some(),
+        "large-surface missing click",
+    )?;
+    ensure(
+        catalog.get("cdp-call").is_some(),
         "large-surface raw mode missing cdp-call",
     )?;
     ensure(
-        legacy.get("browser-call").is_none(),
+        catalog.get("browser-call").is_none(),
         "large-surface leaked small-surface builtin",
     )?;
     ensure(
@@ -700,7 +703,7 @@ fn latency_report() -> Result<(), Box<dyn Error>> {
         )?;
     }
 
-    let (direct_read, compact_read) = measure_read_pair(&mut browser, SAMPLES)?;
+    let (direct_read, small_surface_read) = measure_read_pair(&mut browser, SAMPLES)?;
     let raw_target = measure(SAMPLES, || {
         execute_browser_call(
             &mut browser,
@@ -722,7 +725,7 @@ fn latency_report() -> Result<(), Box<dyn Error>> {
         .map(|_| ())
     })?;
 
-    let (direct_workflow, compact_workflow) = measure_workflow_pair(&mut browser, SAMPLES)?;
+    let (direct_workflow, small_surface_workflow) = measure_workflow_pair(&mut browser, SAMPLES)?;
 
     println!(
         "{}",
@@ -736,11 +739,11 @@ fn latency_report() -> Result<(), Box<dyn Error>> {
             },
             "latency_us":{
                 "large_surface_direct_read_page":direct_read,
-                "small_surface_semantic_read_page":compact_read,
+                "small_surface_semantic_read_page":small_surface_read,
                 "small_surface_raw_target":raw_target,
                 "small_surface_raw_browser":raw_browser,
                 "large_surface_direct_three_step_workflow":direct_workflow,
-                "small_surface_batched_three_step_workflow":compact_workflow
+                "small_surface_batched_three_step_workflow":small_surface_workflow
             },
             "agent_round_trips":{
                 "large_surface_three_step_workflow":3,
@@ -782,13 +785,13 @@ fn measure_read_pair(
     samples: usize,
 ) -> Result<(Value, Value), Box<dyn Error>> {
     let mut direct = Vec::with_capacity(samples);
-    let mut compact = Vec::with_capacity(samples);
+    let mut small_surface = Vec::with_capacity(samples);
     for index in 0..samples {
         if index % 2 == 0 {
             direct.push(time_once(|| {
                 execute_named_browser_primitive(browser, "read-page", &json!({})).map(|_| ())
             })?);
-            compact.push(time_once(|| {
+            small_surface.push(time_once(|| {
                 execute_browser_call(
                     browser,
                     &json!({"calls":[{"call":{"jelly":"read-page","params":{}}}]}),
@@ -797,7 +800,7 @@ fn measure_read_pair(
                 .map(|_| ())
             })?);
         } else {
-            compact.push(time_once(|| {
+            small_surface.push(time_once(|| {
                 execute_browser_call(
                     browser,
                     &json!({"calls":[{"call":{"jelly":"read-page","params":{}}}]}),
@@ -810,7 +813,7 @@ fn measure_read_pair(
             })?);
         }
     }
-    Ok((summarize_samples(direct), summarize_samples(compact)))
+    Ok((summarize_samples(direct), summarize_samples(small_surface)))
 }
 
 fn measure_workflow_pair(
@@ -818,17 +821,17 @@ fn measure_workflow_pair(
     samples: usize,
 ) -> Result<(Value, Value), Box<dyn Error>> {
     let mut direct = Vec::with_capacity(samples);
-    let mut compact = Vec::with_capacity(samples);
+    let mut small_surface = Vec::with_capacity(samples);
     for index in 0..samples {
         if index % 2 == 0 {
             direct.push(time_once(|| direct_workflow_once(browser))?);
-            compact.push(time_once(|| compact_workflow_once(browser))?);
+            small_surface.push(time_once(|| small_surface_workflow_once(browser))?);
         } else {
-            compact.push(time_once(|| compact_workflow_once(browser))?);
+            small_surface.push(time_once(|| small_surface_workflow_once(browser))?);
             direct.push(time_once(|| direct_workflow_once(browser))?);
         }
     }
-    Ok((summarize_samples(direct), summarize_samples(compact)))
+    Ok((summarize_samples(direct), summarize_samples(small_surface)))
 }
 
 fn direct_workflow_once(browser: &mut BrowserSession) -> Result<(), Box<dyn Error>> {
@@ -846,7 +849,7 @@ fn direct_workflow_once(browser: &mut BrowserSession) -> Result<(), Box<dyn Erro
     Ok(())
 }
 
-fn compact_workflow_once(browser: &mut BrowserSession) -> Result<(), Box<dyn Error>> {
+fn small_surface_workflow_once(browser: &mut BrowserSession) -> Result<(), Box<dyn Error>> {
     execute_browser_call(
         browser,
         &json!({"calls":[

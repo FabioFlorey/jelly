@@ -618,15 +618,15 @@ mod tests {
     }
 
     #[test]
-    fn legacy_agent_catalog_preserves_the_current_mcp_surface() {
-        let tools = mcp_tools_from_catalog(crate::legacy_agent_catalog());
+    fn large_surface_agent_catalog_preserves_the_current_mcp_surface() {
+        let tools = mcp_tools_from_catalog(crate::large_surface_agent_catalog());
         for spec in crate::primitive_specs {
             assert!(tools.iter().any(|tool| tool["name"] == spec.name));
         }
         for spec in crate::tool_specs {
             assert!(
                 tools.iter().any(|tool| tool["name"] == spec.name),
-                "system tool missing legacy MCP mapping: {}",
+                "system tool missing large-surface MCP mapping: {}",
                 spec.name
             );
         }
@@ -717,18 +717,18 @@ mod tests {
     }
 
     #[test]
-    fn legacy_surface_does_not_publish_compact_browser_builtins_before_rollout() {
-        let tools = mcp_tools_from_catalog(crate::legacy_agent_catalog());
+    fn large_surface_does_not_publish_small_surface_browser_builtins() {
+        let tools = mcp_tools_from_catalog(crate::large_surface_agent_catalog());
         for name in ["browser-schema", "browser-call", "browser-events"] {
             assert!(
                 !tools.iter().any(|tool| tool["name"] == name),
-                "legacy surface unexpectedly publishes {name}"
+                "large-surface unexpectedly publishes {name}"
             );
         }
     }
 
     #[test]
-    fn compact_surface_publishes_facade_and_system_tools_but_not_browser_primitives() {
+    fn small_surface_publishes_facade_and_system_tools_but_not_browser_primitives() {
         let catalog = crate::agent_catalog_for_surface(
             crate::McpSurface::SmallSurface,
             crate::RawCdpAccess::Disabled,
@@ -740,19 +740,19 @@ mod tests {
             .collect::<std::collections::HashSet<_>>();
 
         for name in ["browser-schema", "browser-call", "browser-events"] {
-            assert!(names.contains(name), "compact surface missing {name}");
+            assert!(names.contains(name), "small-surface missing {name}");
         }
         for spec in crate::tool_specs {
             assert!(
                 names.contains(spec.name),
-                "compact surface missing system tool {}",
+                "small-surface missing system tool {}",
                 spec.name
             );
         }
         for spec in crate::primitive_specs {
             assert!(
                 !names.contains(spec.name),
-                "compact surface unexpectedly publishes primitive {}",
+                "small-surface unexpectedly publishes primitive {}",
                 spec.name
             );
         }
@@ -771,7 +771,7 @@ mod tests {
     }
 
     #[test]
-    fn compact_raw_cdp_disabled_rejects_method_form_before_browser_acquisition() {
+    fn small_surface_raw_cdp_disabled_rejects_method_form_before_browser_acquisition() {
         let catalog = crate::agent_catalog_for_surface(
             crate::McpSurface::SmallSurface,
             crate::RawCdpAccess::Disabled,

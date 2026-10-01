@@ -336,7 +336,7 @@
   **References**: [Tool Discovery](./DISCOVERY.md)
 
 + **Tool Search**  
-  Selecting relevant capabilities from a larger set based on a task or query. `agent-discover` searches internal registries; compact remote agents use `browser-schema` for semantic browser-operation search and `tools/list` for the published MCP surface.
+  Selecting relevant capabilities from a larger set based on a task or query. `agent-discover` searches internal registries; small-surface remote agents use `browser-schema` for semantic browser-operation search and `tools/list` for the published MCP surface.
   **Acronyms**: ∅  
   **Synonyms**: tool discovery search  
   **References**: [Tool Discovery](./DISCOVERY.md)
