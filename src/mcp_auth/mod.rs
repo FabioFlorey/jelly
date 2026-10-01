@@ -12,7 +12,6 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},
 };
 use url::Url;
@@ -24,153 +23,12 @@ const OWNER_SESSION_TTL_SECS: u64 = 24 * 60 * 60;
 const OWNER_COOKIE: &str = "jelly_owner";
 
 mod pages;
+mod state;
 mod storage;
 
 use pages::{client_registration_response, html_escape, oauth_json_error, oauth_page};
-use storage::{AccessGrant, AuthStore, Client, CodeGrant, load_store, persist_store};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConsentMode {
-    Browser,
-    Paired,
-}
-
-impl ConsentMode {
-    pub fn parse(value: &str) -> Result<Self, String> {
-        match value {
-            "browser" => Ok(Self::Browser),
-            "paired" => Ok(Self::Paired),
-            _ => Err("JELLY_OAUTH_CONSENT_MODE must be 'browser' or 'paired'".into()),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct AuthState {
-    static_token: Arc<str>,
-    password: Arc<str>,
-    bootstrap_secret: Arc<str>,
-    consent_mode: ConsentMode,
-    public_chatgpt_dcr: bool,
-    public_url: Arc<str>,
-    store: Arc<Mutex<AuthStore>>,
-    owner_sessions: Arc<Mutex<HashMap<String, u64>>>,
-}
-
-impl AuthState {
-    pub fn new(
-        static_token: String,
-        password: String,
-        bootstrap_secret: String,
-        consent_mode: ConsentMode,
-        public_chatgpt_dcr: bool,
-        public_url: String,
-    ) -> Result<Self, String> {
-        if static_token.len() < 32 {
-            return Err("JELLY_MCP_TOKEN must be at least 32 bytes".into());
-        }
-        if consent_mode == ConsentMode::Browser && password.len() < 16 {
-            return Err(
-                "JELLY_OAUTH_PASSWORD must be at least 16 bytes in browser consent mode".into(),
-            );
-        }
-        if bootstrap_secret.len() < 32 {
-            return Err("JELLY_BOOTSTRAP_SECRET must be at least 32 bytes".into());
-        }
-
-        let public_url = public_url.trim_end_matches('/').to_owned();
-        let parsed =
-            Url::parse(&public_url).map_err(|e| format!("invalid JELLY_PUBLIC_URL: {e}"))?;
-        if parsed.scheme() != "https"
-            && !(parsed.scheme() == "http"
-                && matches!(parsed.host_str(), Some("127.0.0.1" | "localhost")))
-        {
-            return Err(
-                "JELLY_PUBLIC_URL must use https, except localhost development URLs".into(),
-            );
-        }
-
-        let mut store = load_store().unwrap_or_default();
-        let now = now();
-        store.tokens.retain(|_, grant| grant.expires_at > now);
-
-        Ok(Self {
-            static_token: Arc::from(static_token),
-            password: Arc::from(password),
-            bootstrap_secret: Arc::from(bootstrap_secret),
-            consent_mode,
-            public_chatgpt_dcr,
-            public_url: Arc::from(public_url),
-            store: Arc::new(Mutex::new(store)),
-            owner_sessions: Arc::new(Mutex::new(HashMap::new())),
-        })
-    }
-
-    pub fn public_url(&self) -> &str {
-        &self.public_url
-    }
-
-    pub fn resource_url(&self) -> String {
-        format!("{}/mcp", self.public_url)
-    }
-
-    pub fn authorized(&self, headers: &HeaderMap) -> bool {
-        let Some(token) = bearer(headers) else {
-            return false;
-        };
-
-        if constant_time_eq(token.as_bytes(), self.static_token.as_bytes()) {
-            return true;
-        }
-
-        let now = now();
-        let mut store = self.store.lock().unwrap();
-        store.tokens.retain(|_, grant| grant.expires_at > now);
-        store.tokens.get(token).is_some_and(|grant| {
-            grant.resource == self.resource_url()
-                && grant.scope.split_whitespace().any(|scope| scope == SCOPE)
-                && grant.expires_at > now
-        })
-    }
-
-    pub fn unauthorized(&self) -> Response {
-        let metadata = format!(
-            "{}/.well-known/oauth-protected-resource/mcp",
-            self.public_url
-        );
-        let challenge = format!("Bearer resource_metadata=\"{metadata}\", scope=\"{SCOPE}\"");
-        let mut response = StatusCode::UNAUTHORIZED.into_response();
-        if let Ok(value) = HeaderValue::from_str(&challenge) {
-            response
-                .headers_mut()
-                .insert(header::WWW_AUTHENTICATE, value);
-        }
-        response
-    }
-
-    fn has_bootstrap_access(&self, headers: &HeaderMap) -> bool {
-        bearer(headers).is_some_and(|token| {
-            constant_time_eq(token.as_bytes(), self.bootstrap_secret.as_bytes())
-        })
-    }
-
-    fn has_owner_session(&self, headers: &HeaderMap) -> bool {
-        let Some(cookie) = headers.get(header::COOKIE).and_then(|v| v.to_str().ok()) else {
-            return false;
-        };
-        let Some(token) = cookie.split(';').find_map(|part| {
-            let (name, value) = part.trim().split_once('=')?;
-            (name == OWNER_COOKIE).then_some(value)
-        }) else {
-            return false;
-        };
-
-        let now = now();
-        let mut sessions = self.owner_sessions.lock().unwrap();
-        sessions.retain(|_, expiry| *expiry > now);
-        sessions.get(token).is_some_and(|expiry| *expiry > now)
-    }
-}
+pub use state::{AuthState, ConsentMode};
+use storage::{AccessGrant, Client, CodeGrant, persist_store};
 
 pub fn routes() -> Router<AuthState> {
     Router::new()
