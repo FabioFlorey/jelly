@@ -3,46 +3,9 @@ use crate::{
     jelly_error, prepare_named_primitive_args, primitive_specs, structured_error,
 };
 use serde_json::{Map, Value, json};
-use std::{collections::HashSet, env};
+use std::collections::HashSet;
 
 pub(super) const MAX_BATCH_CALLS: usize = 64;
-const RAW_CDP_ENV: &str = "JELLY_MCP_RAW_CDP";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RawCdpAccess {
-    Disabled,
-    Enabled,
-}
-
-impl RawCdpAccess {
-    pub const fn enabled(self) -> bool {
-        matches!(self, Self::Enabled)
-    }
-
-    pub fn from_env() -> Result<Self, String> {
-        match env::var(RAW_CDP_ENV) {
-            Ok(value) => Self::parse(Some(&value)),
-            Err(env::VarError::NotPresent) => Ok(Self::Disabled),
-            Err(env::VarError::NotUnicode(_)) => {
-                Err(format!("{RAW_CDP_ENV} must contain valid UTF-8"))
-            }
-        }
-    }
-
-    pub fn parse(value: Option<&str>) -> Result<Self, String> {
-        let Some(value) = value else {
-            return Ok(Self::Disabled);
-        };
-        match value.trim().to_ascii_lowercase().as_str() {
-            "1" | "true" | "on" => Ok(Self::Enabled),
-            "0" | "false" | "off" => Ok(Self::Disabled),
-            other => Err(format!(
-                "{RAW_CDP_ENV} must be one of 1,true,on,0,false,off; got {other}"
-            )),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BatchFailurePolicy {
     Stop,
@@ -58,36 +21,12 @@ impl BatchFailurePolicy {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CdpScope {
-    Target,
-    Browser,
-}
-
-impl CdpScope {
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::Target => "target",
-            Self::Browser => "browser",
-        }
-    }
-}
-
 #[derive(Debug)]
 struct PreparedSemanticCall {
     index: usize,
     target: Option<String>,
     operation: &'static PrimitiveSpec,
     positional_args: Vec<String>,
-}
-
-#[derive(Debug)]
-struct PreparedCdpCall {
-    index: usize,
-    scope: CdpScope,
-    target: Option<String>,
-    method: String,
-    params: Value,
 }
 
 #[derive(Debug)]
@@ -141,6 +80,11 @@ enum PreparedInvocation<'a> {
 
 pub mod schema;
 pub use schema::{browser_call_input_schema, cdp_call_input_schema};
+mod raw;
+pub use raw::RawCdpAccess;
+#[cfg(test)]
+use raw::validate_cdp_method;
+use raw::{CdpScope, PreparedCdpCall, execute_cdp, prepare_cdp_call};
 
 pub fn validate_browser_call(arguments: &Value, raw_cdp: RawCdpAccess) -> Result<(), Error> {
     prepare_browser_call(arguments, raw_cdp).map(|_| ())
@@ -365,143 +309,6 @@ fn prepare_semantic_call(
     }))
 }
 
-fn prepare_cdp_call(
-    index: usize,
-    item: &Map<String, Value>,
-    call: &Map<String, Value>,
-    raw_cdp: RawCdpAccess,
-) -> Result<PreparedCall, Error> {
-    if !raw_cdp.enabled() {
-        return Err(jelly_error(
-            ErrorKind::Unsupported,
-            format!(
-                "raw CDP is disabled; set {RAW_CDP_ENV}=1 before publishing or executing raw browser-call entries"
-            ),
-            false,
-        ));
-    }
-
-    reject_unknown_fields(
-        item,
-        &["scope", "target", "call"],
-        &format!("raw browser-call calls[{index}]"),
-    )?;
-    reject_unknown_fields(
-        call,
-        &["method", "params"],
-        &format!("browser-call calls[{index}].call"),
-    )?;
-
-    let scope = match item.get("scope") {
-        Some(Value::String(value)) if value == "target" => CdpScope::Target,
-        Some(Value::String(value)) if value == "browser" => CdpScope::Browser,
-        Some(Value::String(value)) => {
-            return Err(invalid_arguments(format!(
-                "browser-call calls[{index}].scope must be target or browser; got {value}"
-            )));
-        }
-        Some(_) => {
-            return Err(invalid_arguments(format!(
-                "browser-call calls[{index}].scope must be a string"
-            )));
-        }
-        None => {
-            return Err(invalid_arguments(format!(
-                "raw browser-call calls[{index}] requires explicit scope"
-            )));
-        }
-    };
-
-    let target =
-        optional_nonempty_string(item, "target", &format!("raw browser-call calls[{index}]"))?
-            .map(str::to_owned);
-    if scope == CdpScope::Browser && target.is_some() {
-        return Err(invalid_arguments(format!(
-            "browser-call calls[{index}] cannot specify target when scope is browser"
-        )));
-    }
-
-    let method =
-        required_nonempty_string(call, "method", &format!("browser-call calls[{index}].call"))?;
-    validate_cdp_method(method).map_err(|message| {
-        invalid_arguments(format!(
-            "invalid CDP method for browser-call calls[{index}]: {message}"
-        ))
-    })?;
-
-    let params = call.get("params").cloned().unwrap_or_else(|| json!({}));
-    if !params.is_object() {
-        return Err(invalid_arguments(format!(
-            "browser-call calls[{index}].call.params must be an object"
-        )));
-    }
-
-    Ok(PreparedCall::Cdp(PreparedCdpCall {
-        index,
-        scope,
-        target,
-        method: method.to_owned(),
-        params,
-    }))
-}
-
-fn validate_cdp_method(method: &str) -> Result<(), String> {
-    let mut parts = method.split('.');
-    let Some(domain) = parts.next() else {
-        return Err("method is empty".into());
-    };
-    let Some(command) = parts.next() else {
-        return Err("method must use Domain.command syntax".into());
-    };
-    if parts.next().is_some() {
-        return Err("method must contain exactly one dot".into());
-    }
-    if !valid_cdp_identifier(domain) || !valid_cdp_identifier(command) {
-        return Err(format!(
-            "method must use ASCII identifier segments in Domain.command syntax; got {method}"
-        ));
-    }
-    Ok(())
-}
-
-fn valid_cdp_identifier(value: &str) -> bool {
-    let mut chars = value.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    first.is_ascii_alphabetic()
-        && chars.all(|character| character.is_ascii_alphanumeric() || character == '_')
-}
-
-fn execute_cdp(
-    browser: &mut BrowserSession,
-    scope: CdpScope,
-    target: Option<&str>,
-    method: &str,
-    params: &Value,
-) -> Result<Value, Error> {
-    let response = match (scope, target) {
-        (CdpScope::Target, Some(target)) => {
-            browser.call_on_logical_target(target, method, params.clone())?
-        }
-        (CdpScope::Target, None) => browser.call(method, params.clone())?,
-        (CdpScope::Browser, None) => browser.browser_call(method, params.clone())?,
-        (CdpScope::Browser, Some(_)) => {
-            unreachable!("validated browser-scoped CDP calls cannot contain a logical target")
-        }
-    };
-    response.get("result").cloned().ok_or_else(|| {
-        jelly_error(
-            ErrorKind::Internal,
-            format!(
-                "CDP {method} [{}] returned a success response without result",
-                scope.as_str()
-            ),
-            false,
-        )
-    })
-}
-
 fn execute_prepared_browser_call<F>(
     prepared: &PreparedBrowserCall,
     mut execute: F,
@@ -676,7 +483,7 @@ fn optional_nonempty_string<'a>(
     Ok(Some(value))
 }
 
-fn reject_unknown_fields(
+pub(super) fn reject_unknown_fields(
     object: &Map<String, Value>,
     allowed: &[&str],
     context: &str,
@@ -704,7 +511,7 @@ fn output_value(output: &str) -> Value {
     serde_json::from_str(output).unwrap_or_else(|_| Value::String(output.to_owned()))
 }
 
-fn invalid_arguments(message: impl Into<String>) -> Error {
+pub(super) fn invalid_arguments(message: impl Into<String>) -> Error {
     jelly_error(ErrorKind::InvalidArguments, message, false)
 }
 
