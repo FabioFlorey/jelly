@@ -1,6 +1,6 @@
 use super::{
-    CategorySpec, ToolSpec, category_specs, named_primitive_input_schema, primitive_specs,
-    tool_category_specs, tool_specs,
+    ToolSpec, category_specs, named_primitive_input_schema, primitive_specs, tool_category_specs,
+    tool_specs,
 };
 use serde_json::{Value, json};
 use std::cmp::Reverse;
@@ -203,10 +203,6 @@ fn score(name: &str, category: &str, desc: &str, usage: &str, q: &[String]) -> u
         }
     }
     score
-}
-
-pub fn category(name: &str) -> Option<&'static CategorySpec> {
-    category_specs.iter().find(|c| c.name == name)
 }
 
 pub fn tool_schema(name: &str) -> Option<Value> {

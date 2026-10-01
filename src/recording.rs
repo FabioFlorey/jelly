@@ -19,6 +19,7 @@ fn now_ms() -> u128 {
         .as_millis()
 }
 
+/// Run the browser recording command using the current process arguments and environment.
 pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(RECORDING_DIR)?;
     let args: Vec<String> = env::args().skip(1).collect();

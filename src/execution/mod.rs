@@ -5,12 +5,11 @@ mod tools;
 mod tracing;
 
 pub use discovery::{
-    browser_capabilities, browser_operation_schema, capabilities, category, lightweight_tools,
+    browser_capabilities, browser_operation_schema, capabilities, lightweight_tools,
     search_browser_operations, search_tools, tool_schema, tools_in,
 };
 pub use named::{
     execute_named_browser_primitive, named_primitive_input_schema, prepare_named_primitive_args,
-    validate_named_primitive_contract,
 };
 pub use registry::{
     ArgKind, ArgSpec, CATEGORIES as category_specs, CategorySpec, PRIMITIVES as primitive_specs,
@@ -19,7 +18,7 @@ pub use registry::{
 pub use tools::{
     TOOL_CATEGORIES as tool_category_specs, TOOLS as tool_specs, ToolCategorySpec, ToolSpec,
 };
-pub use tracing::{new_id, record_step, redact_args, redact_tool_args};
+pub use tracing::{new_id, record_step, redact_tool_args};
 
 use crate::{BrowserSession, Error};
 use std::{
@@ -31,16 +30,6 @@ use std::{
 pub fn is_browser_primitive(name: &str) -> bool {
     registry::lookup(name).is_some()
 }
-pub fn primitive_usage(name: &str) -> Option<&'static str> {
-    registry::lookup(name).map(|x| x.usage)
-}
-pub fn primitive_schema(name: &str) -> Option<serde_json::Value> {
-    registry::lookup(name).map(PrimitiveSpec::schema)
-}
-pub fn primitive_catalog() -> serde_json::Value {
-    serde_json::Value::Array(primitive_specs.iter().map(PrimitiveSpec::schema).collect())
-}
-
 pub fn execute_browser_primitive(
     browser: &mut BrowserSession,
     name: &str,

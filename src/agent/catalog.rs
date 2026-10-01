@@ -261,10 +261,8 @@ fn is_object_schema(schema: &Value) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        McpSurface, agent_catalog_from_config, large_surface_agent_catalog,
-        small_surface_agent_catalog,
-    };
+    use crate::agent::catalog_cache::{large_surface_agent_catalog, small_surface_agent_catalog};
+    use crate::{McpSurface, agent_catalog_from_config};
 
     fn click_spec() -> &'static PrimitiveSpec {
         primitive_specs

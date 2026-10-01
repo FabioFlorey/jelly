@@ -3,6 +3,7 @@ use super::{
 };
 use std::sync::OnceLock;
 
+#[cfg(test)]
 pub fn large_surface_agent_catalog() -> &'static AgentToolCatalog {
     large_surface_agent_catalog_with_raw(RawCdpAccess::Disabled)
 }

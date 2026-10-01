@@ -748,6 +748,7 @@ fn resume(id: &str, extra: HashMap<String, String>) -> Result<(), Box<dyn std::e
     legacy_run(&lines, start, saved_vars, Some(id.to_owned()))
 }
 
+/// Run or resume a Jelly routine using the current process arguments and environment.
 pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().skip(1).collect();
     if args.first().map(String::as_str) == Some("resume") {

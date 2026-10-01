@@ -232,6 +232,7 @@ impl TargetRegistry {
             .and_then(LogicalTarget::session_id)
     }
 
+    #[cfg(test)]
     pub fn session_id_for_label(&self, label: &str) -> Option<&str> {
         self.get(label).and_then(LogicalTarget::session_id)
     }
@@ -319,12 +320,6 @@ impl TargetRegistry {
             })?;
         target.session_id = Some(session_id);
         self.validate()
-    }
-
-    pub fn clear_sessions(&mut self) {
-        for target in &mut self.targets {
-            target.session_id = None;
-        }
     }
 
     fn clear_session_for_target(&mut self, target_id: &str) {

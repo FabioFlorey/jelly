@@ -11,6 +11,7 @@ use std::{
 };
 use tungstenite::{Message, connect};
 
+/// Run the browser launcher using the current process arguments and environment.
 pub fn run_from_env() -> rustwright::Result<()> {
     if !std::env::args().any(|a| a == "--serve") {
         return launch_service();

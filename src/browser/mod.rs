@@ -10,8 +10,7 @@ mod transport;
 pub(crate) use events::EventState;
 pub use events::{
     CdpEvent, CdpEventCursor, CdpEventFilter, CdpEventPoll, CdpEventRingStats,
-    DEFAULT_CDP_EVENT_MAX_BYTES, DEFAULT_CDP_EVENT_MAX_COUNT, DEFAULT_CDP_EVENT_POLL_LIMIT,
-    MAX_CDP_EVENT_POLL_LIMIT, MAX_CDP_EVENT_SUBSCRIPTIONS,
+    DEFAULT_CDP_EVENT_POLL_LIMIT, MAX_CDP_EVENT_POLL_LIMIT,
 };
 pub(crate) use runtime::{
     legacy_search_expression, legacy_snapshot_expression, page_runtime_bootstrap,
@@ -20,14 +19,12 @@ pub(crate) use runtime::{
 pub use session::BrowserSession;
 pub use target::Target;
 pub(crate) use target_manager::TargetManager;
-pub use targets::{LogicalTarget, TargetRegistry};
+pub use targets::LogicalTarget;
+pub(crate) use targets::TargetRegistry;
 
-pub const ROOT: &str = env!("CARGO_MANIFEST_DIR");
-pub const RUNTIME: &str = "/data/jelly-runtime";
 pub const STATE_DIR: &str = "/data/jelly-runtime/state";
 pub const PROFILE_DIR: &str = "/data/jelly-runtime/profiles/headed";
 pub const HEADLESS_PROFILE_DIR: &str = "/data/jelly-runtime/profiles/headless";
-pub const ARTIFACT_DIR: &str = "/data/jelly-runtime/artifacts";
 pub const ARTIFACT_META_DIR: &str = "/data/jelly-runtime/artifacts/metadata";
 pub const SCREENSHOT_DIR: &str = "/data/jelly-runtime/artifacts/screenshots";
 pub const RECORDING_DIR: &str = "/data/jelly-runtime/artifacts/recordings";

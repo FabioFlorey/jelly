@@ -31,6 +31,7 @@ use protocol::{McpRequest, SERVER_NAME, error_response, initialize, success_resp
 #[cfg(test)]
 use system_tools::system_cli_args;
 
+/// Build the authenticated MCP HTTP router from explicit server configuration.
 pub fn router(
     token: String,
     oauth_password: String,
@@ -129,7 +130,10 @@ mod tests {
 
     #[test]
     fn large_surface_agent_catalog_preserves_the_current_mcp_surface() {
-        let tools = mcp_tools_from_catalog(crate::large_surface_agent_catalog());
+        let tools = mcp_tools_from_catalog(crate::agent_catalog_for_surface(
+            crate::McpSurface::LargeSurface,
+            crate::RawCdpAccess::Disabled,
+        ));
         for spec in crate::primitive_specs {
             assert!(tools.iter().any(|tool| tool["name"] == spec.name));
         }
@@ -228,7 +232,10 @@ mod tests {
 
     #[test]
     fn large_surface_does_not_publish_small_surface_browser_builtins() {
-        let tools = mcp_tools_from_catalog(crate::large_surface_agent_catalog());
+        let tools = mcp_tools_from_catalog(crate::agent_catalog_for_surface(
+            crate::McpSurface::LargeSurface,
+            crate::RawCdpAccess::Disabled,
+        ));
         for name in ["browser-schema", "browser-call", "browser-events"] {
             assert!(
                 !tools.iter().any(|tool| tool["name"] == name),

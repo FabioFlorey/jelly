@@ -12,6 +12,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Map, Value, json};
 use std::fs;
 
+/// Return the validated active MCP `tools/list` projection.
 pub fn mcp_tools() -> Result<Vec<Value>, String> {
     Ok(mcp_tools_from_catalog(active_agent_catalog()?))
 }

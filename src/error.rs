@@ -108,18 +108,22 @@ impl CdpError {
         }
     }
 
+    #[cfg(test)]
     pub fn method(&self) -> &str {
         &self.method
     }
 
+    #[cfg(test)]
     pub const fn code(&self) -> i64 {
         self.code
     }
 
+    #[cfg(test)]
     pub fn protocol_message(&self) -> &str {
         &self.message
     }
 
+    #[cfg(test)]
     pub fn data(&self) -> Option<&Value> {
         self.data.as_ref()
     }
