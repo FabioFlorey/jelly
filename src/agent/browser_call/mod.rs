@@ -1,69 +1,15 @@
+#[cfg(test)]
+use crate::primitive_specs;
 use crate::{
     BrowserSession, Error, ErrorKind, PrimitiveSpec, classify_error, execute_browser_primitive,
-    jelly_error, prepare_named_primitive_args, primitive_specs, structured_error,
+    jelly_error, structured_error,
 };
-use serde_json::{Map, Value, json};
+#[cfg(test)]
+use serde_json::Map;
+use serde_json::{Value, json};
 use std::collections::HashSet;
 
 pub(super) const MAX_BATCH_CALLS: usize = 64;
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BatchFailurePolicy {
-    Stop,
-    Continue,
-}
-
-impl BatchFailurePolicy {
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::Stop => "stop",
-            Self::Continue => "continue",
-        }
-    }
-}
-
-#[derive(Debug)]
-struct PreparedSemanticCall {
-    index: usize,
-    target: Option<String>,
-    operation: &'static PrimitiveSpec,
-    positional_args: Vec<String>,
-}
-
-#[derive(Debug)]
-enum PreparedCall {
-    Semantic(PreparedSemanticCall),
-    Cdp(PreparedCdpCall),
-}
-
-impl PreparedCall {
-    const fn index(&self) -> usize {
-        match self {
-            Self::Semantic(call) => call.index,
-            Self::Cdp(call) => call.index,
-        }
-    }
-
-    fn label(&self) -> String {
-        match self {
-            Self::Semantic(call) => call.operation.name.to_owned(),
-            Self::Cdp(call) => format!("{} [{}]", call.method, call.scope.as_str()),
-        }
-    }
-
-    fn logical_target(&self) -> Option<&str> {
-        match self {
-            Self::Semantic(call) => call.target.as_deref(),
-            Self::Cdp(call) => call.target.as_deref(),
-        }
-    }
-}
-
-#[derive(Debug)]
-struct PreparedBrowserCall {
-    policy: BatchFailurePolicy,
-    calls: Vec<PreparedCall>,
-}
-
 enum PreparedInvocation<'a> {
     Semantic {
         target: Option<&'a str>,
@@ -80,11 +26,16 @@ enum PreparedInvocation<'a> {
 
 pub mod schema;
 pub use schema::{browser_call_input_schema, cdp_call_input_schema};
+mod prepare;
 mod raw;
+use prepare::{
+    BatchFailurePolicy, PreparedBrowserCall, PreparedCall, prepare_browser_call,
+    prepare_cdp_only_call,
+};
 pub use raw::RawCdpAccess;
 #[cfg(test)]
 use raw::validate_cdp_method;
-use raw::{CdpScope, PreparedCdpCall, execute_cdp, prepare_cdp_call};
+use raw::{CdpScope, execute_cdp};
 
 pub fn validate_browser_call(arguments: &Value, raw_cdp: RawCdpAccess) -> Result<(), Error> {
     prepare_browser_call(arguments, raw_cdp).map(|_| ())
@@ -152,161 +103,6 @@ pub fn execute_browser_call(
             params,
         } => execute_cdp(browser, scope, target, method, params),
     })
-}
-
-fn prepare_cdp_only_call(arguments: &Value) -> Result<PreparedBrowserCall, Error> {
-    let prepared = prepare_browser_call(arguments, RawCdpAccess::Enabled)?;
-    if prepared
-        .calls
-        .iter()
-        .any(|call| matches!(call, PreparedCall::Semantic(_)))
-    {
-        return Err(invalid_arguments(
-            "cdp-call accepts only raw CDP method entries; semantic jelly calls are not allowed",
-        ));
-    }
-    Ok(prepared)
-}
-
-fn prepare_browser_call(
-    arguments: &Value,
-    raw_cdp: RawCdpAccess,
-) -> Result<PreparedBrowserCall, Error> {
-    let object = arguments
-        .as_object()
-        .ok_or_else(|| invalid_arguments("browser-call arguments must be a JSON object"))?;
-    reject_unknown_fields(object, &["calls", "on_error"], "browser-call")?;
-
-    let policy = match object.get("on_error") {
-        None => BatchFailurePolicy::Stop,
-        Some(Value::String(value)) if value == "stop" => BatchFailurePolicy::Stop,
-        Some(Value::String(value)) if value == "continue" => BatchFailurePolicy::Continue,
-        Some(Value::String(value)) => {
-            return Err(invalid_arguments(format!(
-                "browser-call on_error must be stop or continue; got {value}"
-            )));
-        }
-        Some(_) => {
-            return Err(invalid_arguments("browser-call on_error must be a string"));
-        }
-    };
-
-    let calls = object
-        .get("calls")
-        .ok_or_else(|| invalid_arguments("browser-call requires calls"))?
-        .as_array()
-        .ok_or_else(|| invalid_arguments("browser-call calls must be an array"))?;
-
-    if calls.is_empty() {
-        return Err(invalid_arguments(
-            "browser-call calls must contain at least one call",
-        ));
-    }
-    if calls.len() > MAX_BATCH_CALLS {
-        return Err(invalid_arguments(format!(
-            "browser-call supports at most {MAX_BATCH_CALLS} calls per batch"
-        )));
-    }
-
-    let mut prepared = Vec::with_capacity(calls.len());
-    for (index, value) in calls.iter().enumerate() {
-        prepared.push(prepare_call(index, value, raw_cdp)?);
-    }
-
-    Ok(PreparedBrowserCall {
-        policy,
-        calls: prepared,
-    })
-}
-
-fn prepare_call(index: usize, value: &Value, raw_cdp: RawCdpAccess) -> Result<PreparedCall, Error> {
-    let item = value.as_object().ok_or_else(|| {
-        invalid_arguments(format!("browser-call calls[{index}] must be an object"))
-    })?;
-    reject_unknown_fields(
-        item,
-        &["scope", "target", "call"],
-        &format!("browser-call calls[{index}]"),
-    )?;
-
-    let call = item
-        .get("call")
-        .ok_or_else(|| invalid_arguments(format!("browser-call calls[{index}] requires call")))?
-        .as_object()
-        .ok_or_else(|| {
-            invalid_arguments(format!(
-                "browser-call calls[{index}].call must be an object"
-            ))
-        })?;
-
-    let has_jelly = call.contains_key("jelly");
-    let has_method = call.contains_key("method");
-
-    match (has_jelly, has_method) {
-        (true, false) => prepare_semantic_call(index, item, call),
-        (false, true) => prepare_cdp_call(index, item, call, raw_cdp),
-        (true, true) => Err(invalid_arguments(format!(
-            "browser-call calls[{index}].call must contain exactly one of jelly or method"
-        ))),
-        (false, false) => Err(invalid_arguments(format!(
-            "browser-call calls[{index}].call requires exactly one of jelly or method"
-        ))),
-    }
-}
-
-fn prepare_semantic_call(
-    index: usize,
-    item: &Map<String, Value>,
-    call: &Map<String, Value>,
-) -> Result<PreparedCall, Error> {
-    reject_unknown_fields(
-        item,
-        &["target", "call"],
-        &format!("semantic browser-call calls[{index}]"),
-    )?;
-    reject_unknown_fields(
-        call,
-        &["jelly", "params"],
-        &format!("browser-call calls[{index}].call"),
-    )?;
-
-    let operation_name =
-        required_nonempty_string(call, "jelly", &format!("browser-call calls[{index}].call"))?;
-    let operation = primitive_specs
-        .iter()
-        .find(|primitive| primitive.name == operation_name)
-        .ok_or_else(|| {
-            jelly_error(
-                ErrorKind::Unsupported,
-                format!("unknown semantic browser operation at calls[{index}]: {operation_name}"),
-                false,
-            )
-        })?;
-
-    let empty = json!({});
-    let params = call.get("params").unwrap_or(&empty);
-    let positional_args = prepare_named_primitive_args(operation, params).map_err(|error| {
-        let (kind, retryable) = classify_error(error.as_ref());
-        jelly_error(
-            kind,
-            format!("invalid params for browser-call calls[{index}] ({operation_name}): {error}"),
-            retryable,
-        )
-    })?;
-
-    let target = optional_nonempty_string(
-        item,
-        "target",
-        &format!("semantic browser-call calls[{index}]"),
-    )?
-    .map(str::to_owned);
-
-    Ok(PreparedCall::Semantic(PreparedSemanticCall {
-        index,
-        target,
-        operation,
-        positional_args,
-    }))
 }
 
 fn execute_prepared_browser_call<F>(
@@ -445,74 +241,8 @@ where
     }))
 }
 
-fn required_nonempty_string<'a>(
-    object: &'a Map<String, Value>,
-    key: &str,
-    context: &str,
-) -> Result<&'a str, Error> {
-    let value = object
-        .get(key)
-        .ok_or_else(|| invalid_arguments(format!("{context} requires {key}")))?;
-    let value = value
-        .as_str()
-        .ok_or_else(|| invalid_arguments(format!("{context}.{key} must be a string")))?;
-    if value.trim().is_empty() {
-        return Err(invalid_arguments(format!(
-            "{context}.{key} must not be empty"
-        )));
-    }
-    Ok(value)
-}
-
-fn optional_nonempty_string<'a>(
-    object: &'a Map<String, Value>,
-    key: &str,
-    context: &str,
-) -> Result<Option<&'a str>, Error> {
-    let Some(value) = object.get(key) else {
-        return Ok(None);
-    };
-    let value = value
-        .as_str()
-        .ok_or_else(|| invalid_arguments(format!("{context}.{key} must be a string")))?;
-    if value.trim().is_empty() {
-        return Err(invalid_arguments(format!(
-            "{context}.{key} must not be empty"
-        )));
-    }
-    Ok(Some(value))
-}
-
-pub(super) fn reject_unknown_fields(
-    object: &Map<String, Value>,
-    allowed: &[&str],
-    context: &str,
-) -> Result<(), Error> {
-    let allowed = allowed.iter().copied().collect::<HashSet<_>>();
-    let mut unknown = object
-        .keys()
-        .filter(|key| !allowed.contains(key.as_str()))
-        .cloned()
-        .collect::<Vec<_>>();
-    unknown.sort();
-
-    if unknown.is_empty() {
-        return Ok(());
-    }
-
-    Err(invalid_arguments(format!(
-        "unknown field{} in {context}: {}",
-        if unknown.len() == 1 { "" } else { "s" },
-        unknown.join(", ")
-    )))
-}
-
 fn output_value(output: &str) -> Value {
     serde_json::from_str(output).unwrap_or_else(|_| Value::String(output.to_owned()))
-}
-
-pub(super) fn invalid_arguments(message: impl Into<String>) -> Error {
-    jelly_error(ErrorKind::InvalidArguments, message, false)
 }
 
 #[cfg(test)]
