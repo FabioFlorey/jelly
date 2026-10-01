@@ -1,55 +1,33 @@
 use super::{
     CdpEvent, CdpEventFilter, CdpEventPoll, CdpEventRing, CdpEventRingStats, CdpEventSubscriptions,
     LogicalTarget, TargetRegistry, perf,
+    transport::{CdpNotification, CdpTransport, browser_unavailable, check_error},
 };
 use crate::{
     ACTIVE_TARGET, DOWNLOAD_DIR, ENDPOINT, Error, ErrorKind, LOGICAL_TARGETS, LOGICAL_TARGETS_LOCK,
-    PAGE_TARGET, cdp_error, jelly_error,
+    PAGE_TARGET, jelly_error,
 };
 use serde_json::{Value, json};
-use std::{
-    env, fs, io,
-    time::{Duration, Instant},
-};
-use tungstenite::{Message, WebSocket, connect};
+use std::{fs, time::Instant};
 
 pub struct BrowserSession {
-    ws: WebSocket<tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>,
+    transport: CdpTransport,
     session: String,
     target_id: String,
     targets: TargetRegistry,
     events: CdpEventRing,
     subscriptions: CdpEventSubscriptions,
-    id: i64,
 }
 
 impl BrowserSession {
     pub fn connect() -> Result<Self, Error> {
         let started = Instant::now();
-        let ep = fs::read_to_string(ENDPOINT).map_err(|error| {
-            browser_unavailable(format!("failed to read CDP endpoint: {error}"))
-        })?;
-        let (mut ws, _) = connect(ep.trim())
-            .map_err(|error| browser_unavailable(format!("failed to connect to CDP: {error}")))?;
-        let timeout_secs = env::var("JELLY_CDP_TIMEOUT_SECS")
-            .ok()
-            .and_then(|value| value.parse::<u64>().ok())
-            .filter(|value| *value > 0)
-            .unwrap_or(60);
-        if let tungstenite::stream::MaybeTlsStream::Plain(stream) = ws.get_mut() {
-            let timeout = Some(Duration::from_secs(timeout_secs));
-            stream.set_read_timeout(timeout).map_err(|error| {
-                browser_unavailable(format!("failed to configure CDP read timeout: {error}"))
-            })?;
-            stream.set_write_timeout(timeout).map_err(|error| {
-                browser_unavailable(format!("failed to configure CDP write timeout: {error}"))
-            })?;
-        }
-
+        let mut transport = CdpTransport::connect(ENDPOINT)?;
         let mut events = CdpEventRing::default();
-        send(&mut ws, 1, "Target.getTargets", None, json!({}))?;
-        let targets_response = recv_initial(&mut ws, 1, &mut events)?;
-        check_error(&targets_response, "Target.getTargets")?;
+        let exchange = transport.request("Target.getTargets", None, json!({}))?;
+        retain_initial_notifications(&mut events, exchange.notifications)?;
+        check_error(&exchange.response, "Target.getTargets")?;
+        let targets_response = exchange.response;
         let target_infos = targets_response["result"]["targetInfos"]
             .as_array()
             .ok_or_else(|| {
@@ -89,13 +67,12 @@ impl BrowserSession {
             .ok_or_else(|| browser_unavailable("selected page target disappeared"))?;
 
         let mut session = Self {
-            ws,
+            transport,
             session: String::new(),
             target_id: tid.clone(),
             targets,
             events,
             subscriptions: CdpEventSubscriptions::default(),
-            id: 1,
         };
 
         let mut download_params = json!({
@@ -430,34 +407,32 @@ impl BrowserSession {
         params: Value,
     ) -> Result<Value, Error> {
         let started = Instant::now();
-        self.id += 1;
-        let id = self.id;
-        send(&mut self.ws, id, method, Some(session_id), params)?;
-        let value = self.recv_response(id)?;
-        check_error(&value, method)?;
+        let value = self.transport_request(method, Some(session_id), params)?;
         perf::record("cdp.call", started.elapsed().as_millis(), Some(method));
         Ok(value)
     }
 
     fn browser_request(&mut self, method: &str, params: Value) -> Result<Value, Error> {
-        self.id += 1;
-        let id = self.id;
-        send(&mut self.ws, id, method, None, params)?;
-        let value = self.recv_response(id)?;
-        check_error(&value, method)?;
-        Ok(value)
+        self.transport_request(method, None, params)
     }
 
-    fn recv_response(&mut self, expected_id: i64) -> Result<Value, Error> {
-        loop {
-            let (text, wire_bytes) = read_text_message(&mut self.ws)?;
-            match classify_cdp_text(&text, expected_id)? {
-                IncomingCdp::Response(value) => return Ok(value),
-                IncomingCdp::Notification(value) => {
-                    self.retain_notification(value, wire_bytes)?;
-                }
-            }
+    fn transport_request(
+        &mut self,
+        method: &str,
+        session_id: Option<&str>,
+        params: Value,
+    ) -> Result<Value, Error> {
+        let exchange = self.transport.request(method, session_id, params)?;
+        self.retain_notifications(exchange.notifications)?;
+        check_error(&exchange.response, method)?;
+        Ok(exchange.response)
+    }
+
+    fn retain_notifications(&mut self, notifications: Vec<CdpNotification>) -> Result<(), Error> {
+        for notification in notifications {
+            self.retain_notification(notification.value, notification.wire_bytes)?;
         }
+        Ok(())
     }
 
     fn retain_notification(&mut self, value: Value, wire_bytes: usize) -> Result<(), Error> {
@@ -518,117 +493,36 @@ impl BrowserSession {
     }
 }
 
-enum IncomingCdp {
-    Response(Value),
-    Notification(Value),
-}
-
-fn classify_cdp_text(text: &str, expected_id: i64) -> Result<IncomingCdp, Error> {
-    let value: Value = serde_json::from_str(text).map_err(|error| {
-        jelly_error(
-            ErrorKind::Internal,
-            format!("failed to parse CDP JSON message: {error}"),
-            false,
-        )
-    })?;
-
-    if let Some(id) = value.get("id").and_then(Value::as_i64) {
-        if id == expected_id {
-            return Ok(IncomingCdp::Response(value));
-        }
-        return Err(jelly_error(
-            ErrorKind::Internal,
-            format!(
-                "received unexpected CDP response id {id} while waiting for response id {expected_id}"
-            ),
-            false,
-        ));
-    }
-
-    if value.get("method").and_then(Value::as_str).is_some() {
-        return Ok(IncomingCdp::Notification(value));
-    }
-
-    Err(jelly_error(
-        ErrorKind::Internal,
-        "received CDP message with neither response id nor notification method",
-        false,
-    ))
-}
-
-fn recv_initial<S: io::Read + io::Write>(
-    ws: &mut WebSocket<S>,
-    expected_id: i64,
+fn retain_initial_notifications(
     events: &mut CdpEventRing,
-) -> Result<Value, Error> {
-    loop {
-        let (text, wire_bytes) = read_text_message(ws)?;
-        match classify_cdp_text(&text, expected_id)? {
-            IncomingCdp::Response(value) => return Ok(value),
-            IncomingCdp::Notification(value) => {
-                let method = value["method"]
-                    .as_str()
-                    .expect("classified notification must have method")
-                    .to_owned();
-                let params = value.get("params").cloned().unwrap_or_else(|| json!({}));
-                let session_id =
-                    notification_session_id(&method, &value, &params).map(str::to_owned);
-                let target_id = notification_target_id(&method, &params).map(str::to_owned);
-                events.push(method, params, session_id, target_id, None, wire_bytes);
-            }
-        }
-    }
-}
-
-fn read_text_message<S: io::Read + io::Write>(
-    ws: &mut WebSocket<S>,
-) -> Result<(String, usize), Error> {
-    loop {
-        let message = match ws.read() {
-            Ok(message) => message,
-            Err(tungstenite::Error::Io(error))
-                if matches!(
-                    error.kind(),
-                    io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
-                ) =>
-            {
-                return Err(jelly_error(
-                    ErrorKind::BrowserUnavailable,
-                    "timed out waiting for a CDP response",
-                    true,
-                ));
-            }
-            Err(error) => {
-                return Err(browser_unavailable(format!(
-                    "failed while reading a CDP response: {error}"
-                )));
-            }
-        };
-
-        match message {
-            Message::Text(text) => {
-                let text = text.to_string();
-                let wire_bytes = text.len();
-                return Ok((text, wire_bytes));
-            }
-            Message::Close(frame) => {
-                return Err(browser_unavailable(format!(
-                    "CDP websocket closed while waiting for a response{}",
-                    frame
-                        .map(|frame| format!(": {}", frame.reason))
-                        .unwrap_or_default()
-                )));
-            }
-            Message::Binary(_) => {
-                return Err(jelly_error(
+    notifications: Vec<CdpNotification>,
+) -> Result<(), Error> {
+    for notification in notifications {
+        let value = notification.value;
+        let method = value
+            .get("method")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                jelly_error(
                     ErrorKind::Internal,
-                    "received unexpected binary CDP websocket message",
+                    "CDP notification is missing string method",
                     false,
-                ));
-            }
-            Message::Ping(_) | Message::Pong(_) | Message::Frame(_) => continue,
-        }
+                )
+            })?
+            .to_owned();
+        let params = value.get("params").cloned().unwrap_or_else(|| json!({}));
+        let session_id = notification_session_id(&method, &value, &params).map(str::to_owned);
+        let target_id = notification_target_id(&method, &params).map(str::to_owned);
+        events.push(
+            method,
+            params,
+            session_id,
+            target_id,
+            None,
+            notification.wire_bytes,
+        );
     }
+    Ok(())
 }
 
 fn notification_session_id<'a>(
@@ -667,134 +561,9 @@ fn read_state_id(path: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-fn send<S: io::Read + io::Write>(
-    ws: &mut WebSocket<S>,
-    id: i64,
-    method: &str,
-    session: Option<&str>,
-    params: Value,
-) -> Result<(), Error> {
-    let mut value = json!({"id":id,"method":method,"params":params});
-    if let Some(session) = session {
-        value["sessionId"] = session.into()
-    }
-    ws.send(Message::Text(value.to_string().into()))
-        .map_err(|error| browser_unavailable(format!("failed to send CDP message: {error}")))?;
-    Ok(())
-}
-
-fn browser_unavailable(message: impl Into<String>) -> Error {
-    jelly_error(ErrorKind::BrowserUnavailable, message, true)
-}
-
-fn invalid_session_message(message: &str) -> bool {
-    let message = message.to_ascii_lowercase();
-    [
-        "session closed",
-        "no session with given id",
-        "session with given id not found",
-        "target closed",
-        "no target with given id",
-        "inspected target navigated or closed",
-        "not attached to an active page",
-    ]
-    .iter()
-    .any(|needle| message.contains(needle))
-}
-
-fn check_error(value: &Value, method: &str) -> Result<(), Error> {
-    let Some(error) = value.get("error") else {
-        return Ok(());
-    };
-    let error = error.as_object().ok_or_else(|| {
-        jelly_error(
-            ErrorKind::Internal,
-            format!("malformed CDP error response for {method}: error must be an object"),
-            false,
-        )
-    })?;
-    let code = error.get("code").and_then(Value::as_i64).ok_or_else(|| {
-        jelly_error(
-            ErrorKind::Internal,
-            format!("malformed CDP error response for {method}: code must be an integer"),
-            false,
-        )
-    })?;
-    let message = error
-        .get("message")
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            jelly_error(
-                ErrorKind::Internal,
-                format!("malformed CDP error response for {method}: message must be a string"),
-                false,
-            )
-        })?;
-    let data = error.get("data").cloned();
-
-    if invalid_session_message(message) {
-        return Err(browser_unavailable(format!(
-            "CDP {method} failed ({code}): {message}"
-        )));
-    }
-
-    Err(cdp_error(method, code, message, data))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::classify_error;
-
-    #[test]
-    fn notification_before_response_is_classified_without_loss() {
-        let mut ring = CdpEventRing::new(8, 4096).unwrap();
-        let frames = [
-            json!({
-                "method":"Page.loadEventFired",
-                "sessionId":"session-1",
-                "params":{"timestamp":12.5}
-            })
-            .to_string(),
-            json!({"id":42,"result":{"ok":true}}).to_string(),
-        ];
-
-        let mut response = None;
-        for frame in frames {
-            match classify_cdp_text(&frame, 42).unwrap() {
-                IncomingCdp::Notification(value) => {
-                    ring.push(
-                        value["method"].as_str().unwrap().to_owned(),
-                        value["params"].clone(),
-                        value["sessionId"].as_str().map(str::to_owned),
-                        None,
-                        Some("main".into()),
-                        frame.len(),
-                    );
-                }
-                IncomingCdp::Response(value) => {
-                    response = Some(value);
-                    break;
-                }
-            }
-        }
-
-        assert_eq!(response.unwrap()["result"]["ok"], true);
-        let events = ring.events();
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].method(), "Page.loadEventFired");
-        assert_eq!(events[0].sequence(), 1);
-    }
-
-    #[test]
-    fn unexpected_response_ids_are_not_silently_discarded() {
-        let error = match classify_cdp_text(r#"{"id":41,"result":{}}"#, 42) {
-            Ok(_) => panic!("unexpected response id should fail"),
-            Err(error) => error,
-        };
-        assert_eq!(classify_error(error.as_ref()), (ErrorKind::Internal, false));
-        assert!(error.to_string().contains("unexpected CDP response id 41"));
-    }
 
     #[test]
     fn target_notification_id_extraction_covers_lifecycle_shapes() {
@@ -820,65 +589,5 @@ mod tests {
             notification_target_id("Page.loadEventFired", &json!({})),
             None
         );
-    }
-
-    #[test]
-    fn closed_session_cdp_errors_are_retryable_browser_failures() {
-        let error = check_error(
-            &json!({
-                "error": {"code": -32001, "message": "Session with given id not found."}
-            }),
-            "Runtime.evaluate",
-        )
-        .unwrap_err();
-        assert_eq!(
-            classify_error(error.as_ref()),
-            (ErrorKind::BrowserUnavailable, true)
-        );
-        assert!(
-            error
-                .to_string()
-                .contains("CDP Runtime.evaluate failed (-32001)")
-        );
-    }
-
-    #[test]
-    fn ordinary_cdp_errors_are_structured_and_non_retryable() {
-        let error = check_error(
-            &json!({
-                "error": {
-                    "code": -32601,
-                    "message": "Method not found",
-                    "data": {"domain":"Runtime"}
-                }
-            }),
-            "Runtime.missing",
-        )
-        .unwrap_err();
-
-        assert_eq!(
-            classify_error(error.as_ref()),
-            (ErrorKind::CdpFailed, false)
-        );
-        let cdp = error
-            .downcast_ref::<crate::CdpError>()
-            .expect("ordinary CDP protocol failure must retain CdpError");
-        assert_eq!(cdp.method(), "Runtime.missing");
-        assert_eq!(cdp.code(), -32601);
-        assert_eq!(cdp.protocol_message(), "Method not found");
-        assert_eq!(cdp.data(), Some(&json!({"domain":"Runtime"})));
-    }
-
-    #[test]
-    fn malformed_cdp_error_envelopes_are_internal_contract_failures() {
-        for response in [
-            json!({"error":"not-an-object"}),
-            json!({"error":{"message":"missing code"}}),
-            json!({"error":{"code":-32601}}),
-        ] {
-            let error = check_error(&response, "Runtime.evaluate").unwrap_err();
-            assert_eq!(classify_error(error.as_ref()), (ErrorKind::Internal, false));
-            assert!(error.to_string().contains("malformed CDP error response"));
-        }
     }
 }

@@ -4,6 +4,7 @@ mod runtime;
 mod session;
 mod target;
 mod targets;
+mod transport;
 
 pub use events::{
     CdpEvent, CdpEventCursor, CdpEventFilter, CdpEventPoll, CdpEventRingStats,
