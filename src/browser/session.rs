@@ -1,20 +1,15 @@
 use super::{
     CdpEvent, CdpEventFilter, CdpEventPoll, CdpEventRing, CdpEventRingStats, CdpEventSubscriptions,
-    LogicalTarget, TargetRegistry, perf,
+    LogicalTarget, TargetManager, perf,
     transport::{CdpNotification, CdpTransport, browser_unavailable, check_error},
 };
-use crate::{
-    ACTIVE_TARGET, DOWNLOAD_DIR, ENDPOINT, Error, ErrorKind, LOGICAL_TARGETS, LOGICAL_TARGETS_LOCK,
-    PAGE_TARGET, jelly_error,
-};
+use crate::{DOWNLOAD_DIR, ENDPOINT, Error, ErrorKind, jelly_error};
 use serde_json::{Value, json};
-use std::{fs, time::Instant};
+use std::time::Instant;
 
 pub struct BrowserSession {
     transport: CdpTransport,
-    session: String,
-    target_id: String,
-    targets: TargetRegistry,
+    targets: TargetManager,
     events: CdpEventRing,
     subscriptions: CdpEventSubscriptions,
 }
@@ -38,38 +33,17 @@ impl BrowserSession {
                 )
             })?;
 
-        let page_hint = read_state_id(PAGE_TARGET);
-        let active_hint = read_state_id(ACTIVE_TARGET);
-        let targets = TargetRegistry::reconcile_persisted(
-            target_infos,
-            page_hint.as_deref(),
-            LOGICAL_TARGETS,
-            LOGICAL_TARGETS_LOCK,
-        )?;
-        let tid = active_hint
-            .as_deref()
-            .filter(|id| targets.get_by_target_id(id).is_some())
-            .or_else(|| {
-                page_hint
-                    .as_deref()
-                    .filter(|id| targets.get_by_target_id(id).is_some())
-            })
-            .or_else(|| targets.get("main").map(LogicalTarget::target_id))
-            .or_else(|| targets.targets().first().map(LogicalTarget::target_id))
-            .ok_or_else(|| browser_unavailable("no web page target"))?
-            .to_owned();
-
+        let targets = TargetManager::from_initial_targets(target_infos)?;
+        let target_id = targets.active_target_id().to_owned();
         let target_info = target_infos
             .iter()
             .find(|target| {
-                target["type"] == "page" && target["targetId"].as_str() == Some(tid.as_str())
+                target["type"] == "page" && target["targetId"].as_str() == Some(target_id.as_str())
             })
             .ok_or_else(|| browser_unavailable("selected page target disappeared"))?;
 
         let mut session = Self {
             transport,
-            session: String::new(),
-            target_id: tid.clone(),
             targets,
             events,
             subscriptions: CdpEventSubscriptions::default(),
@@ -98,26 +72,24 @@ impl BrowserSession {
             }),
         )?;
         session.browser_request("Target.getTargets", json!({}))?;
-        session.browser_request("Target.activateTarget", json!({"targetId":tid}))?;
+        session.browser_request("Target.activateTarget", json!({"targetId":target_id}))?;
 
-        let session_id = match session.targets.session_id_for_target(&tid) {
+        let session_id = match session.targets.session_id_for_target(&target_id) {
             Some(session_id) => session_id.to_owned(),
-            None => session.attach_target(&tid)?,
+            None => session.attach_target(&target_id)?,
         };
-
-        session.session = session_id;
-        fs::write(ACTIVE_TARGET, &tid)?;
+        session.targets.activate(&target_id, session_id)?;
 
         perf::record("browser.connect", started.elapsed().as_millis(), None);
         Ok(session)
     }
 
     pub fn target_id(&self) -> &str {
-        &self.target_id
+        self.targets.active_target_id()
     }
 
     pub fn current_target_label(&self) -> Option<&str> {
-        self.targets.label_for_target_id(&self.target_id)
+        self.targets.current_label()
     }
 
     pub fn cdp_events(&self) -> Vec<CdpEvent> {
@@ -183,7 +155,7 @@ impl BrowserSession {
                     ErrorKind::TargetNotFound,
                     format!(
                         "active browser target {} has no logical identity",
-                        self.target_id
+                        self.targets.active_target_id()
                     ),
                     true,
                 )
@@ -232,31 +204,27 @@ impl BrowserSession {
                 )
             })?
             .to_owned();
-        if target_id == self.target_id {
+        if target_id == self.targets.active_target_id() {
             return Ok(());
         }
         self.switch_target(&target_id)
     }
 
     pub fn sync_active_target(&mut self) -> Result<(), Error> {
-        let Ok(active_target) = fs::read_to_string(ACTIVE_TARGET) else {
+        let Some(active_target) = self.targets.external_active_target() else {
             return Ok(());
         };
-        let active_target = active_target.trim();
-        if active_target.is_empty() || active_target == self.target_id {
-            return Ok(());
-        }
-        self.switch_target(active_target)
+        self.switch_target(&active_target)
     }
 
     pub fn switch_target(&mut self, target_id: &str) -> Result<(), Error> {
-        if target_id == self.target_id {
-            fs::write(ACTIVE_TARGET, target_id)?;
+        if target_id == self.targets.active_target_id() {
+            self.targets.persist_current_target()?;
             return Ok(());
         }
 
         self.refresh_target_registry()?;
-        if self.targets.get_by_target_id(target_id).is_none() {
+        if !self.targets.contains_target(target_id) {
             return Err(jelly_error(
                 ErrorKind::TargetNotFound,
                 format!("browser target not found: {target_id}"),
@@ -269,25 +237,11 @@ impl BrowserSession {
             Some(session_id) => session_id.to_owned(),
             None => self.attach_target(target_id)?,
         };
-
-        self.session = session_id;
-        self.target_id = target_id.to_owned();
-        fs::write(ACTIVE_TARGET, target_id)?;
-        Ok(())
+        self.targets.activate(target_id, session_id)
     }
 
     pub fn refresh_target_registry(&mut self) -> Result<(), Error> {
         let response = self.browser_call("Target.getTargets", json!({}))?;
-        let sessions = self
-            .targets
-            .targets()
-            .iter()
-            .filter_map(|target| {
-                target
-                    .session_id()
-                    .map(|session_id| (target.target_id().to_owned(), session_id.to_owned()))
-            })
-            .collect::<Vec<_>>();
         let target_infos = response["result"]["targetInfos"]
             .as_array()
             .ok_or_else(|| {
@@ -297,23 +251,7 @@ impl BrowserSession {
                     false,
                 )
             })?;
-        let page_hint = read_state_id(PAGE_TARGET);
-        let mut targets = TargetRegistry::reconcile_persisted(
-            target_infos,
-            page_hint.as_deref(),
-            LOGICAL_TARGETS,
-            LOGICAL_TARGETS_LOCK,
-        )?;
-        for (target_id, session_id) in sessions {
-            if targets.get_by_target_id(&target_id).is_some() {
-                targets.set_session(&target_id, session_id)?;
-            }
-        }
-        if !self.session.is_empty() && targets.get_by_target_id(&self.target_id).is_some() {
-            targets.set_session(&self.target_id, self.session.clone())?;
-        }
-        self.targets = targets;
-        Ok(())
+        self.targets.reconcile(target_infos)
     }
 
     pub fn call_on_logical_target(
@@ -353,12 +291,12 @@ impl BrowserSession {
     }
 
     pub fn call(&mut self, method: &str, params: Value) -> Result<Value, Error> {
-        if self.session.is_empty() {
+        if self.targets.active_session_id().is_empty() {
             return Err(browser_unavailable(
                 "cannot issue target-scoped CDP call before target attachment",
             ));
         }
-        let session_id = self.session.clone();
+        let session_id = self.targets.active_session_id().to_owned();
         self.call_with_session(&session_id, method, params)
     }
 
@@ -458,8 +396,11 @@ impl BrowserSession {
             .or_else(|| {
                 session_id
                     .as_deref()
-                    .filter(|session| !self.session.is_empty() && *session == self.session)
-                    .map(|_| self.target_id.clone())
+                    .filter(|session| {
+                        !self.targets.active_session_id().is_empty()
+                            && *session == self.targets.active_session_id()
+                    })
+                    .map(|_| self.targets.active_target_id().to_owned())
             });
         let target_id = direct_target_id.or(session_target_id);
         let target_before = target_id
@@ -468,14 +409,7 @@ impl BrowserSession {
             .map(str::to_owned);
 
         let target_update = if method.starts_with("Target.") {
-            let page_hint = read_state_id(PAGE_TARGET);
-            self.targets.apply_target_notification_persisted(
-                &method,
-                &params,
-                page_hint.as_deref(),
-                LOGICAL_TARGETS,
-                LOGICAL_TARGETS_LOCK,
-            )
+            self.targets.apply_notification(&method, &params)
         } else {
             Ok(())
         };
@@ -552,13 +486,6 @@ fn notification_target_id<'a>(method: &str, params: &'a Value) -> Option<&'a str
         }
         _ => None,
     }
-}
-
-fn read_state_id(path: &str) -> Option<String> {
-    fs::read_to_string(path)
-        .ok()
-        .map(|value| value.trim().to_owned())
-        .filter(|value| !value.is_empty())
 }
 
 #[cfg(test)]

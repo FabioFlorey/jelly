@@ -3,6 +3,7 @@ mod perf;
 mod runtime;
 mod session;
 mod target;
+mod target_manager;
 mod targets;
 mod transport;
 
@@ -18,6 +19,7 @@ pub(crate) use runtime::{
 };
 pub use session::BrowserSession;
 pub use target::Target;
+pub(crate) use target_manager::TargetManager;
 pub use targets::{LogicalTarget, TargetRegistry};
 
 pub const ROOT: &str = env!("CARGO_MANIFEST_DIR");
