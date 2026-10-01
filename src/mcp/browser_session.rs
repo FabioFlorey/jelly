@@ -1,4 +1,4 @@
-use super::ToolFailure;
+use super::dispatch::ToolFailure;
 use crate::{BrowserSession, ErrorKind};
 use std::{
     env,
