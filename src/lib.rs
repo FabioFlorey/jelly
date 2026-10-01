@@ -1,12 +1,12 @@
-pub mod agent;
-pub mod artifacts;
-pub mod browser;
+mod agent;
+mod artifacts;
+mod browser;
 pub mod browser_launcher;
-pub mod error;
-pub mod execution;
+mod error;
+mod execution;
 pub mod mcp;
 mod mcp_auth;
-pub mod primitives;
+mod primitives;
 pub mod recording;
 pub mod routine;
 

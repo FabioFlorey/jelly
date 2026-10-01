@@ -124,10 +124,6 @@ pub static TOOLS: &[ToolSpec] = &[
     },
 ];
 
-pub fn lookup_tool(name: &str) -> Option<&'static ToolSpec> {
-    TOOLS.iter().find(|spec| spec.name == name)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,11 +145,15 @@ mod tests {
 
     #[test]
     fn hitl_tool_uses_telegram_without_exposing_transport_selection() {
-        let tool = lookup_tool("hitl").unwrap();
+        let tool = TOOLS.iter().find(|spec| spec.name == "hitl").unwrap();
         assert_eq!(tool.category, "hitl");
         assert!(tool.usage.starts_with("hitl <message>"));
         assert!(tool.description.contains("Telegram"));
         assert_eq!(tool.schema()["kind"], "system");
-        assert!(lookup_tool("send-telegram-message").is_none());
+        assert!(
+            TOOLS
+                .iter()
+                .all(|spec| spec.name != "send-telegram-message")
+        );
     }
 }

@@ -18,7 +18,6 @@ pub use registry::{
 };
 pub use tools::{
     TOOL_CATEGORIES as tool_category_specs, TOOLS as tool_specs, ToolCategorySpec, ToolSpec,
-    lookup_tool,
 };
 pub use tracing::{new_id, record_step, redact_args, redact_tool_args};
 
