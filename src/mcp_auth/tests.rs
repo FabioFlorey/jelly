@@ -114,3 +114,22 @@ fn authorize_validation_returns_boxed_bad_request() {
     let response = validate_authorize_request(&state, &params).unwrap_err();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
+
+#[test]
+fn authorize_action_accepts_only_explicit_consent_values() {
+    let approve = HashMap::from([("action".into(), "approve".into())]);
+    let deny = HashMap::from([("action".into(), "deny".into())]);
+    let unknown = HashMap::from([("action".into(), "later".into())]);
+    let missing = HashMap::new();
+
+    assert_eq!(authorize_action(&approve).unwrap(), "approve");
+    assert_eq!(authorize_action(&deny).unwrap(), "deny");
+    assert_eq!(
+        authorize_action(&unknown).unwrap_err(),
+        "action must be approve or deny"
+    );
+    assert_eq!(
+        authorize_action(&missing).unwrap_err(),
+        "action must be approve or deny"
+    );
+}

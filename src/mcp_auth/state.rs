@@ -72,7 +72,7 @@ impl AuthState {
             );
         }
 
-        let mut store = load_store().unwrap_or_default();
+        let mut store = load_store()?;
         let now = now();
         store.tokens.retain(|_, grant| grant.expires_at > now);
 

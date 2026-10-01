@@ -11,12 +11,64 @@ use std::{
 };
 
 const ACTIVE: &str = "/data/jelly-runtime/artifacts/recordings/active.json";
+const START_LOCK: &str = "/data/jelly-runtime/artifacts/recordings/start.lock";
 
 fn now_ms() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis()
+}
+
+struct StartLock;
+
+impl StartLock {
+    fn acquire() -> Result<Self, Box<dyn std::error::Error>> {
+        for attempt in 0..2 {
+            match fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(START_LOCK)
+            {
+                Ok(mut file) => {
+                    writeln!(file, "{}", std::process::id())?;
+                    return Ok(Self);
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    let owner = fs::read_to_string(START_LOCK)
+                        .ok()
+                        .and_then(|value| value.trim().parse::<u64>().ok());
+                    let stale = owner.is_some_and(|pid| !process_alive(pid))
+                        || (owner.is_none()
+                            && fs::metadata(START_LOCK)
+                                .and_then(|metadata| metadata.modified())
+                                .ok()
+                                .and_then(|modified| modified.elapsed().ok())
+                                .is_some_and(|age| age >= Duration::from_secs(30)));
+                    if attempt == 0 && stale {
+                        fs::remove_file(START_LOCK)?;
+                        continue;
+                    }
+                    return Err("another browser recording start is already in progress".into());
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Err("unable to acquire browser recording start lock".into())
+    }
+}
+
+impl Drop for StartLock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(START_LOCK);
+    }
+}
+
+fn write_active_state(state: &Value) -> Result<(), Box<dyn std::error::Error>> {
+    let temp = format!("{ACTIVE}.tmp.{}", std::process::id());
+    fs::write(&temp, serde_json::to_vec_pretty(state)?)?;
+    fs::rename(temp, ACTIVE)?;
+    Ok(())
 }
 
 /// Run the browser recording command using the current process arguments and environment.
@@ -109,6 +161,7 @@ fn start(mode: &str, interval_ms: u64, hold_ms: u64) -> Result<(), Box<dyn std::
     if !matches!(mode, "continuous" | "steps") {
         return Err("--mode must be continuous or steps".into());
     }
+    let _start_lock = StartLock::acquire()?;
     ensure_not_active()?;
 
     let id = new_id("recording");
@@ -132,7 +185,7 @@ fn start(mode: &str, interval_ms: u64, hold_ms: u64) -> Result<(), Box<dyn std::
             return Err("continuous recording requires an active Chromium page".into());
         }
         let exe = env::current_exe()?;
-        let child = Command::new(exe)
+        let mut child = Command::new(exe)
             .args([
                 "--worker",
                 dir.to_str().ok_or("invalid recording path")?,
@@ -143,11 +196,19 @@ fn start(mode: &str, interval_ms: u64, hold_ms: u64) -> Result<(), Box<dyn std::
             .spawn()?;
         state["pid"] = json!(child.id());
         state["interval_ms"] = json!(interval_ms);
+        if let Err(error) = write_active_state(&state) {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = fs::remove_dir_all(&dir);
+            return Err(error);
+        }
+        println!("{}", serde_json::to_string(&state)?);
+        return Ok(());
     } else {
         state["hold_ms"] = json!(hold_ms);
     }
 
-    fs::write(ACTIVE, serde_json::to_vec_pretty(&state)?)?;
+    write_active_state(&state)?;
     println!("{}", serde_json::to_string(&state)?);
     Ok(())
 }

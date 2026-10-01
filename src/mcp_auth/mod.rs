@@ -22,9 +22,9 @@ mod storage;
 use dcr::{authorization_server_metadata, protected_resource_metadata, register_client};
 #[cfg(test)]
 use dcr::{is_chatgpt_redirect, valid_redirect_uri};
-use oauth::{authorize_get, authorize_post, pair_get, pair_post, pair_status, token};
 #[cfg(test)]
-use oauth::{pkce_challenge, validate_authorize_request};
+use oauth::{authorize_action, pkce_challenge, validate_authorize_request};
+use oauth::{authorize_get, authorize_post, pair_get, pair_post, pair_status, token};
 pub use state::{AuthState, ConsentMode};
 #[cfg(test)]
 use storage::Client;

@@ -133,6 +133,8 @@ flowchart LR
 
 Browser primitive bindings get named MCP arguments from their existing `ArgSpec` definitions through the canonical named-argument adapter. System tools keep their registry metadata and map structured MCP arguments onto their CLI forms. A capability omitted from the selected Agent Tool Catalog is neither advertised nor executable by guessing its internal name.
 
+System-tool execution normally requires the matching `agent-<tool>` binary beside the running `jelly-mcp` executable. Jelly does not silently fall back to compiling/running the checkout, because that could make a release server execute source-tree code different from the installed build. For explicit development workflows only, `JELLY_MCP_ALLOW_CARGO_FALLBACK=1` enables the old `cargo run` fallback.
+
 The current system-tool mappings are intentionally unchanged in both large-surface and small-surface browser modes:
 
 ```text

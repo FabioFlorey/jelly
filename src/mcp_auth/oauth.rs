@@ -140,6 +140,11 @@ pub(super) async fn authorize_post(
         return *response;
     }
 
+    let action = match authorize_action(&params) {
+        Ok(action) => action,
+        Err(message) => return (StatusCode::BAD_REQUEST, message).into_response(),
+    };
+
     if state.consent_mode == ConsentMode::Paired {
         if !state.has_owner_session(&headers) {
             return (
@@ -156,7 +161,7 @@ pub(super) async fn authorize_post(
     }
 
     let redirect_uri = params["redirect_uri"].clone();
-    if params.get("action").map(String::as_str) == Some("deny") {
+    if action == "deny" {
         let mut redirect = Url::parse(&redirect_uri).unwrap();
         {
             let mut query = redirect.query_pairs_mut();
@@ -297,6 +302,13 @@ pub(super) async fn token(
         "scope": grant.scope
     }))
     .into_response()
+}
+
+pub(super) fn authorize_action(params: &HashMap<String, String>) -> Result<&str, &'static str> {
+    match params.get("action").map(String::as_str) {
+        Some(action @ ("approve" | "deny")) => Ok(action),
+        _ => Err("action must be approve or deny"),
+    }
 }
 
 pub(super) fn validate_authorize_request(

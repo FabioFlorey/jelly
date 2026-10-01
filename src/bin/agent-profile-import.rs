@@ -52,6 +52,62 @@ fn nonempty(path: &Path) -> bool {
         .is_some()
 }
 
+fn install_profile(
+    source: &Path,
+    destination: &Path,
+    force: bool,
+) -> Result<u64, Box<dyn std::error::Error>> {
+    if nonempty(destination) && !force {
+        return Err(format!(
+            "Jelly profile already contains data at {}; rerun with --force to replace it",
+            destination.display()
+        )
+        .into());
+    }
+
+    let parent = destination
+        .parent()
+        .ok_or("Jelly profile destination has no parent directory")?;
+    fs::create_dir_all(parent)?;
+    let suffix = std::process::id();
+    let staging = parent.join(format!(".jelly-profile-import-{suffix}.staging"));
+    let backup = parent.join(format!(".jelly-profile-import-{suffix}.backup"));
+    let _ = fs::remove_dir_all(&staging);
+    let _ = fs::remove_dir_all(&backup);
+
+    let copied = match copy_tree(source, &staging) {
+        Ok(copied) => copied,
+        Err(error) => {
+            let _ = fs::remove_dir_all(&staging);
+            return Err(error);
+        }
+    };
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&staging, fs::Permissions::from_mode(0o700))?;
+    }
+
+    let had_destination = destination.exists();
+    if had_destination {
+        fs::rename(destination, &backup)?;
+    }
+
+    if let Err(error) = fs::rename(&staging, destination) {
+        if had_destination {
+            let _ = fs::rename(&backup, destination);
+        }
+        let _ = fs::remove_dir_all(&staging);
+        return Err(error.into());
+    }
+
+    if had_destination {
+        fs::remove_dir_all(&backup)?;
+    }
+    Ok(copied)
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().skip(1).collect();
     let source = args
@@ -72,23 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if destination.exists() && source.canonicalize().ok() == destination.canonicalize().ok() {
         return Err("profile source is already Jelly's managed profile".into());
     }
-    if nonempty(destination) {
-        if !force {
-            return Err(format!(
-                "Jelly profile already contains data at {}; rerun with --force to replace it",
-                destination.display()
-            )
-            .into());
-        }
-        fs::remove_dir_all(destination)?;
-    }
-
-    let files = copy_tree(&source, destination)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(destination, fs::Permissions::from_mode(0o700))?;
-    }
+    let files = install_profile(&source, destination, force)?;
     println!(
         "{}",
         json!({
@@ -148,5 +188,34 @@ mod tests {
         fs::write(path.join("Preferences"), b"prefs").unwrap();
         assert!(nonempty(&path));
         let _ = fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn force_install_replaces_only_after_staging_succeeds() {
+        let source = temp_dir("install-source");
+        let destination = temp_dir("install-destination");
+        fs::write(source.join("Preferences"), b"new").unwrap();
+        fs::write(destination.join("Preferences"), b"old").unwrap();
+
+        let files = install_profile(&source, &destination, true).unwrap();
+        assert_eq!(files, 1);
+        assert_eq!(fs::read(destination.join("Preferences")).unwrap(), b"new");
+
+        let _ = fs::remove_dir_all(source);
+        let _ = fs::remove_dir_all(destination);
+    }
+
+    #[test]
+    fn install_without_force_preserves_existing_profile() {
+        let source = temp_dir("preserve-source");
+        let destination = temp_dir("preserve-destination");
+        fs::write(source.join("Preferences"), b"new").unwrap();
+        fs::write(destination.join("Preferences"), b"old").unwrap();
+
+        assert!(install_profile(&source, &destination, false).is_err());
+        assert_eq!(fs::read(destination.join("Preferences")).unwrap(), b"old");
+
+        let _ = fs::remove_dir_all(source);
+        let _ = fs::remove_dir_all(destination);
     }
 }

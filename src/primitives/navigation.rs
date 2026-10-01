@@ -48,7 +48,7 @@ pub fn navigate(browser: &mut BrowserSession, args: &[String]) -> Result<String,
     install_injections_for_future_documents(browser)?;
     navigate_to(browser, url)?;
     wait_for_document_ready(browser, url)?;
-    apply_injections_to_current_document(browser);
+    apply_injections_to_current_document(browser)?;
 
     navigation_result(browser, url)
 }
@@ -105,7 +105,7 @@ fn wait_expression(condition: &str, value: &str) -> Result<String, Error> {
 }
 
 fn install_injections_for_future_documents(browser: &mut BrowserSession) -> Result<(), Error> {
-    for source in injections() {
+    for source in injections()? {
         browser.call(
             "Page.addScriptToEvaluateOnNewDocument",
             json!({"source":source}),
@@ -147,10 +147,11 @@ fn wait_for_document_ready(browser: &mut BrowserSession, url: &str) -> Result<()
     }
 }
 
-fn apply_injections_to_current_document(browser: &mut BrowserSession) {
-    for source in injections() {
-        let _ = browser.eval(&format!("(()=>{{\n{source}\n}})()"));
+fn apply_injections_to_current_document(browser: &mut BrowserSession) -> Result<(), Error> {
+    for source in injections()? {
+        browser.eval(&format!("(()=>{{\n{source}\n}})()"))?;
     }
+    Ok(())
 }
 
 fn navigation_result(browser: &mut BrowserSession, requested_url: &str) -> Result<String, Error> {
@@ -204,19 +205,47 @@ fn history_entry_id(history: &Value, direction: &str) -> Result<i64, Error> {
     })
 }
 
-pub(crate) fn injections() -> Vec<String> {
-    fs::read_dir(INJECTION_DIR)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .filter_map(|entry| {
-            let path = entry.path();
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .filter(|name| name.starts_with("injected-") && name.ends_with(".js"))?;
-            fs::read_to_string(path).ok()
-        })
-        .collect()
+pub(crate) fn injections() -> Result<Vec<String>, Error> {
+    let entries = match fs::read_dir(INJECTION_DIR) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(jelly_error(
+                ErrorKind::Internal,
+                format!("failed to read injection directory {INJECTION_DIR}: {error}"),
+                false,
+            ));
+        }
+    };
+
+    let mut sources = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| {
+            jelly_error(
+                ErrorKind::Internal,
+                format!("failed to enumerate injection directory {INJECTION_DIR}: {error}"),
+                false,
+            )
+        })?;
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if !name.starts_with("injected-") || !name.ends_with(".js") {
+            continue;
+        }
+        sources.push(fs::read_to_string(&path).map_err(|error| {
+            jelly_error(
+                ErrorKind::Internal,
+                format!(
+                    "failed to read injection script {}: {error}",
+                    path.display()
+                ),
+                false,
+            )
+        })?);
+    }
+    Ok(sources)
 }
 
 #[cfg(test)]
