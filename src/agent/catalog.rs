@@ -1,11 +1,10 @@
 use super::{
-    AgentBuiltin, McpSurface,
-    catalog_config::AgentCatalogConfig,
+    AgentBuiltin,
     schema::{primitive_input_schema, system_input_schema, tool_output_schema},
 };
 use crate::{PrimitiveSpec, ToolSpec, primitive_specs, tool_specs};
 use serde_json::Value;
-use std::{collections::HashMap, error::Error as StdError, fmt, sync::OnceLock};
+use std::{collections::HashMap, error::Error as StdError, fmt};
 
 #[derive(Debug, Clone, Copy)]
 pub enum AgentToolBinding {
@@ -270,72 +269,13 @@ fn is_object_schema(schema: &Value) -> bool {
         .is_some_and(|branches| !branches.is_empty() && branches.iter().all(is_object_schema))
 }
 
-pub fn large_surface_agent_catalog() -> &'static AgentToolCatalog {
-    large_surface_agent_catalog_with_raw(crate::RawCdpAccess::Disabled)
-}
-
-pub fn large_surface_agent_catalog_with_raw(
-    raw_cdp: crate::RawCdpAccess,
-) -> &'static AgentToolCatalog {
-    static DISABLED: OnceLock<AgentToolCatalog> = OnceLock::new();
-    static ENABLED: OnceLock<AgentToolCatalog> = OnceLock::new();
-    let slot = if raw_cdp.enabled() {
-        &ENABLED
-    } else {
-        &DISABLED
-    };
-    slot.get_or_init(|| {
-        AgentToolCatalog::large_surface_with_raw(raw_cdp)
-            .unwrap_or_else(|error| panic!("invalid large-surface agent tool catalog: {error}"))
-    })
-}
-
-pub fn small_surface_agent_catalog(raw_cdp: crate::RawCdpAccess) -> &'static AgentToolCatalog {
-    static DISABLED: OnceLock<AgentToolCatalog> = OnceLock::new();
-    static ENABLED: OnceLock<AgentToolCatalog> = OnceLock::new();
-    let slot = if raw_cdp.enabled() {
-        &ENABLED
-    } else {
-        &DISABLED
-    };
-    slot.get_or_init(|| {
-        AgentToolCatalog::small_surface(raw_cdp)
-            .unwrap_or_else(|error| panic!("invalid small-surface agent tool catalog: {error}"))
-    })
-}
-
-pub fn agent_catalog_for_surface(
-    surface: McpSurface,
-    raw_cdp: crate::RawCdpAccess,
-) -> &'static AgentToolCatalog {
-    match surface {
-        McpSurface::LargeSurface => large_surface_agent_catalog_with_raw(raw_cdp),
-        McpSurface::SmallSurface => small_surface_agent_catalog(raw_cdp),
-    }
-}
-
-pub fn agent_catalog_from_config(
-    surface_value: Option<&str>,
-    raw_cdp_value: Option<&str>,
-) -> Result<&'static AgentToolCatalog, String> {
-    let config = AgentCatalogConfig::parse(surface_value, raw_cdp_value)?;
-    Ok(agent_catalog_for_surface(config.surface, config.raw_cdp))
-}
-
-pub fn active_agent_catalog() -> Result<&'static AgentToolCatalog, String> {
-    static ACTIVE: OnceLock<Result<&'static AgentToolCatalog, String>> = OnceLock::new();
-    match ACTIVE.get_or_init(|| {
-        let config = AgentCatalogConfig::from_env()?;
-        Ok(agent_catalog_for_surface(config.surface, config.raw_cdp))
-    }) {
-        Ok(catalog) => Ok(*catalog),
-        Err(error) => Err(error.clone()),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        McpSurface, agent_catalog_from_config, large_surface_agent_catalog,
+        small_surface_agent_catalog,
+    };
 
     fn click_spec() -> &'static PrimitiveSpec {
         primitive_specs
