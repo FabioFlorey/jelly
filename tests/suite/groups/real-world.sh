@@ -79,17 +79,14 @@ web_selenium_artifacts() {
 
 web_porsche_consent() {
   local profile="/data/jelly-runtime/profiles/headless" backup="/tmp/jelly-suite-porsche-profile-$$" moved=false
-  cleanup_porsche() {
-    jt_close_browser
-    if [[ "$moved" == true ]]; then
-      rm -rf "$profile"
-      mv "$backup" "$profile"
-    fi
-  }
-  trap cleanup_porsche EXIT
   rm -rf "$backup"
   jt_close_browser
   if [[ -d "$profile" ]]; then mv "$profile" "$backup"; moved=true; fi
+  if [[ "$moved" == true ]]; then
+    trap "jt_close_browser; rm -rf '$profile'; mv '$backup' '$profile'" EXIT
+  else
+    trap jt_close_browser EXIT
+  fi
   web_open_ready "$WEB_PORSCHE_URL"
   local snapshot='' found=false ref info after
   for _ in $(seq 1 30); do
