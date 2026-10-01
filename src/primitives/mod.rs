@@ -20,12 +20,16 @@ pub(crate) fn missing_target(target: &Target) -> Error {
     }
 }
 
-pub(crate) fn target(args: &[String], index: usize, usage: &str) -> Result<Target, Error> {
-    let value = args
-        .get(index)
-        .ok_or_else(|| jelly_error(ErrorKind::InvalidArguments, usage, false))?;
-    Target::parse(value)
+pub(crate) fn arg<'a>(args: &'a [String], index: usize, usage: &str) -> Result<&'a str, Error> {
+    args.get(index)
+        .map(String::as_str)
+        .ok_or_else(|| jelly_error(ErrorKind::InvalidArguments, usage, false))
 }
+
+pub(crate) fn target(args: &[String], index: usize, usage: &str) -> Result<Target, Error> {
+    Target::parse(arg(args, index, usage)?)
+}
+
 pub(crate) fn pretty(v: &serde_json::Value) -> String {
     serde_json::to_string_pretty(v).unwrap_or_else(|_| v.to_string())
 }
