@@ -252,10 +252,7 @@ pub fn drag(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     if sp.is_null() {
         return Err(missing_target(&source));
     }
-    let (sx, sy) = (
-        sp["x"].as_f64().ok_or("invalid source x")?,
-        sp["y"].as_f64().ok_or("invalid source y")?,
-    );
+    let (sx, sy) = drag_point(&sp, "source")?;
     b.call(
         "Input.dispatchMouseEvent",
         json!({"type":"mouseMoved","x":sx,"y":sy}),
@@ -280,10 +277,7 @@ pub fn drag(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
             );
             return Err(missing_target(&t));
         }
-        (
-            tp["x"].as_f64().ok_or("invalid target x")?,
-            tp["y"].as_f64().ok_or("invalid target y")?,
-        )
+        drag_point(&tp, "target")?
     };
     for i in 1..=16 {
         let k = i as f64 / 16.0;
@@ -296,6 +290,24 @@ pub fn drag(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     )?;
     Ok(format!("Dragged {} -> {dest}", args[0]))
 }
+fn drag_point(value: &serde_json::Value, role: &str) -> Result<(f64, f64), Error> {
+    let x = value["x"].as_f64().ok_or_else(|| {
+        jelly_error(
+            ErrorKind::InteractionFailed,
+            format!("drag {role} x coordinate is missing or invalid"),
+            false,
+        )
+    })?;
+    let y = value["y"].as_f64().ok_or_else(|| {
+        jelly_error(
+            ErrorKind::InteractionFailed,
+            format!("drag {role} y coordinate is missing or invalid"),
+            false,
+        )
+    })?;
+    Ok((x, y))
+}
+
 fn parse_coords(s: &str) -> Option<(f64, f64)> {
     let mut x = None;
     let mut y = None;
@@ -308,4 +320,26 @@ fn parse_coords(s: &str) -> Option<(f64, f64)> {
         }
     }
     Some((x?, y?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::classify_error;
+    use serde_json::json;
+
+    #[test]
+    fn malformed_drag_coordinates_are_typed_interaction_failures() {
+        let error = drag_point(&json!({"x":"bad","y":2.0}), "source").unwrap_err();
+        assert_eq!(
+            classify_error(error.as_ref()),
+            (ErrorKind::InteractionFailed, false)
+        );
+
+        let error = drag_point(&json!({"x":1.0}), "target").unwrap_err();
+        assert_eq!(
+            classify_error(error.as_ref()),
+            (ErrorKind::InteractionFailed, false)
+        );
+    }
 }

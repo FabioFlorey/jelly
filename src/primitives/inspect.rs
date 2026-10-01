@@ -209,12 +209,8 @@ pub fn accessibility_tree(b: &mut BrowserSession, args: &[String]) -> Result<Str
 pub fn inspect_links(b: &mut BrowserSession, _: &[String]) -> Result<String, Error> {
     let v=b.eval(r#"(()=>[...document.querySelectorAll('a[href]')].filter(a=>{const r=a.getBoundingClientRect(),s=getComputedStyle(a);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'}).map(a=>({text:(a.innerText||a.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim(),href:a.href})).filter(x=>x.text||x.href))()"#)?;
     let mut out = Vec::new();
-    for (i, x) in v
-        .as_array()
-        .ok_or("failed to inspect links")?
-        .iter()
-        .enumerate()
-    {
+    let links = inspected_links(&v)?;
+    for (i, x) in links.iter().enumerate() {
         out.push(format!(
             "{}. {} — {}",
             i + 1,
@@ -224,6 +220,17 @@ pub fn inspect_links(b: &mut BrowserSession, _: &[String]) -> Result<String, Err
     }
     Ok(out.join("\n"))
 }
+
+fn inspected_links(value: &Value) -> Result<&[Value], Error> {
+    value.as_array().map(Vec::as_slice).ok_or_else(|| {
+        crate::jelly_error(
+            crate::ErrorKind::Internal,
+            "inspect-links browser script returned a non-array result",
+            false,
+        )
+    })
+}
+
 pub fn inspect_images(b: &mut BrowserSession, _: &[String]) -> Result<String, Error> {
     let v=b.eval(r#"(()=>[...document.images].map((img,i)=>{const ref='img'+(i+1);img.setAttribute('data-jelly-ref',ref);const r=img.getBoundingClientRect(),s=getComputedStyle(img),visible=r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0';return {ref:'@'+ref,n:i+1,alt:(img.alt||img.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim(),src:img.currentSrc||img.src||'',visible,complete:img.complete,natural_width:img.naturalWidth,natural_height:img.naturalHeight,width:Math.round(r.width),height:Math.round(r.height)}}).filter(img=>img.src))()"#)?;
     Ok(pretty(&v))
@@ -241,5 +248,14 @@ mod tests {
         assert!(bounded_usize("nope", "limit", 100, true).is_err());
         assert_eq!(bounded_usize("250", "limit", 100, true).unwrap(), 100);
         assert_eq!(bounded_usize("42", "limit", 100, false).unwrap(), 42);
+    }
+
+    #[test]
+    fn malformed_link_script_result_is_an_explicit_internal_error() {
+        let error = inspected_links(&serde_json::json!({"unexpected":true})).unwrap_err();
+        assert_eq!(
+            crate::classify_error(error.as_ref()),
+            (crate::ErrorKind::Internal, false)
+        );
     }
 }

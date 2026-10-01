@@ -96,27 +96,59 @@ pub fn navigate(b: &mut BrowserSession, args: &[String]) -> Result<String, Error
 }
 
 pub fn tab_history(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
-    let d = args.first().ok_or("usage: tab-history <back|forward>")?;
-    let h = b.call("Page.getNavigationHistory", json!({}))?;
-    let cur = h["result"]["currentIndex"]
-        .as_i64()
-        .ok_or("no history index")?;
-    let es = h["result"]["entries"]
-        .as_array()
-        .ok_or("no history entries")?;
-    let wanted = match d.as_str() {
-        "back" => cur - 1,
-        "forward" => cur + 1,
-        _ => return Err("usage: tab-history <back|forward>".into()),
+    let direction = args.first().ok_or_else(|| {
+        jelly_error(
+            ErrorKind::InvalidArguments,
+            "usage: tab-history <back|forward>",
+            false,
+        )
+    })?;
+    let history = b.call("Page.getNavigationHistory", json!({}))?;
+    let entry_id = history_entry_id(&history, direction)?;
+    b.call("Page.navigateToHistoryEntry", json!({"entryId":entry_id}))?;
+    Ok(format!("Went {direction}."))
+}
+
+fn history_entry_id(history: &serde_json::Value, direction: &str) -> Result<i64, Error> {
+    let current = history["result"]["currentIndex"].as_i64().ok_or_else(|| {
+        jelly_error(
+            ErrorKind::Internal,
+            "Page.getNavigationHistory response is missing currentIndex",
+            false,
+        )
+    })?;
+    let entries = history["result"]["entries"].as_array().ok_or_else(|| {
+        jelly_error(
+            ErrorKind::Internal,
+            "Page.getNavigationHistory response is missing entries",
+            false,
+        )
+    })?;
+    let wanted = match direction {
+        "back" => current - 1,
+        "forward" => current + 1,
+        _ => {
+            return Err(jelly_error(
+                ErrorKind::InvalidArguments,
+                "usage: tab-history <back|forward>",
+                false,
+            ));
+        }
     };
-    if wanted < 0 || wanted >= es.len() as i64 {
-        return Err(format!("cannot go {d}").into());
+    if wanted < 0 || wanted >= entries.len() as i64 {
+        return Err(jelly_error(
+            ErrorKind::NavigationFailed,
+            format!("cannot go {direction}: no navigation history entry"),
+            false,
+        ));
     }
-    let id = es[wanted as usize]["id"]
-        .as_i64()
-        .ok_or("bad history entry")?;
-    b.call("Page.navigateToHistoryEntry", json!({"entryId":id}))?;
-    Ok(format!("Went {d}."))
+    entries[wanted as usize]["id"].as_i64().ok_or_else(|| {
+        jelly_error(
+            ErrorKind::Internal,
+            "Page.getNavigationHistory returned an entry without a numeric id",
+            false,
+        )
+    })
 }
 
 pub(crate) fn injections() -> Vec<String> {
@@ -132,4 +164,47 @@ pub(crate) fn injections() -> Vec<String> {
             fs::read_to_string(p).ok()
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::classify_error;
+    use serde_json::json;
+
+    #[test]
+    fn history_direction_and_bounds_have_typed_errors() {
+        let history = json!({
+            "result":{
+                "currentIndex":0,
+                "entries":[{"id":10},{"id":11}]
+            }
+        });
+
+        let error = history_entry_id(&history, "sideways").unwrap_err();
+        assert_eq!(
+            classify_error(error.as_ref()),
+            (ErrorKind::InvalidArguments, false)
+        );
+
+        let error = history_entry_id(&history, "back").unwrap_err();
+        assert_eq!(
+            classify_error(error.as_ref()),
+            (ErrorKind::NavigationFailed, false)
+        );
+
+        assert_eq!(history_entry_id(&history, "forward").unwrap(), 11);
+    }
+
+    #[test]
+    fn malformed_history_response_is_an_explicit_internal_error() {
+        for history in [
+            json!({"result":{"entries":[]}}),
+            json!({"result":{"currentIndex":0}}),
+            json!({"result":{"currentIndex":0,"entries":[{"id":10},{}]}}),
+        ] {
+            let error = history_entry_id(&history, "forward").unwrap_err();
+            assert_eq!(classify_error(error.as_ref()), (ErrorKind::Internal, false));
+        }
+    }
 }
