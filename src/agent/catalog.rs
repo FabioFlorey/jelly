@@ -1,5 +1,6 @@
 use super::{
     AgentBuiltin, McpSurface,
+    catalog_config::AgentCatalogConfig,
     schema::{primitive_input_schema, system_input_schema, tool_output_schema},
 };
 use crate::{PrimitiveSpec, ToolSpec, primitive_specs, tool_specs};
@@ -317,17 +318,15 @@ pub fn agent_catalog_from_config(
     surface_value: Option<&str>,
     raw_cdp_value: Option<&str>,
 ) -> Result<&'static AgentToolCatalog, String> {
-    let surface = McpSurface::parse(surface_value)?;
-    let raw_cdp = crate::RawCdpAccess::parse(raw_cdp_value)?;
-    Ok(agent_catalog_for_surface(surface, raw_cdp))
+    let config = AgentCatalogConfig::parse(surface_value, raw_cdp_value)?;
+    Ok(agent_catalog_for_surface(config.surface, config.raw_cdp))
 }
 
 pub fn active_agent_catalog() -> Result<&'static AgentToolCatalog, String> {
     static ACTIVE: OnceLock<Result<&'static AgentToolCatalog, String>> = OnceLock::new();
     match ACTIVE.get_or_init(|| {
-        let surface = McpSurface::from_env()?;
-        let raw_cdp = crate::RawCdpAccess::from_env()?;
-        Ok(agent_catalog_for_surface(surface, raw_cdp))
+        let config = AgentCatalogConfig::from_env()?;
+        Ok(agent_catalog_for_surface(config.surface, config.raw_cdp))
     }) {
         Ok(catalog) => Ok(*catalog),
         Err(error) => Err(error.clone()),

@@ -3,6 +3,7 @@ mod browser_events;
 mod browser_schema;
 mod builtin;
 mod catalog;
+mod catalog_config;
 mod schema;
 mod surface;
 
