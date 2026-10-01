@@ -1,7 +1,8 @@
+use super::SCOPE;
+use super::oauth::random_token;
 use super::pages::{client_registration_response, oauth_json_error};
 use super::state::AuthState;
 use super::storage::{Client, persist_store};
-use super::{SCOPE, random_token};
 use axum::{
     Json,
     extract::State,

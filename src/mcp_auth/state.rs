@@ -1,5 +1,6 @@
+use super::oauth::{bearer, constant_time_eq, now};
 use super::storage::{AuthStore, load_store};
-use super::{OWNER_COOKIE, SCOPE, bearer, constant_time_eq, now};
+use super::{OWNER_COOKIE, SCOPE};
 use axum::{
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
