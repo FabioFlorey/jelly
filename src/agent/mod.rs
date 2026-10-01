@@ -4,6 +4,7 @@ mod browser_schema;
 mod builtin;
 mod catalog;
 mod schema;
+mod surface;
 
 pub use browser_call::{
     RawCdpAccess, browser_call_input_schema, cdp_call_input_schema, execute_browser_call,
@@ -16,7 +17,8 @@ pub use browser_schema::{browser_schema_input_schema, execute_browser_schema};
 pub use builtin::{AgentBuiltin, AgentBuiltinExecution};
 pub use catalog::{
     AgentCatalogError, AgentToolBinding, AgentToolCatalog, AgentToolEntry, AgentToolSpec,
-    JELLY_MCP_SURFACE, McpSurface, active_agent_catalog, agent_catalog_for_surface,
-    agent_catalog_from_config, large_surface_agent_catalog, large_surface_agent_catalog_with_raw,
-    small_surface_agent_catalog,
+    active_agent_catalog, agent_catalog_for_surface, agent_catalog_from_config,
+    large_surface_agent_catalog, large_surface_agent_catalog_with_raw, small_surface_agent_catalog,
 };
+
+pub use surface::{JELLY_MCP_SURFACE, McpSurface};
