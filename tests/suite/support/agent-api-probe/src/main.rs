@@ -219,10 +219,7 @@ fn explicit_large_surface() -> Result<(), Box<dyn Error>> {
         .iter()
         .filter_map(|tool| tool["name"].as_str())
         .collect::<HashSet<_>>();
-    ensure(
-        names.contains("click"),
-        "large-surface missing click",
-    )?;
+    ensure(names.contains("click"), "large-surface missing click")?;
     ensure(
         names.contains("cdp-call"),
         "large-surface raw mode missing cdp-call",
@@ -238,10 +235,7 @@ fn explicit_large_surface() -> Result<(), Box<dyn Error>> {
 
 fn large_surface_raw() -> Result<(), Box<dyn Error>> {
     let legacy = agent_catalog_from_config(Some("large-surface"), Some("1"))?;
-    ensure(
-        legacy.get("click").is_some(),
-        "large-surface missing click",
-    )?;
+    ensure(legacy.get("click").is_some(), "large-surface missing click")?;
     ensure(
         legacy.get("cdp-call").is_some(),
         "large-surface raw mode missing cdp-call",
@@ -591,7 +585,11 @@ fn subscription_stale() -> Result<(), Box<dyn Error>> {
 
 fn surface_report() -> Result<(), Box<dyn Error>> {
     let variants = [
-        ("large_surface", McpSurface::LargeSurface, RawCdpAccess::Disabled),
+        (
+            "large_surface",
+            McpSurface::LargeSurface,
+            RawCdpAccess::Disabled,
+        ),
         (
             "small_surface_raw_off",
             McpSurface::SmallSurface,
@@ -658,7 +656,9 @@ fn surface_report() -> Result<(), Box<dyn Error>> {
         );
     }
 
-    let large = report["large_surface"]["tools_list_bytes"].as_u64().unwrap();
+    let large = report["large_surface"]["tools_list_bytes"]
+        .as_u64()
+        .unwrap();
     let small = report["small_surface_raw_off"]["tools_list_bytes"]
         .as_u64()
         .unwrap();
