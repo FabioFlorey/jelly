@@ -168,8 +168,8 @@ primitives! {
     "inspect-links" => crate::primitives::inspect::inspect_links, description:"List visible links with normalized visible text and resolved URLs.", usage:"inspect-links", category:"inspect", args:&[], max:Some(0);
     "inspect-images" => crate::primitives::inspect::inspect_images, description:"Inspect images with DOM-backed page-order refs, source, visibility, load completion, natural dimensions, and rendered dimensions.", usage:"inspect-images", category:"inspect", args:&[], max:Some(0);
 
-    "tabs" => crate::primitives::tabs::tabs, description:"List browser page targets with target ID, title, and URL.", usage:"tabs", category:"tabs", args:&[], max:Some(0);
-    "switch-tab" => crate::primitives::tabs::switch_tab, description:"Activate and attach to a tab by target ID or matching title or URL.", usage:"switch-tab <id|title|url>", category:"tabs", args:&[ArgSpec::req("query",Str)], max:Some(1);
+    "tabs" => crate::primitives::tabs::tabs, description:"List browser page targets by stable logical label, with title, URL, and low-level target ID as diagnostics.", usage:"tabs", category:"tabs", args:&[], max:Some(0);
+    "switch-tab" => crate::primitives::tabs::switch_tab, description:"Activate and attach to a tab by logical label, with target ID/title/URL matching retained for compatibility.", usage:"switch-tab <label|id|title|url>", category:"tabs", args:&[ArgSpec::req("query",Str)], max:Some(1);
     "close-tab" => crate::primitives::tabs::close_tab, description:"Close the active tab and reattach the session to a remaining page target when available.", usage:"close-tab", category:"tabs", args:&[], max:Some(0);
     "open-in-new-tab" => crate::primitives::tabs::open_in_new_tab, description:"Open the link or image URL represented by a target in a new active tab.", usage:"open-in-new-tab <target>", category:"tabs", args:&[ArgSpec::req("target",Tgt)], max:Some(1);
 

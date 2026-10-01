@@ -1,7 +1,7 @@
 use jelly::{
     ACTIVE_TARGET, BROWSER_MODE, BROWSER_PID, BROWSER_READY, BROWSER_STOP, DOWNLOAD_DIR, ENDPOINT,
-    HEADLESS_PROFILE_DIR, INJECTION_DIR, NETWORK_DIR, PAGE_TARGET, PROFILE_DIR, RECORDING_DIR,
-    ROUTINE_STATE_DIR, SCREENSHOT_DIR, STATE_DIR,
+    HEADLESS_PROFILE_DIR, INJECTION_DIR, LOGICAL_TARGETS, NETWORK_DIR, PAGE_TARGET, PROFILE_DIR,
+    RECORDING_DIR, ROUTINE_STATE_DIR, SCREENSHOT_DIR, STATE_DIR,
 };
 use rustwright::{GotoOptions, LaunchOptions, chromium};
 use serde_json::{Value, json};
@@ -34,6 +34,7 @@ fn main() -> rustwright::Result<()> {
         ENDPOINT,
         PAGE_TARGET,
         ACTIVE_TARGET,
+        LOGICAL_TARGETS,
         BROWSER_PID,
     ] {
         let _ = fs::remove_file(stale);
@@ -125,13 +126,20 @@ fn main() -> rustwright::Result<()> {
     loop {
         if fs::metadata(BROWSER_STOP).is_ok() {
             let _ = fs::remove_file(BROWSER_STOP);
-            for stale in [ENDPOINT, PAGE_TARGET, ACTIVE_TARGET, { BROWSER_PID }] {
+            for stale in [
+                ENDPOINT,
+                PAGE_TARGET,
+                ACTIVE_TARGET,
+                LOGICAL_TARGETS,
+                BROWSER_PID,
+            ] {
                 let _ = fs::remove_file(stale);
             }
             browser.close()?;
             let _ = fs::remove_file(ENDPOINT);
             let _ = fs::remove_file(PAGE_TARGET);
             let _ = fs::remove_file(ACTIVE_TARGET);
+            let _ = fs::remove_file(LOGICAL_TARGETS);
             let _ = fs::remove_file(BROWSER_PID);
             let _ = fs::remove_file(BROWSER_MODE);
             let _ = fs::remove_file(BROWSER_READY);

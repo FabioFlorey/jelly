@@ -1,8 +1,7 @@
 use crate::{
-    ArgKind, BrowserSession, ErrorKind, classify_error, execute_browser_primitive,
-    is_browser_primitive,
+    AgentBuiltinExecution, AgentToolBinding, AgentToolCatalog, BrowserSession, ErrorKind,
+    active_agent_catalog, classify_error, error_details, execute_named_browser_primitive,
     mcp_auth::{AuthState, ConsentMode},
-    primitive_specs, tool_specs,
 };
 use axum::{
     Json, Router,
@@ -33,6 +32,8 @@ pub fn router(
     public_chatgpt_dcr: bool,
     public_url: String,
 ) -> Result<Router, String> {
+    active_agent_catalog()
+        .map_err(|error| format!("invalid MCP tool surface configuration: {error}"))?;
     let consent_mode = ConsentMode::parse(&consent_mode)?;
     let state = AuthState::new(
         token,
@@ -78,7 +79,9 @@ async fn handle_mcp(
     let result = match method {
         "initialize" => Ok(initialize(&params)),
         "ping" => Ok(json!({})),
-        "tools/list" => Ok(json!({"tools": mcp_tools()})),
+        "tools/list" => mcp_tools()
+            .map(|tools| json!({"tools":tools}))
+            .map_err(|message| (-32603, message)),
         "tools/call" => call_tool(&params).await,
         _ => Err((-32601, format!("method not found: {method}"))),
     };
@@ -112,193 +115,26 @@ fn initialize(params: &Value) -> Value {
     })
 }
 
-pub fn mcp_tools() -> Vec<Value> {
-    let mut tools = primitive_specs
+pub fn mcp_tools() -> Result<Vec<Value>, String> {
+    Ok(mcp_tools_from_catalog(active_agent_catalog()?))
+}
+
+fn mcp_tools_from_catalog(catalog: &AgentToolCatalog) -> Vec<Value> {
+    catalog
         .iter()
-        .map(|spec| {
+        .map(|tool| {
             json!({
-                "name": spec.name,
-                "description": spec.description,
-                "inputSchema": primitive_input_schema(spec),
-                "outputSchema": tool_output_schema(),
+                "name": tool.name(),
+                "description": tool.description(),
+                "inputSchema": tool.input_schema(),
+                "outputSchema": tool.output_schema(),
                 "securitySchemes": [{"type":"oauth2","scopes":["jelly"]}],
                 "_meta": {
                     "securitySchemes": [{"type":"oauth2","scopes":["jelly"]}]
                 },
             })
         })
-        .collect::<Vec<_>>();
-
-    tools.extend(tool_specs.iter().filter_map(|spec| {
-        system_input_schema(spec.name).map(|input_schema| {
-            json!({
-                "name": spec.name,
-                "description": spec.description,
-                "inputSchema": input_schema,
-                "outputSchema": tool_output_schema(),
-                "securitySchemes": [{"type":"oauth2","scopes":["jelly"]}],
-                "_meta": {
-                    "securitySchemes": [{"type":"oauth2","scopes":["jelly"]}]
-                },
-            })
-        })
-    }));
-    tools
-}
-
-fn tool_output_schema() -> Value {
-    json!({
-        "type":"object",
-        "properties":{
-            "ok":{"type":"boolean"},
-            "data":{},
-            "error":{
-                "type":["object","null"],
-                "properties":{
-                    "kind":{"type":"string"},
-                    "message":{"type":"string"},
-                    "retryable":{"type":"boolean"}
-                },
-                "additionalProperties":false
-            },
-            "meta":{
-                "type":"object",
-                "properties":{"tool":{"type":"string"}},
-                "required":["tool"],
-                "additionalProperties":true
-            }
-        },
-        "required":["ok","data","error","meta"],
-        "additionalProperties":false
-    })
-}
-
-fn primitive_input_schema(spec: &crate::PrimitiveSpec) -> Value {
-    let mut properties = Map::new();
-    let mut required = Vec::new();
-    for arg in spec.args {
-        let schema = match arg.kind {
-            ArgKind::Integer => json!({"type":"integer","minimum":0}),
-            ArgKind::Target => json!({
-                "type":"string",
-                "description":"Element target: stable @eN ref, css:<selector>, text:<exact text>, or plain exact text."
-            }),
-            ArgKind::String => json!({"type":"string"}),
-        };
-        properties.insert(arg.name.to_owned(), schema);
-        if arg.required {
-            required.push(Value::String(arg.name.to_owned()));
-        }
-    }
-    json!({
-        "type":"object",
-        "properties":properties,
-        "required":required,
-        "additionalProperties":false
-    })
-}
-
-fn system_input_schema(name: &str) -> Option<Value> {
-    Some(match name {
-        "open-browser" => json!({
-            "type":"object",
-            "properties":{
-                "url":{"type":"string","description":"Optional URL to open after Chromium starts."}
-            },
-            "additionalProperties":false
-        }),
-        "close-browser" | "downloads" => json!({
-            "type":"object","properties":{},"additionalProperties":false
-        }),
-        "verify-artifact" => json!({
-            "type":"object",
-            "properties":{
-                "artifact":{"type":"string","description":"Artifact ID or file path."},
-                "semantic_checks":{"type":"array","items":{"type":"string"},"description":"Optional evidence labels already established before capture."}
-            },
-            "required":["artifact"],
-            "additionalProperties":false
-        }),
-        "wait-download" => json!({
-            "type":"object",
-            "properties":{
-                "after_ms":{"type":"integer","minimum":0,"description":"Unix timestamp in milliseconds captured before triggering the download."},
-                "seconds":{"type":"integer","minimum":1,"description":"Maximum wait time; defaults to 30."},
-                "name_contains":{"type":"string","description":"Optional filename substring."}
-            },
-            "required":["after_ms"],
-            "additionalProperties":false
-        }),
-        "browser-task" => json!({
-            "type":"object",
-            "properties":{
-                "url":{"type":"string"},
-                "tool":{"type":"string"},
-                "args":{"type":"array","items":{"type":"string"}},
-                "persist":{"type":"boolean"}
-            },
-            "required":["url","tool"],
-            "additionalProperties":false
-        }),
-        "profile-import" => json!({
-            "type":"object",
-            "properties":{
-                "source":{"type":"string","description":"Closed Chromium user-data directory to copy into Jelly runtime."},
-                "force":{"type":"boolean","description":"Replace an existing Jelly profile."}
-            },
-            "required":["source"],
-            "additionalProperties":false
-        }),
-        "screenshot" => json!({
-            "type":"object",
-            "properties":{
-                "target":{"type":"string","description":"Optional browser target such as body, main, css:..., or @eN. Omit for the active page viewport."},
-                "output":{"type":"string","description":"Optional output path."}
-            },
-            "additionalProperties":false
-        }),
-        "record-browser" => json!({
-            "type":"object",
-            "properties":{
-                "action":{"type":"string","enum":["start","stop"]},
-                "mode":{"type":"string","enum":["continuous","steps"],"description":"Recording mode for start. continuous streams frames; steps captures browser state after relevant actions."},
-                "interval_ms":{"type":"integer","minimum":100,"description":"Frame interval for continuous mode; defaults to 500 ms."},
-                "hold_ms":{"type":"integer","minimum":100,"description":"How long each captured action frame is shown in steps mode; defaults to 1000 ms."}
-            },
-            "required":["action"],
-            "additionalProperties":false
-        }),
-        "inspect-network" => json!({
-            "type":"object",
-            "properties":{
-                "action":{"type":"string","enum":["start","stop","show"]},
-                "filters":{"type":"array","items":{"type":"string"}}
-            },
-            "required":["action"],
-            "additionalProperties":false
-        }),
-        "call-routine" => json!({
-            "type":"object",
-            "properties":{
-                "name":{"type":"string","description":"Routine name when starting a routine."},
-                "resume_id":{"type":"string","description":"Continuation ID when resuming a suspended routine."},
-                "vars":{"type":"object","additionalProperties":{"type":"string"}}
-            },
-            "oneOf":[{"required":["name"]},{"required":["resume_id"]}],
-            "additionalProperties":false
-        }),
-        "hitl" => json!({
-            "type":"object",
-            "properties":{
-                "message":{"type":"string"},
-                "screenshot_target":{"type":"string","description":"Optional browser element to attach instead of the viewport."},
-                "no_screenshot":{"type":"boolean"}
-            },
-            "required":["message"],
-            "additionalProperties":false
-        }),
-        _ => return None,
-    })
+        .collect()
 }
 
 #[derive(Debug)]
@@ -306,6 +142,7 @@ struct ToolFailure {
     kind: ErrorKind,
     message: String,
     retryable: bool,
+    details: Option<Value>,
 }
 
 impl ToolFailure {
@@ -314,6 +151,17 @@ impl ToolFailure {
             kind,
             message: message.into(),
             retryable,
+            details: None,
+        }
+    }
+
+    fn from_error(error: crate::Error) -> Self {
+        let (kind, retryable) = classify_error(error.as_ref());
+        Self {
+            kind,
+            message: error.to_string(),
+            retryable,
+            details: error_details(error.as_ref()),
         }
     }
 }
@@ -332,14 +180,22 @@ fn success_envelope(name: &str, output: &str) -> Value {
 }
 
 fn failure_envelope(name: &str, failure: &ToolFailure) -> Value {
+    let mut error = Map::from_iter([
+        (
+            "kind".to_owned(),
+            Value::String(failure.kind.as_str().to_owned()),
+        ),
+        ("message".to_owned(), Value::String(failure.message.clone())),
+        ("retryable".to_owned(), Value::Bool(failure.retryable)),
+    ]);
+    if let Some(details) = &failure.details {
+        error.insert("details".to_owned(), details.clone());
+    }
+
     json!({
         "ok": false,
         "data": Value::Null,
-        "error": {
-            "kind": failure.kind.as_str(),
-            "message": failure.message,
-            "retryable": failure.retryable
-        },
+        "error": Value::Object(error),
         "meta": {"tool": name}
     })
 }
@@ -399,15 +255,17 @@ fn reset_mcp_browser_session() {
 }
 
 fn map_browser_failure(error: crate::Error) -> ToolFailure {
-    let (kind, retryable) = classify_error(error.as_ref());
-    ToolFailure::new(kind, error.to_string(), retryable)
+    ToolFailure::from_error(error)
 }
 
-fn execute_mcp_browser_primitive(name: &str, args: &[String]) -> Result<String, ToolFailure> {
+fn with_mcp_browser_session<F>(operation: F) -> Result<String, ToolFailure>
+where
+    F: FnOnce(&mut BrowserSession) -> Result<String, crate::Error>,
+{
     if !persistent_mcp_session_enabled() {
-        let mut browser = BrowserSession::connect()
-            .map_err(|e| ToolFailure::new(ErrorKind::BrowserUnavailable, e.to_string(), true))?;
-        return execute_browser_primitive(&mut browser, name, args).map_err(map_browser_failure);
+        let mut browser = BrowserSession::connect().map_err(map_browser_failure)?;
+        browser.sync_active_target().map_err(map_browser_failure)?;
+        return operation(&mut browser).map_err(map_browser_failure);
     }
 
     let sessions = MCP_BROWSER_SESSION.get_or_init(|| Mutex::new(None));
@@ -419,10 +277,7 @@ fn execute_mcp_browser_primitive(name: &str, args: &[String]) -> Result<String, 
         )
     })?;
     if guard.is_none() {
-        *guard =
-            Some(BrowserSession::connect().map_err(|e| {
-                ToolFailure::new(ErrorKind::BrowserUnavailable, e.to_string(), true)
-            })?);
+        *guard = Some(BrowserSession::connect().map_err(map_browser_failure)?);
     }
 
     let browser = guard.as_mut().expect("session initialized");
@@ -434,7 +289,7 @@ fn execute_mcp_browser_primitive(name: &str, args: &[String]) -> Result<String, 
         return Err(failure);
     }
 
-    let result = execute_browser_primitive(browser, name, args).map_err(map_browser_failure);
+    let result = operation(browser).map_err(map_browser_failure);
     if result
         .as_ref()
         .err()
@@ -445,7 +300,30 @@ fn execute_mcp_browser_primitive(name: &str, args: &[String]) -> Result<String, 
     result
 }
 
+fn execute_mcp_browser_primitive(name: &str, arguments: &Value) -> Result<String, ToolFailure> {
+    with_mcp_browser_session(|browser| execute_named_browser_primitive(browser, name, arguments))
+}
+
 fn execute_tool(name: &str, arguments: &Value) -> Result<String, ToolFailure> {
+    let catalog = active_agent_catalog().map_err(|message| {
+        ToolFailure::new(
+            ErrorKind::Internal,
+            format!("invalid MCP tool surface configuration: {message}"),
+            false,
+        )
+    })?;
+    execute_tool_from_catalog(catalog, name, arguments)
+}
+
+fn builtin_requires_persistent_mcp_session(builtin: crate::AgentBuiltin) -> bool {
+    matches!(builtin, crate::AgentBuiltin::BrowserEvents)
+}
+
+fn execute_tool_from_catalog(
+    catalog: &AgentToolCatalog,
+    name: &str,
+    arguments: &Value,
+) -> Result<String, ToolFailure> {
     let object = arguments.as_object().ok_or_else(|| {
         ToolFailure::new(
             ErrorKind::InvalidArguments,
@@ -453,51 +331,42 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<String, ToolFailure> {
             false,
         )
     })?;
-    if is_browser_primitive(name) {
-        let spec = primitive_specs
-            .iter()
-            .find(|spec| spec.name == name)
-            .ok_or_else(|| {
-                ToolFailure::new(
+    let tool = catalog.get(name).ok_or_else(|| {
+        ToolFailure::new(
+            ErrorKind::Unsupported,
+            format!("unknown agent tool: {name}"),
+            false,
+        )
+    })?;
+
+    match tool.binding() {
+        AgentToolBinding::BrowserPrimitive(spec) => {
+            execute_mcp_browser_primitive(spec.name, arguments)
+        }
+        AgentToolBinding::SystemTool(spec) => execute_mcp_system_tool(spec.name, object),
+        AgentToolBinding::Builtin(builtin) => {
+            builtin.preflight(arguments).map_err(map_browser_failure)?;
+            if builtin_requires_persistent_mcp_session(builtin) && !persistent_mcp_session_enabled()
+            {
+                return Err(ToolFailure::new(
                     ErrorKind::Unsupported,
-                    format!("unknown browser primitive: {name}"),
+                    "browser-events requires persistent MCP browser sessions; JELLY_MCP_PERSISTENT_SESSION=0 is incompatible with runtime-scoped subscriptions",
                     false,
-                )
-            })?;
-        let mut args = Vec::new();
-        for arg in spec.args {
-            match object.get(arg.name) {
-                Some(Value::String(value)) => args.push(value.clone()),
-                Some(Value::Number(value)) if matches!(arg.kind, ArgKind::Integer) => {
-                    args.push(value.to_string())
+                ));
+            }
+            match builtin.execution() {
+                AgentBuiltinExecution::Stateless => builtin
+                    .execute_stateless(arguments)
+                    .map_err(map_browser_failure),
+                AgentBuiltinExecution::Browser => {
+                    with_mcp_browser_session(|browser| builtin.execute_browser(browser, arguments))
                 }
-                Some(_) => {
-                    return Err(ToolFailure::new(
-                        ErrorKind::InvalidArguments,
-                        format!("{} has the wrong type", arg.name),
-                        false,
-                    ));
-                }
-                None if arg.required => {
-                    return Err(ToolFailure::new(
-                        ErrorKind::InvalidArguments,
-                        format!("missing required argument: {}", arg.name),
-                        false,
-                    ));
-                }
-                None => {}
             }
         }
-        return execute_mcp_browser_primitive(name, &args);
     }
+}
 
-    if !tool_specs.iter().any(|spec| spec.name == name) || system_input_schema(name).is_none() {
-        return Err(ToolFailure::new(
-            ErrorKind::Unsupported,
-            format!("unknown tool: {name}"),
-            false,
-        ));
-    }
+fn execute_mcp_system_tool(name: &str, object: &Map<String, Value>) -> Result<String, ToolFailure> {
     let args = system_cli_args(name, object)
         .map_err(|message| ToolFailure::new(ErrorKind::InvalidArguments, message, false))?;
     if matches!(
@@ -732,40 +601,230 @@ mod tests {
         assert!(instructions.contains(".agent/tools/index.md"));
         assert!(instructions.contains("docs/DISCOVERY.md"));
         assert!(instructions.contains("agent-discover schema <tool>"));
-        assert!(instructions.contains("Use call-routine"));
-        assert!(instructions.contains("Use wait-for"));
-        assert!(instructions.contains("Use assert-*"));
-        assert!(instructions.contains("verified-screenshot"));
-        assert!(instructions.contains("verified-download"));
+        assert!(instructions.contains("Detect the active surface from `tools/list`"));
+        assert!(instructions.contains("Prefer a **semantic Jelly operation**"));
+        assert!(instructions.contains("use **browser-schema** to discover it"));
+        assert!(instructions.contains("Execute semantic operations through **browser-call**"));
+        assert!(instructions.contains("Use **browser-events** only when"));
+        assert!(instructions.contains("Use **raw CDP** only when it is published"));
+        assert!(instructions.contains("Do not supply Chromium `targetId` or `sessionId` values"));
+        assert!(instructions.contains("Use `call-routine`"));
+        assert!(instructions.contains("published system artifact tools"));
         assert!(instructions.contains("inputSchema"));
         assert!(instructions.contains("agent-run <tool> [args...]"));
         assert!(instructions.contains("Do not automatically retry side-effecting operations"));
+        assert!(!instructions.contains("Use direct primitives for short, local interactions"));
+        assert!(!instructions.contains("Use snapshot-interactive before clicking"));
     }
 
     #[test]
-    fn mcp_catalog_covers_both_registries() {
-        let tools = mcp_tools();
-        for spec in primitive_specs {
+    fn legacy_agent_catalog_preserves_the_current_mcp_surface() {
+        let tools = mcp_tools_from_catalog(crate::legacy_agent_catalog());
+        for spec in crate::primitive_specs {
             assert!(tools.iter().any(|tool| tool["name"] == spec.name));
         }
-        for spec in tool_specs {
+        for spec in crate::tool_specs {
             assert!(
                 tools.iter().any(|tool| tool["name"] == spec.name),
-                "system tool missing MCP mapping: {}",
+                "system tool missing legacy MCP mapping: {}",
                 spec.name
             );
         }
     }
 
     #[test]
-    fn primitive_schema_uses_named_arguments() {
-        let click = primitive_specs
+    fn mcp_schema_generation_accepts_an_intentional_projection() {
+        let click = crate::primitive_specs
             .iter()
             .find(|spec| spec.name == "click")
             .unwrap();
-        let schema = primitive_input_schema(click);
-        assert_eq!(schema["properties"]["target"]["type"], "string");
-        assert_eq!(schema["required"][0], "target");
+        let catalog =
+            AgentToolCatalog::try_new(vec![crate::AgentToolSpec::browser_primitive(click)])
+                .unwrap();
+        let tools = mcp_tools_from_catalog(&catalog);
+
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0]["name"], "click");
+        assert_eq!(tools[0]["description"], click.description);
+        assert_eq!(tools[0]["inputSchema"]["required"][0], "target");
+        assert!(crate::primitive_specs.len() > tools.len());
+    }
+
+    #[test]
+    fn projected_catalog_is_also_the_execution_allowlist() {
+        let read_page = crate::primitive_specs
+            .iter()
+            .find(|spec| spec.name == "read-page")
+            .unwrap();
+        let catalog =
+            AgentToolCatalog::try_new(vec![crate::AgentToolSpec::browser_primitive(read_page)])
+                .unwrap();
+
+        let error = execute_tool_from_catalog(&catalog, "click", &json!({"target":"css:button"}))
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Unsupported);
+        assert!(error.message.contains("unknown agent tool: click"));
+    }
+
+    #[test]
+    fn browser_schema_builtin_can_be_published_and_executed_without_browser_state() {
+        let catalog = AgentToolCatalog::try_new(vec![crate::AgentToolSpec::builtin(
+            crate::AgentBuiltin::BrowserSchema,
+        )])
+        .unwrap();
+
+        let tools = mcp_tools_from_catalog(&catalog);
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0]["name"], "browser-schema");
+        assert_eq!(
+            tools[0]["inputSchema"]["oneOf"].as_array().unwrap().len(),
+            3
+        );
+
+        let output = execute_tool_from_catalog(
+            &catalog,
+            "browser-schema",
+            &json!({"action":"capabilities"}),
+        )
+        .unwrap();
+        let value: Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(value["action"], "capabilities");
+        assert_eq!(
+            value["operation_count"],
+            crate::primitive_specs.len() as u64
+        );
+    }
+
+    #[test]
+    fn browser_call_builtin_is_publishable_and_preflights_before_browser_connection() {
+        let catalog = AgentToolCatalog::try_new(vec![crate::AgentToolSpec::builtin(
+            crate::AgentBuiltin::browser_call(crate::RawCdpAccess::Disabled),
+        )])
+        .unwrap();
+
+        let tools = mcp_tools_from_catalog(&catalog);
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0]["name"], "browser-call");
+        assert_eq!(
+            tools[0]["inputSchema"]["properties"]["calls"]["minItems"],
+            1
+        );
+
+        let error =
+            execute_tool_from_catalog(&catalog, "browser-call", &json!({"calls":[]})).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::InvalidArguments);
+        assert!(error.message.contains("at least one call"));
+    }
+
+    #[test]
+    fn legacy_surface_does_not_publish_compact_browser_builtins_before_rollout() {
+        let tools = mcp_tools_from_catalog(crate::legacy_agent_catalog());
+        for name in ["browser-schema", "browser-call", "browser-events"] {
+            assert!(
+                !tools.iter().any(|tool| tool["name"] == name),
+                "legacy surface unexpectedly publishes {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn compact_surface_publishes_facade_and_system_tools_but_not_browser_primitives() {
+        let catalog = crate::agent_catalog_for_surface(
+            crate::McpSurface::SmallSurface,
+            crate::RawCdpAccess::Disabled,
+        );
+        let tools = mcp_tools_from_catalog(catalog);
+        let names = tools
+            .iter()
+            .map(|tool| tool["name"].as_str().unwrap())
+            .collect::<std::collections::HashSet<_>>();
+
+        for name in ["browser-schema", "browser-call", "browser-events"] {
+            assert!(names.contains(name), "compact surface missing {name}");
+        }
+        for spec in crate::tool_specs {
+            assert!(
+                names.contains(spec.name),
+                "compact surface missing system tool {}",
+                spec.name
+            );
+        }
+        for spec in crate::primitive_specs {
+            assert!(
+                !names.contains(spec.name),
+                "compact surface unexpectedly publishes primitive {}",
+                spec.name
+            );
+        }
+        assert_eq!(tools.len(), crate::tool_specs.len() + 3);
+
+        let error = execute_tool_from_catalog(catalog, "click", &json!({"target":"css:button"}))
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Unsupported);
+        assert!(error.message.contains("unknown agent tool: click"));
+
+        let schema =
+            execute_tool_from_catalog(catalog, "browser-schema", &json!({"action":"capabilities"}))
+                .unwrap();
+        let value: Value = serde_json::from_str(&schema).unwrap();
+        assert_eq!(value["action"], "capabilities");
+    }
+
+    #[test]
+    fn compact_raw_cdp_disabled_rejects_method_form_before_browser_acquisition() {
+        let catalog = crate::agent_catalog_for_surface(
+            crate::McpSurface::SmallSurface,
+            crate::RawCdpAccess::Disabled,
+        );
+        let tool = catalog.get("browser-call").unwrap();
+        assert!(
+            !tool.input_schema().to_string().contains("\"method\""),
+            "raw CDP method form must not be published when disabled"
+        );
+
+        let error = execute_tool_from_catalog(
+            catalog,
+            "browser-call",
+            &json!({
+                "calls":[{
+                    "scope":"browser",
+                    "call":{"method":"Target.getTargets","params":{}}
+                }]
+            }),
+        )
+        .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Unsupported);
+        assert!(!error.retryable);
+        assert!(error.message.contains("raw CDP is disabled"));
+    }
+
+    #[test]
+    fn browser_events_builtin_is_publishable_and_requires_persistent_mcp_state() {
+        let catalog = AgentToolCatalog::try_new(vec![crate::AgentToolSpec::builtin(
+            crate::AgentBuiltin::BrowserEvents,
+        )])
+        .unwrap();
+        let tools = mcp_tools_from_catalog(&catalog);
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0]["name"], "browser-events");
+        assert_eq!(
+            tools[0]["inputSchema"]["oneOf"].as_array().unwrap().len(),
+            3
+        );
+        assert!(builtin_requires_persistent_mcp_session(
+            crate::AgentBuiltin::BrowserEvents
+        ));
+        assert!(!builtin_requires_persistent_mcp_session(
+            crate::AgentBuiltin::BrowserSchema
+        ));
+
+        let error = execute_tool_from_catalog(
+            &catalog,
+            "browser-events",
+            &json!({"action":"poll","subscription_id":"","limit":1}),
+        )
+        .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::InvalidArguments);
     }
 
     #[test]
@@ -798,12 +857,43 @@ mod tests {
         assert!(error.is_object());
         assert_eq!(error["ok"], false);
         assert_eq!(error["error"]["kind"], "target_not_found");
+        assert!(error["error"].get("details").is_none());
+
+        let cdp = ToolFailure::from_error(crate::cdp_error(
+            "Runtime.missing",
+            -32601,
+            "Method not found",
+            None,
+        ));
+        let error = failure_envelope("browser-call", &cdp);
+        assert_eq!(error["error"]["kind"], "cdp_failed");
+        assert_eq!(error["error"]["retryable"], false);
+        assert_eq!(
+            error["error"]["details"],
+            json!({
+                "protocol":"cdp",
+                "method":"Runtime.missing",
+                "code":-32601,
+                "message":"Method not found"
+            })
+        );
     }
 
     #[test]
     fn every_tool_declares_object_output_schema() {
-        for tool in mcp_tools() {
-            assert_eq!(tool["outputSchema"]["type"], "object");
+        for catalog in [
+            crate::agent_catalog_for_surface(
+                crate::McpSurface::LargeSurface,
+                crate::RawCdpAccess::Disabled,
+            ),
+            crate::agent_catalog_for_surface(
+                crate::McpSurface::SmallSurface,
+                crate::RawCdpAccess::Disabled,
+            ),
+        ] {
+            for tool in mcp_tools_from_catalog(catalog) {
+                assert_eq!(tool["outputSchema"]["type"], "object");
+            }
         }
     }
 }

@@ -8,6 +8,7 @@ NETWORK_MODE="${JELLY_NIP_IO_NETWORK:-manual}"
 HTTP_PORT="${JELLY_NIP_IO_HTTP_PORT:-8080}"
 HTTPS_PORT="${JELLY_NIP_IO_HTTPS_PORT:-8443}"
 MCP_BIN="${JELLY_MCP_BIN:-$BUILD_DIR/release/jelly-mcp}"
+VALIDATE_IP_BIN="${JELLY_VALIDATE_PUBLIC_IP_BIN:-$BUILD_DIR/release/jelly-validate-public-ip}"
 RUNTIME="/data/jelly-runtime/nip-io"
 CADDYFILE="$RUNTIME/Caddyfile"
 
@@ -38,15 +39,11 @@ public_ipv4() {
 }
 
 validate_public_ipv4() {
-  python3 - "$1" <<'PY'
-import ipaddress, sys
-try:
-    ip=ipaddress.ip_address(sys.argv[1])
-except ValueError:
-    raise SystemExit(1)
-if ip.version != 4 or not ip.is_global:
-    raise SystemExit(1)
-PY
+  [[ -x "$VALIDATE_IP_BIN" ]] || {
+    echo "public IPv4 validator not found: $VALIDATE_IP_BIN" >&2
+    return 1
+  }
+  "$VALIDATE_IP_BIN" "$1"
 }
 
 local_ipv4() {

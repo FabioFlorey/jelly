@@ -1,0 +1,11 @@
+[package]
+name = "jelly-event-probe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+jelly = { path = "../../../.." }
+serde_json = "1"
+
+[workspace]

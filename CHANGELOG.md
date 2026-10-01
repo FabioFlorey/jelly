@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Optional limit/offset pagination for `snapshot-interactive`.
 - Opt-in browser/CDP timing diagnostics via `JELLY_PERF_LOG=1` and deterministic browser performance/regression fixtures.
 - Canonical stable-ID scenario test suite with selectable groups/batches, per-run reports, concurrency locking, and a repository-level test index.
+- Compact MCP Agent API with `browser-schema`, ordered semantic/raw `browser-call`, retained `browser-events`, logical target routing, and dedicated Agent API regression/benchmark coverage.
 
 ### Changed
 
@@ -34,3 +35,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Interactive snapshots now use a mutation-invalidated in-page index with document-scoped non-DOM refs, optional positional pagination, bounded semantic search, and recursive open Shadow DOM traversal. Refs stay stable for the same connected element but change for replacement nodes, runtime reinstall, or navigation. `JELLY_PAGE_RUNTIME=0` restores the legacy scanner/ref path; runtime and legacy ref namespaces are isolated so stale optimized refs cannot fall through to DOM attributes.
 - Runtime-backed target lookup prefers indexed interactive names before retaining the generic-text compatibility fallback. Interactive search and exact text targeting share deterministic ranking: semantic match quality, enabled before disabled, in-viewport before offscreen, then document order. Semantic naming handles associated labels, conservative adjacent labels for otherwise unlabeled controls, live value-derived names, ARIA disabled/checked state, and text projected through Shadow DOM slots.
 - DOM-backed `@imgN` references returned by `inspect-images` now resolve through the normal target abstraction and can be reused by target-taking tools.
+- MCP now defaults to the `small-surface` browser mode when `JELLY_MCP_SURFACE` is unset. `large-surface` exposes the expanded individual-tool surface. The previous `compact` and `legacy` selector values remain temporary compatibility aliases. Raw CDP remains disabled unless independently enabled with `JELLY_MCP_RAW_CDP`; when enabled, small-surface exposes it through `browser-call` and large-surface through a dedicated raw-only `cdp-call` tool.

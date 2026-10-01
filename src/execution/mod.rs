@@ -1,10 +1,16 @@
 mod discovery;
+mod named;
 mod registry;
 mod tools;
 mod tracing;
 
 pub use discovery::{
-    capabilities, category, lightweight_tools, search_tools, tool_schema, tools_in,
+    browser_capabilities, browser_operation_schema, capabilities, category, lightweight_tools,
+    search_browser_operations, search_tools, tool_schema, tools_in,
+};
+pub use named::{
+    execute_named_browser_primitive, named_primitive_input_schema, prepare_named_primitive_args,
+    validate_named_primitive_contract,
 };
 pub use registry::{
     ArgKind, ArgSpec, CATEGORIES as category_specs, CategorySpec, PRIMITIVES as primitive_specs,

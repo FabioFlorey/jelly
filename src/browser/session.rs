@@ -1,5 +1,11 @@
-use super::perf;
-use crate::{ACTIVE_TARGET, DOWNLOAD_DIR, ENDPOINT, Error, ErrorKind, PAGE_TARGET, jelly_error};
+use super::{
+    CdpEvent, CdpEventFilter, CdpEventPoll, CdpEventRing, CdpEventRingStats, CdpEventSubscriptions,
+    LogicalTarget, TargetRegistry, perf,
+};
+use crate::{
+    ACTIVE_TARGET, DOWNLOAD_DIR, ENDPOINT, Error, ErrorKind, LOGICAL_TARGETS, LOGICAL_TARGETS_LOCK,
+    PAGE_TARGET, cdp_error, jelly_error,
+};
 use serde_json::{Value, json};
 use std::{
     env, fs, io,
@@ -11,6 +17,9 @@ pub struct BrowserSession {
     ws: WebSocket<tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>,
     session: String,
     target_id: String,
+    targets: TargetRegistry,
+    events: CdpEventRing,
+    subscriptions: CdpEventSubscriptions,
     id: i64,
 }
 
@@ -26,7 +35,7 @@ impl BrowserSession {
             .ok()
             .and_then(|value| value.parse::<u64>().ok())
             .filter(|value| *value > 0)
-            .unwrap_or(30);
+            .unwrap_or(60);
         if let tungstenite::stream::MaybeTlsStream::Plain(stream) = ws.get_mut() {
             let timeout = Some(Duration::from_secs(timeout_secs));
             stream.set_read_timeout(timeout).map_err(|error| {
@@ -36,39 +45,59 @@ impl BrowserSession {
                 browser_unavailable(format!("failed to configure CDP write timeout: {error}"))
             })?;
         }
+
+        let mut events = CdpEventRing::default();
         send(&mut ws, 1, "Target.getTargets", None, json!({}))?;
-        let v = recv(&mut ws, 1)?;
-        check_error(&v)?;
-        let preferred = [
-            fs::read_to_string(ACTIVE_TARGET).ok(),
-            fs::read_to_string(PAGE_TARGET).ok(),
-        ];
-        let target_info = v["result"]["targetInfos"]
+        let targets_response = recv_initial(&mut ws, 1, &mut events)?;
+        check_error(&targets_response, "Target.getTargets")?;
+        let target_infos = targets_response["result"]["targetInfos"]
             .as_array()
-            .and_then(|targets| {
-                preferred
-                    .iter()
-                    .flatten()
-                    .find_map(|id| {
-                        targets.iter().find(|target| {
-                            target["type"] == "page"
-                                && target["targetId"].as_str() == Some(id.trim())
-                        })
-                    })
-                    .or_else(|| {
-                        targets.iter().find(|target| {
-                            target["type"] == "page"
-                                && target["url"]
-                                    .as_str()
-                                    .is_some_and(|url| url.starts_with("http"))
-                        })
-                    })
+            .ok_or_else(|| {
+                jelly_error(
+                    ErrorKind::Internal,
+                    "Target.getTargets response is missing targetInfos",
+                    false,
+                )
+            })?;
+
+        let page_hint = read_state_id(PAGE_TARGET);
+        let active_hint = read_state_id(ACTIVE_TARGET);
+        let targets = TargetRegistry::reconcile_persisted(
+            target_infos,
+            page_hint.as_deref(),
+            LOGICAL_TARGETS,
+            LOGICAL_TARGETS_LOCK,
+        )?;
+        let tid = active_hint
+            .as_deref()
+            .filter(|id| targets.get_by_target_id(id).is_some())
+            .or_else(|| {
+                page_hint
+                    .as_deref()
+                    .filter(|id| targets.get_by_target_id(id).is_some())
             })
-            .ok_or_else(|| browser_unavailable("no web page target"))?;
-        let tid = target_info["targetId"]
-            .as_str()
-            .ok_or("page target has no targetId")?
+            .or_else(|| targets.get("main").map(LogicalTarget::target_id))
+            .or_else(|| targets.targets().first().map(LogicalTarget::target_id))
+            .ok_or_else(|| browser_unavailable("no web page target"))?
             .to_owned();
+
+        let target_info = target_infos
+            .iter()
+            .find(|target| {
+                target["type"] == "page" && target["targetId"].as_str() == Some(tid.as_str())
+            })
+            .ok_or_else(|| browser_unavailable("selected page target disappeared"))?;
+
+        let mut session = Self {
+            ws,
+            session: String::new(),
+            target_id: tid.clone(),
+            targets,
+            events,
+            subscriptions: CdpEventSubscriptions::default(),
+            id: 1,
+        };
+
         let mut download_params = json!({
             "behavior":"allowAndName",
             "downloadPath":DOWNLOAD_DIR,
@@ -77,47 +106,159 @@ impl BrowserSession {
         if let Some(context_id) = target_info["browserContextId"].as_str() {
             download_params["browserContextId"] = json!(context_id);
         }
-        send(
-            &mut ws,
-            2,
-            "Browser.setDownloadBehavior",
-            None,
-            download_params,
+        session.browser_request("Browser.setDownloadBehavior", download_params)?;
+        session.browser_request("Target.setDiscoverTargets", json!({"discover":true}))?;
+        session.browser_request(
+            "Target.setAutoAttach",
+            json!({
+                "autoAttach":true,
+                "waitForDebuggerOnStart":false,
+                "flatten":true,
+                "filter":[
+                    {"type":"page","exclude":false},
+                    {"exclude":true}
+                ]
+            }),
         )?;
-        check_error(&recv(&mut ws, 2)?)?;
-        send(
-            &mut ws,
-            3,
-            "Target.activateTarget",
-            None,
-            json!({"targetId":tid}),
-        )?;
-        check_error(&recv(&mut ws, 3)?)?;
-        send(
-            &mut ws,
-            4,
-            "Target.attachToTarget",
-            None,
-            json!({"targetId":tid,"flatten":true}),
-        )?;
-        let v = recv(&mut ws, 4)?;
-        check_error(&v)?;
-        fs::write(ACTIVE_TARGET, &tid)?;
-        let session = Self {
-            ws,
-            session: v["result"]["sessionId"]
-                .as_str()
-                .ok_or("attach failed")?
-                .into(),
-            target_id: tid,
-            id: 4,
+        session.browser_request("Target.getTargets", json!({}))?;
+        session.browser_request("Target.activateTarget", json!({"targetId":tid}))?;
+
+        let session_id = match session.targets.session_id_for_target(&tid) {
+            Some(session_id) => session_id.to_owned(),
+            None => session.attach_target(&tid)?,
         };
+
+        session.session = session_id;
+        fs::write(ACTIVE_TARGET, &tid)?;
+
         perf::record("browser.connect", started.elapsed().as_millis(), None);
         Ok(session)
     }
 
     pub fn target_id(&self) -> &str {
         &self.target_id
+    }
+
+    pub fn current_target_label(&self) -> Option<&str> {
+        self.targets.label_for_target_id(&self.target_id)
+    }
+
+    pub fn cdp_events(&self) -> Vec<CdpEvent> {
+        self.events.events()
+    }
+
+    pub fn cdp_event_stats(&self) -> CdpEventRingStats {
+        self.events.stats()
+    }
+
+    pub fn reset_cdp_event_stream(&mut self) {
+        self.events.reset_stream();
+    }
+
+    pub fn subscribe_cdp_events(
+        &mut self,
+        filter: CdpEventFilter,
+    ) -> Result<(String, super::CdpEventCursor), Error> {
+        if let Some(target) = filter.target() {
+            self.validate_logical_targets(&[target])?;
+        }
+        self.subscriptions.subscribe(filter, self.events.stats())
+    }
+
+    pub fn poll_cdp_events(
+        &mut self,
+        subscription_id: &str,
+        limit: usize,
+    ) -> Result<CdpEventPoll, Error> {
+        self.subscriptions.filter(subscription_id)?;
+        self.pump_cdp_events()?;
+        self.subscriptions
+            .poll(subscription_id, &self.events, limit)
+    }
+
+    pub fn unsubscribe_cdp_events(&mut self, subscription_id: &str) -> Result<(), Error> {
+        self.subscriptions.unsubscribe(subscription_id)
+    }
+
+    pub fn cdp_event_subscription_filter(
+        &self,
+        subscription_id: &str,
+    ) -> Result<CdpEventFilter, Error> {
+        self.subscriptions.filter(subscription_id).cloned()
+    }
+
+    pub fn pump_cdp_events(&mut self) -> Result<(), Error> {
+        self.browser_request("Target.getTargets", json!({}))?;
+        Ok(())
+    }
+
+    pub fn logical_targets(&mut self) -> Result<Vec<LogicalTarget>, Error> {
+        self.refresh_target_registry()?;
+        Ok(self.targets.targets().to_vec())
+    }
+
+    pub fn active_target_label(&mut self) -> Result<String, Error> {
+        self.refresh_target_registry()?;
+        self.current_target_label()
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                jelly_error(
+                    ErrorKind::TargetNotFound,
+                    format!(
+                        "active browser target {} has no logical identity",
+                        self.target_id
+                    ),
+                    true,
+                )
+            })
+    }
+
+    pub fn validate_logical_targets(&mut self, labels: &[&str]) -> Result<(), Error> {
+        if labels.is_empty() {
+            return Ok(());
+        }
+        self.refresh_target_registry()?;
+        for label in labels {
+            if self.targets.target_id_for_label(label).is_none() {
+                return Err(jelly_error(
+                    ErrorKind::TargetNotFound,
+                    format!("logical browser target not found: {label}"),
+                    true,
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn resolve_target_query(&mut self, query: &str) -> Result<(String, String), Error> {
+        self.refresh_target_registry()?;
+        let target = self.targets.resolve_compat(query).ok_or_else(|| {
+            jelly_error(
+                ErrorKind::TargetNotFound,
+                format!("browser tab not found: {query}"),
+                true,
+            )
+        })?;
+        Ok((target.label().to_owned(), target.target_id().to_owned()))
+    }
+
+    pub fn switch_logical_target(&mut self, label: &str) -> Result<(), Error> {
+        self.refresh_target_registry()?;
+        let target_id = self
+            .targets
+            .target_id_for_label(label)
+            .ok_or_else(|| {
+                jelly_error(
+                    ErrorKind::TargetNotFound,
+                    format!("logical browser target not found: {label}"),
+                    true,
+                )
+            })?
+            .to_owned();
+        if target_id == self.target_id {
+            return Ok(());
+        }
+        self.switch_target(&target_id)
     }
 
     pub fn sync_active_target(&mut self) -> Result<(), Error> {
@@ -132,98 +273,316 @@ impl BrowserSession {
     }
 
     pub fn switch_target(&mut self, target_id: &str) -> Result<(), Error> {
-        self.id += 1;
-        let id = self.id;
-        send(
-            &mut self.ws,
-            id,
-            "Target.activateTarget",
-            None,
-            json!({"targetId":target_id}),
-        )?;
-        check_error(&recv(&mut self.ws, id)?)?;
-        self.id += 1;
-        let id = self.id;
-        send(
-            &mut self.ws,
-            id,
-            "Target.attachToTarget",
-            None,
-            json!({"targetId":target_id,"flatten":true}),
-        )?;
-        let v = recv(&mut self.ws, id)?;
-        check_error(&v)?;
-        self.session = v["result"]["sessionId"]
-            .as_str()
-            .ok_or("attach failed")?
-            .to_owned();
+        if target_id == self.target_id {
+            fs::write(ACTIVE_TARGET, target_id)?;
+            return Ok(());
+        }
+
+        self.refresh_target_registry()?;
+        if self.targets.get_by_target_id(target_id).is_none() {
+            return Err(jelly_error(
+                ErrorKind::TargetNotFound,
+                format!("browser target not found: {target_id}"),
+                true,
+            ));
+        }
+
+        self.browser_request("Target.activateTarget", json!({"targetId":target_id}))?;
+        let session_id = match self.targets.session_id_for_target(target_id) {
+            Some(session_id) => session_id.to_owned(),
+            None => self.attach_target(target_id)?,
+        };
+
+        self.session = session_id;
         self.target_id = target_id.to_owned();
         fs::write(ACTIVE_TARGET, target_id)?;
         Ok(())
     }
 
+    pub fn refresh_target_registry(&mut self) -> Result<(), Error> {
+        let response = self.browser_call("Target.getTargets", json!({}))?;
+        let sessions = self
+            .targets
+            .targets()
+            .iter()
+            .filter_map(|target| {
+                target
+                    .session_id()
+                    .map(|session_id| (target.target_id().to_owned(), session_id.to_owned()))
+            })
+            .collect::<Vec<_>>();
+        let target_infos = response["result"]["targetInfos"]
+            .as_array()
+            .ok_or_else(|| {
+                jelly_error(
+                    ErrorKind::Internal,
+                    "Target.getTargets response is missing targetInfos",
+                    false,
+                )
+            })?;
+        let page_hint = read_state_id(PAGE_TARGET);
+        let mut targets = TargetRegistry::reconcile_persisted(
+            target_infos,
+            page_hint.as_deref(),
+            LOGICAL_TARGETS,
+            LOGICAL_TARGETS_LOCK,
+        )?;
+        for (target_id, session_id) in sessions {
+            if targets.get_by_target_id(&target_id).is_some() {
+                targets.set_session(&target_id, session_id)?;
+            }
+        }
+        if !self.session.is_empty() && targets.get_by_target_id(&self.target_id).is_some() {
+            targets.set_session(&self.target_id, self.session.clone())?;
+        }
+        self.targets = targets;
+        Ok(())
+    }
+
+    pub fn call_on_logical_target(
+        &mut self,
+        label: &str,
+        method: &str,
+        params: Value,
+    ) -> Result<Value, Error> {
+        self.refresh_target_registry()?;
+        let target_id = self
+            .targets
+            .target_id_for_label(label)
+            .ok_or_else(|| {
+                jelly_error(
+                    ErrorKind::TargetNotFound,
+                    format!("logical browser target not found: {label}"),
+                    true,
+                )
+            })?
+            .to_owned();
+        let session_id = match self.targets.session_id_for_target(&target_id) {
+            Some(session_id) => session_id.to_owned(),
+            None => self.attach_target(&target_id)?,
+        };
+        self.call_with_session(&session_id, method, params)
+    }
+
     pub fn browser_call(&mut self, method: &str, params: Value) -> Result<Value, Error> {
         let started = Instant::now();
-        self.id += 1;
-        let id = self.id;
-        send(&mut self.ws, id, method, None, params)?;
-        let v = recv(&mut self.ws, id)?;
-        check_error(&v)?;
+        let value = self.browser_request(method, params)?;
         perf::record(
             "cdp.browser_call",
             started.elapsed().as_millis(),
             Some(method),
         );
-        Ok(v)
+        Ok(value)
     }
 
     pub fn call(&mut self, method: &str, params: Value) -> Result<Value, Error> {
-        let started = Instant::now();
-        self.id += 1;
-        let id = self.id;
-        send(&mut self.ws, id, method, Some(&self.session), params)?;
-        let v = recv(&mut self.ws, id)?;
-        check_error(&v)?;
-        perf::record("cdp.call", started.elapsed().as_millis(), Some(method));
-        Ok(v)
+        if self.session.is_empty() {
+            return Err(browser_unavailable(
+                "cannot issue target-scoped CDP call before target attachment",
+            ));
+        }
+        let session_id = self.session.clone();
+        self.call_with_session(&session_id, method, params)
     }
 
     pub fn eval(&mut self, expr: &str) -> Result<Value, Error> {
-        let v = self.call(
+        let value = self.call(
             "Runtime.evaluate",
             json!({"expression":expr,"returnByValue":true,"awaitPromise":true}),
         )?;
-        if let Some(ex) = v["result"]["exceptionDetails"].as_object() {
-            let msg = ex
+        if let Some(exception) = value["result"]["exceptionDetails"].as_object() {
+            let message = exception
                 .get("exception")
-                .and_then(|e| e["description"].as_str())
-                .or_else(|| ex.get("text").and_then(Value::as_str))
+                .and_then(|error| error["description"].as_str())
+                .or_else(|| exception.get("text").and_then(Value::as_str))
                 .unwrap_or("JavaScript evaluation failed");
-            return Err(jelly_error(ErrorKind::JavascriptFailed, msg, false));
+            return Err(jelly_error(ErrorKind::JavascriptFailed, message, false));
         }
-        Ok(v["result"]["result"]
+        Ok(value["result"]["result"]
             .get("value")
             .cloned()
             .unwrap_or(Value::Null))
     }
+
+    fn attach_target(&mut self, target_id: &str) -> Result<String, Error> {
+        let attached = self.browser_request(
+            "Target.attachToTarget",
+            json!({"targetId":target_id,"flatten":true}),
+        )?;
+        let session_id = attached["result"]["sessionId"]
+            .as_str()
+            .ok_or_else(|| {
+                jelly_error(
+                    ErrorKind::Internal,
+                    "Target.attachToTarget response is missing sessionId",
+                    false,
+                )
+            })?
+            .to_owned();
+        self.targets.set_session(target_id, session_id.clone())?;
+        Ok(session_id)
+    }
+
+    fn call_with_session(
+        &mut self,
+        session_id: &str,
+        method: &str,
+        params: Value,
+    ) -> Result<Value, Error> {
+        let started = Instant::now();
+        self.id += 1;
+        let id = self.id;
+        send(&mut self.ws, id, method, Some(session_id), params)?;
+        let value = self.recv_response(id)?;
+        check_error(&value, method)?;
+        perf::record("cdp.call", started.elapsed().as_millis(), Some(method));
+        Ok(value)
+    }
+
+    fn browser_request(&mut self, method: &str, params: Value) -> Result<Value, Error> {
+        self.id += 1;
+        let id = self.id;
+        send(&mut self.ws, id, method, None, params)?;
+        let value = self.recv_response(id)?;
+        check_error(&value, method)?;
+        Ok(value)
+    }
+
+    fn recv_response(&mut self, expected_id: i64) -> Result<Value, Error> {
+        loop {
+            let (text, wire_bytes) = read_text_message(&mut self.ws)?;
+            match classify_cdp_text(&text, expected_id)? {
+                IncomingCdp::Response(value) => return Ok(value),
+                IncomingCdp::Notification(value) => {
+                    self.retain_notification(value, wire_bytes)?;
+                }
+            }
+        }
+    }
+
+    fn retain_notification(&mut self, value: Value, wire_bytes: usize) -> Result<(), Error> {
+        let method = value
+            .get("method")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                jelly_error(
+                    ErrorKind::Internal,
+                    "CDP notification is missing string method",
+                    false,
+                )
+            })?
+            .to_owned();
+        let params = value.get("params").cloned().unwrap_or_else(|| json!({}));
+        let session_id = notification_session_id(&method, &value, &params).map(str::to_owned);
+
+        let direct_target_id = notification_target_id(&method, &params).map(str::to_owned);
+        let session_target_id = session_id
+            .as_deref()
+            .and_then(|session| self.targets.target_id_for_session(session))
+            .map(str::to_owned)
+            .or_else(|| {
+                session_id
+                    .as_deref()
+                    .filter(|session| !self.session.is_empty() && *session == self.session)
+                    .map(|_| self.target_id.clone())
+            });
+        let target_id = direct_target_id.or(session_target_id);
+        let target_before = target_id
+            .as_deref()
+            .and_then(|target_id| self.targets.label_for_target_id(target_id))
+            .map(str::to_owned);
+
+        let target_update = if method.starts_with("Target.") {
+            let page_hint = read_state_id(PAGE_TARGET);
+            self.targets.apply_target_notification_persisted(
+                &method,
+                &params,
+                page_hint.as_deref(),
+                LOGICAL_TARGETS,
+                LOGICAL_TARGETS_LOCK,
+            )
+        } else {
+            Ok(())
+        };
+
+        let target = target_before.or_else(|| {
+            target_id
+                .as_deref()
+                .and_then(|target_id| self.targets.label_for_target_id(target_id))
+                .map(str::to_owned)
+        });
+
+        self.events
+            .push(method, params, session_id, target_id, target, wire_bytes);
+        target_update
+    }
 }
 
-fn send<S: io::Read + io::Write>(
-    ws: &mut WebSocket<S>,
-    id: i64,
-    method: &str,
-    session: Option<&str>,
-    params: Value,
-) -> Result<(), Error> {
-    let mut v = json!({"id":id,"method":method,"params":params});
-    if let Some(s) = session {
-        v["sessionId"] = s.into()
-    }
-    ws.send(Message::Text(v.to_string().into()))
-        .map_err(|error| browser_unavailable(format!("failed to send CDP message: {error}")))?;
-    Ok(())
+enum IncomingCdp {
+    Response(Value),
+    Notification(Value),
 }
-fn recv<S: io::Read + io::Write>(ws: &mut WebSocket<S>, id: i64) -> Result<Value, Error> {
+
+fn classify_cdp_text(text: &str, expected_id: i64) -> Result<IncomingCdp, Error> {
+    let value: Value = serde_json::from_str(text).map_err(|error| {
+        jelly_error(
+            ErrorKind::Internal,
+            format!("failed to parse CDP JSON message: {error}"),
+            false,
+        )
+    })?;
+
+    if let Some(id) = value.get("id").and_then(Value::as_i64) {
+        if id == expected_id {
+            return Ok(IncomingCdp::Response(value));
+        }
+        return Err(jelly_error(
+            ErrorKind::Internal,
+            format!(
+                "received unexpected CDP response id {id} while waiting for response id {expected_id}"
+            ),
+            false,
+        ));
+    }
+
+    if value.get("method").and_then(Value::as_str).is_some() {
+        return Ok(IncomingCdp::Notification(value));
+    }
+
+    Err(jelly_error(
+        ErrorKind::Internal,
+        "received CDP message with neither response id nor notification method",
+        false,
+    ))
+}
+
+fn recv_initial<S: io::Read + io::Write>(
+    ws: &mut WebSocket<S>,
+    expected_id: i64,
+    events: &mut CdpEventRing,
+) -> Result<Value, Error> {
+    loop {
+        let (text, wire_bytes) = read_text_message(ws)?;
+        match classify_cdp_text(&text, expected_id)? {
+            IncomingCdp::Response(value) => return Ok(value),
+            IncomingCdp::Notification(value) => {
+                let method = value["method"]
+                    .as_str()
+                    .expect("classified notification must have method")
+                    .to_owned();
+                let params = value.get("params").cloned().unwrap_or_else(|| json!({}));
+                let session_id =
+                    notification_session_id(&method, &value, &params).map(str::to_owned);
+                let target_id = notification_target_id(&method, &params).map(str::to_owned);
+                events.push(method, params, session_id, target_id, None, wire_bytes);
+            }
+        }
+    }
+}
+
+fn read_text_message<S: io::Read + io::Write>(
+    ws: &mut WebSocket<S>,
+) -> Result<(String, usize), Error> {
     loop {
         let message = match ws.read() {
             Ok(message) => message,
@@ -245,14 +604,85 @@ fn recv<S: io::Read + io::Write>(ws: &mut WebSocket<S>, id: i64) -> Result<Value
                 )));
             }
         };
-        if let Message::Text(t) = message {
-            let v: Value = serde_json::from_str(&t)?;
-            if v.get("id").and_then(Value::as_i64) == Some(id) {
-                return Ok(v);
+
+        match message {
+            Message::Text(text) => {
+                let text = text.to_string();
+                let wire_bytes = text.len();
+                return Ok((text, wire_bytes));
             }
+            Message::Close(frame) => {
+                return Err(browser_unavailable(format!(
+                    "CDP websocket closed while waiting for a response{}",
+                    frame
+                        .map(|frame| format!(": {}", frame.reason))
+                        .unwrap_or_default()
+                )));
+            }
+            Message::Binary(_) => {
+                return Err(jelly_error(
+                    ErrorKind::Internal,
+                    "received unexpected binary CDP websocket message",
+                    false,
+                ));
+            }
+            Message::Ping(_) | Message::Pong(_) | Message::Frame(_) => continue,
         }
     }
 }
+
+fn notification_session_id<'a>(
+    method: &str,
+    value: &'a Value,
+    params: &'a Value,
+) -> Option<&'a str> {
+    value
+        .get("sessionId")
+        .and_then(Value::as_str)
+        .or_else(|| match method {
+            "Target.attachedToTarget" | "Target.detachedFromTarget" => {
+                params.get("sessionId").and_then(Value::as_str)
+            }
+            _ => None,
+        })
+}
+
+fn notification_target_id<'a>(method: &str, params: &'a Value) -> Option<&'a str> {
+    match method {
+        "Target.targetCreated" | "Target.targetInfoChanged" | "Target.attachedToTarget" => params
+            .get("targetInfo")
+            .and_then(|target| target.get("targetId"))
+            .and_then(Value::as_str),
+        "Target.targetDestroyed" | "Target.detachedFromTarget" | "Target.targetCrashed" => {
+            params.get("targetId").and_then(Value::as_str)
+        }
+        _ => None,
+    }
+}
+
+fn read_state_id(path: &str) -> Option<String> {
+    fs::read_to_string(path)
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+}
+
+fn send<S: io::Read + io::Write>(
+    ws: &mut WebSocket<S>,
+    id: i64,
+    method: &str,
+    session: Option<&str>,
+    params: Value,
+) -> Result<(), Error> {
+    let mut value = json!({"id":id,"method":method,"params":params});
+    if let Some(session) = session {
+        value["sessionId"] = session.into()
+    }
+    ws.send(Message::Text(value.to_string().into()))
+        .map_err(|error| browser_unavailable(format!("failed to send CDP message: {error}")))?;
+    Ok(())
+}
+
 fn browser_unavailable(message: impl Into<String>) -> Error {
     jelly_error(ErrorKind::BrowserUnavailable, message, true)
 }
@@ -272,17 +702,43 @@ fn invalid_session_message(message: &str) -> bool {
     .any(|needle| message.contains(needle))
 }
 
-fn check_error(v: &Value) -> Result<(), Error> {
-    if let Some(e) = v.get("error") {
-        let code = &e["code"];
-        let message = e["message"].as_str().unwrap_or("unknown error");
-        let rendered = format!("CDP {code}: {message}");
-        if invalid_session_message(message) {
-            return Err(browser_unavailable(rendered));
-        }
-        return Err(jelly_error(ErrorKind::Internal, rendered, false));
+fn check_error(value: &Value, method: &str) -> Result<(), Error> {
+    let Some(error) = value.get("error") else {
+        return Ok(());
+    };
+    let error = error.as_object().ok_or_else(|| {
+        jelly_error(
+            ErrorKind::Internal,
+            format!("malformed CDP error response for {method}: error must be an object"),
+            false,
+        )
+    })?;
+    let code = error.get("code").and_then(Value::as_i64).ok_or_else(|| {
+        jelly_error(
+            ErrorKind::Internal,
+            format!("malformed CDP error response for {method}: code must be an integer"),
+            false,
+        )
+    })?;
+    let message = error
+        .get("message")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            jelly_error(
+                ErrorKind::Internal,
+                format!("malformed CDP error response for {method}: message must be a string"),
+                false,
+            )
+        })?;
+    let data = error.get("data").cloned();
+
+    if invalid_session_message(message) {
+        return Err(browser_unavailable(format!(
+            "CDP {method} failed ({code}): {message}"
+        )));
     }
-    Ok(())
+
+    Err(cdp_error(method, code, message, data))
 }
 
 #[cfg(test)]
@@ -291,23 +747,138 @@ mod tests {
     use crate::classify_error;
 
     #[test]
+    fn notification_before_response_is_classified_without_loss() {
+        let mut ring = CdpEventRing::new(8, 4096).unwrap();
+        let frames = [
+            json!({
+                "method":"Page.loadEventFired",
+                "sessionId":"session-1",
+                "params":{"timestamp":12.5}
+            })
+            .to_string(),
+            json!({"id":42,"result":{"ok":true}}).to_string(),
+        ];
+
+        let mut response = None;
+        for frame in frames {
+            match classify_cdp_text(&frame, 42).unwrap() {
+                IncomingCdp::Notification(value) => {
+                    ring.push(
+                        value["method"].as_str().unwrap().to_owned(),
+                        value["params"].clone(),
+                        value["sessionId"].as_str().map(str::to_owned),
+                        None,
+                        Some("main".into()),
+                        frame.len(),
+                    );
+                }
+                IncomingCdp::Response(value) => {
+                    response = Some(value);
+                    break;
+                }
+            }
+        }
+
+        assert_eq!(response.unwrap()["result"]["ok"], true);
+        let events = ring.events();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].method(), "Page.loadEventFired");
+        assert_eq!(events[0].sequence(), 1);
+    }
+
+    #[test]
+    fn unexpected_response_ids_are_not_silently_discarded() {
+        let error = match classify_cdp_text(r#"{"id":41,"result":{}}"#, 42) {
+            Ok(_) => panic!("unexpected response id should fail"),
+            Err(error) => error,
+        };
+        assert_eq!(classify_error(error.as_ref()), (ErrorKind::Internal, false));
+        assert!(error.to_string().contains("unexpected CDP response id 41"));
+    }
+
+    #[test]
+    fn target_notification_id_extraction_covers_lifecycle_shapes() {
+        assert_eq!(
+            notification_target_id(
+                "Target.targetCreated",
+                &json!({"targetInfo":{"targetId":"created"}})
+            ),
+            Some("created")
+        );
+        assert_eq!(
+            notification_target_id(
+                "Target.attachedToTarget",
+                &json!({"targetInfo":{"targetId":"attached"},"sessionId":"s"})
+            ),
+            Some("attached")
+        );
+        assert_eq!(
+            notification_target_id("Target.targetDestroyed", &json!({"targetId":"gone"})),
+            Some("gone")
+        );
+        assert_eq!(
+            notification_target_id("Page.loadEventFired", &json!({})),
+            None
+        );
+    }
+
+    #[test]
     fn closed_session_cdp_errors_are_retryable_browser_failures() {
-        let error = check_error(&json!({
-            "error": {"code": -32001, "message": "Session with given id not found."}
-        }))
+        let error = check_error(
+            &json!({
+                "error": {"code": -32001, "message": "Session with given id not found."}
+            }),
+            "Runtime.evaluate",
+        )
         .unwrap_err();
         assert_eq!(
             classify_error(error.as_ref()),
             (ErrorKind::BrowserUnavailable, true)
         );
+        assert!(
+            error
+                .to_string()
+                .contains("CDP Runtime.evaluate failed (-32001)")
+        );
     }
 
     #[test]
-    fn ordinary_cdp_errors_remain_internal_and_non_retryable() {
-        let error = check_error(&json!({
-            "error": {"code": -32601, "message": "Method not found"}
-        }))
+    fn ordinary_cdp_errors_are_structured_and_non_retryable() {
+        let error = check_error(
+            &json!({
+                "error": {
+                    "code": -32601,
+                    "message": "Method not found",
+                    "data": {"domain":"Runtime"}
+                }
+            }),
+            "Runtime.missing",
+        )
         .unwrap_err();
-        assert_eq!(classify_error(error.as_ref()), (ErrorKind::Internal, false));
+
+        assert_eq!(
+            classify_error(error.as_ref()),
+            (ErrorKind::CdpFailed, false)
+        );
+        let cdp = error
+            .downcast_ref::<crate::CdpError>()
+            .expect("ordinary CDP protocol failure must retain CdpError");
+        assert_eq!(cdp.method(), "Runtime.missing");
+        assert_eq!(cdp.code(), -32601);
+        assert_eq!(cdp.protocol_message(), "Method not found");
+        assert_eq!(cdp.data(), Some(&json!({"domain":"Runtime"})));
+    }
+
+    #[test]
+    fn malformed_cdp_error_envelopes_are_internal_contract_failures() {
+        for response in [
+            json!({"error":"not-an-object"}),
+            json!({"error":{"message":"missing code"}}),
+            json!({"error":{"code":-32601}}),
+        ] {
+            let error = check_error(&response, "Runtime.evaluate").unwrap_err();
+            assert_eq!(classify_error(error.as_ref()), (ErrorKind::Internal, false));
+            assert!(error.to_string().contains("malformed CDP error response"));
+        }
     }
 }

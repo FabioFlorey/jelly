@@ -1,5 +1,5 @@
 use jelly::{
-    BrowserSession, ROUTINE_STATE_DIR, classify_error, execute_browser_primitive,
+    BrowserSession, ROUTINE_STATE_DIR, classify_error, error_details, execute_browser_primitive,
     is_browser_primitive,
 };
 use serde_json::{Map, Value, json};
@@ -18,6 +18,7 @@ struct RoutineFailure {
     kind: String,
     message: String,
     retryable: bool,
+    details: Option<Value>,
 }
 
 impl RoutineFailure {
@@ -26,12 +27,18 @@ impl RoutineFailure {
             kind: kind.into(),
             message: message.into(),
             retryable,
+            details: None,
         }
     }
 
     fn from_browser(error: jelly::Error) -> Self {
         let (kind, retryable) = classify_error(error.as_ref());
-        Self::new(kind.as_str(), error.to_string(), retryable)
+        Self {
+            kind: kind.as_str().to_owned(),
+            message: error.to_string(),
+            retryable,
+            details: error_details(error.as_ref()),
+        }
     }
 }
 
@@ -149,10 +156,7 @@ fn execute_tool(
 ) -> Result<String, RoutineFailure> {
     if is_browser_primitive(name) {
         if browser.is_none() {
-            *browser =
-                Some(BrowserSession::connect().map_err(|e| {
-                    RoutineFailure::new("browser_unavailable", e.to_string(), true)
-                })?);
+            *browser = Some(BrowserSession::connect().map_err(RoutineFailure::from_browser)?);
         }
         execute_browser_primitive(browser.as_mut().unwrap(), name, args)
             .map_err(RoutineFailure::from_browser)
@@ -319,11 +323,15 @@ fn parse_output(output: &str) -> Value {
 }
 
 fn error_value(error: &RoutineFailure) -> Value {
-    json!({
-        "kind": error.kind,
-        "message": error.message,
-        "retryable": error.retryable
-    })
+    let mut value = Map::from_iter([
+        ("kind".to_owned(), Value::String(error.kind.clone())),
+        ("message".to_owned(), Value::String(error.message.clone())),
+        ("retryable".to_owned(), Value::Bool(error.retryable)),
+    ]);
+    if let Some(details) = &error.details {
+        value.insert("details".to_owned(), details.clone());
+    }
+    Value::Object(value)
 }
 
 fn error_transition(node: &Value, kind: &str) -> Option<String> {
@@ -822,6 +830,27 @@ mod tests {
                 &context
             )
             .unwrap()
+        );
+    }
+
+    #[test]
+    fn routine_failures_preserve_cdp_details() {
+        let failure = RoutineFailure::from_browser(jelly::cdp_error(
+            "Runtime.missing",
+            -32601,
+            "Method not found",
+            None,
+        ));
+        assert_eq!(failure.kind, "cdp_failed");
+        assert!(!failure.retryable);
+        assert_eq!(
+            error_value(&failure)["details"],
+            json!({
+                "protocol":"cdp",
+                "method":"Runtime.missing",
+                "code":-32601,
+                "message":"Method not found"
+            })
         );
     }
 

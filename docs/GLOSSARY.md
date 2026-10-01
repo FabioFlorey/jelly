@@ -290,7 +290,7 @@
   **References**: [README](../README.md)
 
 + **Single Source of Truth**  
-  A design principle where one authoritative representation owns a piece of information. In jelly, the browser primitive registry owns browser-capability metadata while the system tool registry owns lifecycle/integration metadata; discovery, MCP schemas, and generated documentation consume those registries rather than maintaining parallel catalogs.<br>
+  A design principle where one authoritative representation owns a piece of information. In jelly, the browser primitive registry owns semantic browser-capability metadata and the system tool registry owns lifecycle/integration metadata. Internal discovery and generated capability documentation consume those registries; the MCP Agent Tool Catalog is a separate validated projection that decides what is remotely published and executable.<br>
   **Acronyms**: SSOT  
   **Synonyms**: canonical source  
   **References**: [Architecture](./ARCHITECTURE.md)
@@ -324,19 +324,19 @@
   **References**: [Tool Index](../.agent/tools/index.md)
 
 + **Tool**  
-  An agent-callable operation. Jelly exposes browser primitives plus system/integration tools; discovery and MCP metadata are derived from their respective Rust registries.<br>
+  A callable capability. Internally Jelly has semantic browser primitives and system/integration tools; the remotely agent-callable MCP set is the selected Agent Tool Catalog projection and may not publish each internal capability as a top-level tool.<br>
   **Acronyms**: ∅  
   **Synonyms**: callable, primitive  
   **References**: [Tool Discovery](./DISCOVERY.md)
 
 + **Tool Catalog**  
-  The complete set of tool metadata available from a capability provider. Jelly aggregates browser primitives and system/integration tools, while agents normally use lighter capability/search views before loading a full schema.<br>
+  A validated set of agent-facing tool metadata and bindings. Jelly's MCP Agent Tool Catalog is a publication/execution projection over internal capabilities plus native Agent API builtins; it is distinct from the generated internal capability index.<br>
   **Acronyms**: ∅  
   **Synonyms**: primitive catalog, capability catalog  
   **References**: [Tool Discovery](./DISCOVERY.md)
 
 + **Tool Search**  
-  Selecting relevant tools from a larger catalog based on a task or query. jelly performs deterministic lightweight search before a full schema is requested.  
+  Selecting relevant capabilities from a larger set based on a task or query. `agent-discover` searches internal registries; compact remote agents use `browser-schema` for semantic browser-operation search and `tools/list` for the published MCP surface.
   **Acronyms**: ∅  
   **Synonyms**: tool discovery search  
   **References**: [Tool Discovery](./DISCOVERY.md)

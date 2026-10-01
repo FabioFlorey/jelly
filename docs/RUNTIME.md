@@ -2,7 +2,7 @@
 
 # Runtime Layout
 
-Jelly keeps browser state, profiles, logs, artifacts, and build output outside the repository.
+Jelly keeps browser state, profiles, logs, artifacts, and build output outside the repository. MCP surface selection is startup configuration rather than persisted runtime state: an unset `JELLY_MCP_SURFACE` selects `small-surface`, while `large-surface` selects the expanded individual-tool mode. The previous `compact` and `legacy` values remain temporary compatibility aliases.
 
 ```text
 /data/jelly-runtime/

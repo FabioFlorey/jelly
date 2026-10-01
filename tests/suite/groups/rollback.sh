@@ -45,6 +45,7 @@ rollback_start_server() {
   RB_PORT="$port"
   JELLY_MCP_ADDR="127.0.0.1:${port}" \
   JELLY_PUBLIC_URL="http://127.0.0.1:${port}" \
+  JELLY_MCP_SURFACE="large-surface" \
   JELLY_MCP_PERSISTENT_SESSION="$persistent" \
   JELLY_PAGE_RUNTIME="$runtime" \
   JELLY_SNAPSHOT_LIMIT="$limit" \

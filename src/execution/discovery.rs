@@ -1,5 +1,6 @@
 use super::{
-    CategorySpec, ToolSpec, category_specs, primitive_specs, tool_category_specs, tool_specs,
+    CategorySpec, ToolSpec, category_specs, named_primitive_input_schema, primitive_specs,
+    tool_category_specs, tool_specs,
 };
 use serde_json::{Value, json};
 use std::cmp::Reverse;
@@ -10,6 +11,71 @@ fn tokens(s: &str) -> Vec<String> {
         .filter(|x| !x.is_empty())
         .map(str::to_owned)
         .collect()
+}
+
+pub fn browser_capabilities() -> Value {
+    json!({
+        "operation_count": primitive_specs.len(),
+        "categories": category_specs.iter().map(|category| json!({
+            "name": category.name,
+            "description": category.description,
+            "operation_count": primitive_specs
+                .iter()
+                .filter(|primitive| primitive.category == category.name)
+                .count()
+        })).collect::<Vec<_>>()
+    })
+}
+
+pub fn search_browser_operations(query: &str, limit: usize) -> Value {
+    let query_tokens = tokens(query);
+    let mut scored = primitive_specs
+        .iter()
+        .filter_map(|primitive| {
+            let score = score(
+                primitive.name,
+                primitive.category,
+                primitive.description,
+                primitive.usage,
+                &query_tokens,
+            );
+            (score > 0).then_some((
+                score,
+                primitive.name,
+                json!({
+                    "operation": primitive.name,
+                    "category": primitive.category,
+                    "description": primitive.description
+                }),
+            ))
+        })
+        .collect::<Vec<_>>();
+
+    scored.sort_by_key(|(score, name, _)| (Reverse(*score), *name));
+    Value::Array(
+        scored
+            .into_iter()
+            .take(limit)
+            .map(|(_, _, value)| value)
+            .collect(),
+    )
+}
+
+pub fn browser_operation_schema(name: &str) -> Result<Option<Value>, String> {
+    let Some(primitive) = primitive_specs
+        .iter()
+        .find(|primitive| primitive.name == name)
+    else {
+        return Ok(None);
+    };
+
+    let input_schema = named_primitive_input_schema(primitive)?;
+    Ok(Some(json!({
+        "name": primitive.name,
+        "category": primitive.category,
+        "description": primitive.description,
+        "input_schema": input_schema
+    })))
 }
 
 pub fn capabilities() -> Value {

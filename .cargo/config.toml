@@ -1,2 +1,5 @@
 [build]
 target-dir = "../.jelly-build"
+
+[alias]
+test-jelly = "run --quiet --locked --manifest-path scripts/test-jelly-wrapper/Cargo.toml --target-dir /data/jelly-runtime/test-jelly-wrapper-target --"

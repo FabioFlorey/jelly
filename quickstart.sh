@@ -223,7 +223,6 @@ check_selected_requirements() {
       ;;
     nip-io)
       check_command curl "curl (public IPv4 discovery)" || true
-      check_command python3 "python3 (public IPv4 validation)" || true
       check_command ip "iproute2/ip (LAN route discovery)" || true
       if helper="$(resolve_caddy_for_check)"; then
         check_ok "Caddy ($helper)"
@@ -414,7 +413,7 @@ JELLY_OAUTH_PUBLIC_CHATGPT_DCR=${CFG[JELLY_OAUTH_PUBLIC_CHATGPT_DCR]:-false}
 JELLY_HOSTING_MODE=${CFG[JELLY_HOSTING_MODE]:-local}
 JELLY_MCP_ADDR=${CFG[JELLY_MCP_ADDR]:-127.0.0.1:8787}
 JELLY_BROWSER_STARTUP_TIMEOUT_SECS=${CFG[JELLY_BROWSER_STARTUP_TIMEOUT_SECS]:-30}
-JELLY_CDP_TIMEOUT_SECS=${CFG[JELLY_CDP_TIMEOUT_SECS]:-30}
+JELLY_CDP_TIMEOUT_SECS=${CFG[JELLY_CDP_TIMEOUT_SECS]:-60}
 JELLY_PUBLIC_URL=${CFG[JELLY_PUBLIC_URL]:-}
 JELLY_NIP_IO_NETWORK=${CFG[JELLY_NIP_IO_NETWORK]:-manual}
 JELLY_PUBLIC_IPV4=${CFG[JELLY_PUBLIC_IPV4]:-}

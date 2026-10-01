@@ -17,6 +17,7 @@ session_start_mcp() {
   SESSION_MCP_LOG="/tmp/jelly-suite-session-${port}.log"
   JELLY_MCP_ADDR="127.0.0.1:${port}" \
   JELLY_PUBLIC_URL="http://127.0.0.1:${port}" \
+  JELLY_MCP_SURFACE="large-surface" \
   JELLY_MCP_PERSISTENT_SESSION=1 \
   JELLY_PERF_LOG="$perf" \
     "$JELLY_BIN_DIR/jelly-mcp" >"$SESSION_MCP_LOG" 2>&1 &

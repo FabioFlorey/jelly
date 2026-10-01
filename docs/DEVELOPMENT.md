@@ -67,31 +67,35 @@ CI performs the same freshness check.
 Browser performance changes are independently reversible while they are being evaluated:
 
 - `JELLY_PERF_LOG=1` writes opt-in CDP/connect timing events to the runtime log directory.
-- `JELLY_MCP_PERSISTENT_SESSION=0` restores one CDP connection/attach per MCP browser primitive.
+- `JELLY_MCP_SURFACE=large-surface` selects the expanded MCP browser surface with individual browser primitives. When the selector is absent, MCP defaults to `small-surface`, which replaces individual browser primitives with `browser-schema`, `browser-call`, and `browser-events` while retaining the exact same ordered system-tool set and bindings. The old `legacy` and `compact` values remain temporary compatibility aliases. System-tool aggregation/exposure changes are intentionally a separate migration.
+- `JELLY_MCP_PERSISTENT_SESSION=0` restores one CDP connection/attach per MCP browser primitive/builtin.
 - `JELLY_PAGE_RUNTIME=0` restores the legacy `snapshot-interactive` DOM scan and DOM-backed `data-jelly-ref` references.
 - `JELLY_SNAPSHOT_LIMIT=<n>` bounds interactive snapshots by default in both runtime and legacy rollback paths. `0` keeps the compatibility behavior of returning all visible interactive elements.
 
-These switches are diagnostic rollback paths, not separate supported execution modes. Keep the legacy paths behaviorally tested until the optimized paths have enough browser coverage to remove them deliberately.
+These switches are diagnostic rollback paths, not separate supported execution modes. The legacy MCP surface remains available for at least one tagged release after this compact-default cutover. Remove it only in a later deliberate compatibility change after deterministic rollback/Agent API coverage remains green, no known supported integration requires individually published primitive names, and the removal is announced in documentation and the changelog. Other legacy performance rollback paths remain behaviorally tested until their own removal criteria are established.
+
+Logical browser target labels are runtime state shared by MCP and CLI processes. The mapping is persisted atomically in `/data/jelly-runtime/state/logical_targets.json` under an OS file lock, reconciled from live `Target.getTargets` data, and reset with the browser lifecycle. Temp files use a process/nonce identity, are synced before rename, and the state directory is synced after replacement. Only logical-label/target-ID state is persisted; attached CDP session IDs remain in-memory because they are ephemeral connection state.
+
+Each `BrowserSession` also owns a bounded in-memory CDP notification ring and its runtime-scoped event subscriptions. The default limits are 1,024 retained notifications and 4 MiB of incoming notification bytes. Every observed notification consumes a monotonic sequence number; count/byte eviction increments `dropped`, the latest dropped sequence is tracked for precise cursor-loss detection, and stream resets are counted separately. `browser-events poll` drains pending websocket traffic with a browser-scoped `Target.getTargets` barrier before applying target/method filters. The receive loop remains synchronous: no background reader drains events while the browser session is idle.
+
+This synchronous design was retained deliberately after idle-event measurements. A real Chromium probe scheduled 64 target-scoped Runtime console notifications after the scheduling request returned, performed no websocket reads during the idle period, and recovered all 64 in order on the next poll with no drop/reset/cursor loss. A 1,500-event idle burst also drained successfully; the 1,024-entry ring retained the newest 1,024 events and reported exactly 476 bounded evictions with `cursor_lost=true`. These measurements support the current poll-based contract without introducing a concurrent reader. They do not promise continuous low-latency delivery while Jelly is idle; a future requirement for that behavior, or evidence of loss before ring admission, would justify revisiting the driver architecture.
+
+BrowserSession enables Target discovery plus flattened auto-attach filtered to `page` targets. Each live page therefore has an in-memory CDP session binding alongside its persisted logical identity (`main`, `tab-N`). Session IDs are never persisted or exposed through the Agent API. Target-scoped raw CDP addressed to a logical target uses that target's attached session directly and does not activate/switch the page. `Target.targetInfoChanged` preserves the session across navigation metadata churn; detach/crash invalidates the session binding; destroy removes the logical target while the retained destroy event keeps its pre-removal logical label.
 
 The no-argument `snapshot-interactive` call intentionally remains unlimited for compatibility. A bounded default would silently hide targets because the current array result does not carry a truncation/cursor envelope. Prefer `snapshot-interactive <limit> [offset]` or `find-interactive <query> [limit] [offset]` when an agent does not need the entire interactive surface.
 
-### Performance benchmark and regression checks
+### Performance profiling and regression checks
 
-Use the local deterministic suite plus benchmark/profile commands before drawing conclusions from browser-performance changes:
+Use the deterministic suite plus the focused runtime profiler when investigating browser-performance changes:
 
 ```bash
-scripts/benchmark-browser-perf.sh
 scripts/profile-browser-runtime.sh
 tests/suite/run.sh --batch deterministic
 ```
 
 The subsystem compatibility wrappers remain available when a focused historical command is convenient (`scripts/check-page-runtime.sh`, `scripts/check-ref-semantics.sh`, and the other `scripts/check-*.sh` entries), but they delegate to the stable-ID suite.
 
-The benchmark compares optimized and rollback modes on small, medium, large, mutation-heavy, and open-Shadow-DOM shapes. It records wall-clock latency, output bytes, CDP connection time, and `Runtime.evaluate` time. Measurements are machine-dependent and should be treated as comparative rather than universal performance claims.
-
-September 2026 local benchmark runs show the shape of the tradeoff rather than a universal speed claim. Persistent MCP reuse reduced repeated large-page bounded snapshot latency by several milliseconds by removing per-call CDP attachment. Indexed semantic lookup and direct indexed text targeting were around 5 ms p50 on the large fixture, while the generic compatibility text scan remained much slower. Runtime `snapshot-interactive 50` was about 7 ms p50 / 14–15 KB, while the full runtime snapshot was roughly 70–80 ms and more than 400 KB. After moving legacy truncation into the page, legacy `snapshot-interactive 50` improved from roughly 60 ms to about 15 ms p50 / 11.5 KB while preserving legacy ref numbering. Full snapshots are not universally faster in runtime mode.
-
-Fresh browser-side profiling on 1,501 interactive elements measured roughly 14–15 ms for a complete runtime rebuild, about 5–6 ms to describe the full result set, around 2 ms for all bounding-rect reads, around 1 ms for computed display/visibility reads, and around 1 ms for pure JSON serialization of the completed full result. A 22-open-root Shadow DOM fixture rebuilt in about 2 ms. These measurements do not justify caching geometry/visibility or maintaining a more complex incremental semantic-name database; explicit source-side limits remain the demonstrated high-value optimization.
+Performance conclusions should come from a purpose-built measurement for the change under review rather than a permanently maintained aggregate benchmark script.
 
 ### Interactive target resolution
 

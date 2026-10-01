@@ -1,4 +1,4 @@
-use crate::{BrowserSession, Error, LOG_DIR, Target, classify_error, sanitize_url};
+use crate::{BrowserSession, Error, LOG_DIR, Target, sanitize_url, structured_error};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::{
@@ -26,10 +26,7 @@ pub fn log_primitive(
         .create(true)
         .append(true)
         .open(format!("{LOG_DIR}/actions.jsonl"))?;
-    let error = error.map(|error| {
-        let (kind, retryable) = classify_error(error.as_ref());
-        json!({"kind":kind.as_str(),"message":error.to_string(),"retryable":retryable})
-    });
+    let error = error.map(|error| structured_error(error.as_ref()));
     let redacted = redact_tool_args(name, args);
     let v = json!({"timestamp":OffsetDateTime::now_utc().format(&Rfc3339)?,"level":if ok{"INFO"}else{"ERROR"},"event":if ok{"primitive.completed"}else{"primitive.failed"},"message":format!("agent-{name} {}",if ok{"completed"}else{"failed"}),"trace_id":trace_id,"span_id":span_id,"parent_span_id":env::var("JELLY_PARENT_SPAN_ID").ok(),"source":env::var("JELLY_SOURCE").unwrap_or_else(|_|"direct".into()),"tool":format!("agent-{name}"),"args":redacted,"duration_ms":duration_ms,"ok":ok,"error":error,"process":{"pid":std::process::id()}});
     writeln!(f, "{v}")?;

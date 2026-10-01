@@ -1,6 +1,6 @@
 use jelly::{
     ACTIVE_TARGET, BROWSER_MODE, BROWSER_PID, BROWSER_READY, BROWSER_STOP, ENDPOINT, INJECTION_DIR,
-    PAGE_TARGET,
+    LOGICAL_TARGETS, PAGE_TARGET,
 };
 use std::{
     fs,
@@ -67,6 +67,7 @@ fn cleanup_files() {
         ENDPOINT,
         PAGE_TARGET,
         ACTIVE_TARGET,
+        LOGICAL_TARGETS,
         BROWSER_PID,
         BROWSER_STOP,
         BROWSER_MODE,

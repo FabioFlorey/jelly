@@ -31,6 +31,26 @@ Image readiness requires the element to exist, be visible, report `complete == t
 
 Jelly element references are page observations, not permanent object IDs. The default page runtime returns document-scoped refs such as `@eabc123-7`; legacy rollback mode uses numeric refs such as `@e7`. `inspect-images` also returns DOM-backed image refs such as `@img2`. If a referenced element disappears after navigation or rerendering, Jelly reports `target_stale`; inspect again before continuing.
 
+## Logical browser targets
+
+Browser pages have runtime logical identities separate from DOM element targets. The primary page is `main`; additional live page targets receive monotonic labels such as `tab-2`, `tab-3`, and so on. Labels are preserved across Jelly processes for the lifetime of the browser runtime, so MCP and CLI calls can refer to the same tab without exchanging Chromium target IDs.
+
+The runtime mapping is reconciled against `Target.getTargets` and stored under `/data/jelly-runtime/state/logical_targets.json`. Chromium `sessionId` values are never persisted. Closed target labels are removed and are not recycled within the same browser runtime. `tabs` surfaces the logical label first and retains the low-level target ID only as diagnostic information. `switch-tab` resolves an exact logical label before its legacy target-ID/title/URL compatibility matching.
+
+`browser-call` may set a per-call `target` for Jelly semantic operations or target-scoped raw CDP. Omitting it preserves active-target behavior. Browser-scoped CDP does not accept a page target because it is sent on the browser connection rather than an attached page session. The compact MCP surface is now the process default, but this does not weaken Jelly's semantic reliability contract: the same typed errors, ref semantics, verification primitives, and retry discipline apply whether a semantic operation is dispatched directly on the explicit legacy rollback surface or through compact `browser-call`.
+
+Raw CDP has a different reliability contract from Jelly semantic operations. Jelly preflights its structure/routing and reports protocol failures as typed `cdp_failed`, but a successful raw protocol response is not semantic evidence that a workflow goal was achieved. Raw commands may bypass Jelly refs, interaction conventions, verification abstractions, and future policy guards. Keep assertions and verification explicit after raw mutations, and treat browser-scoped raw commands as higher-authority operations than page JavaScript.
+
+## Browser event subscriptions
+
+The compact Agent API includes a runtime-scoped `browser-events` builtin with `subscribe`, `poll`, and `unsubscribe` actions. A subscription starts at the current stream tail rather than replaying older retained notifications. Filters support one optional logical target plus exact CDP notification methods and/or method prefixes. Regex/full-message filtering is intentionally not part of the initial contract.
+
+Polling is cursor-based. The cursor contains a stream generation and sequence number; it advances across all observed notifications, including non-matching events, so filters cannot cause the same unrelated frames to be rescanned indefinitely. Poll results expose `cursor_lost`, the number of new ring drops, and the number of stream resets since the previous poll. Ring loss accounting distinguishes a dropped sequence that occurred after the subscription cursor from eviction of history the subscriber had already consumed.
+
+`poll` issues a harmless browser-scoped `Target.getTargets` barrier to drain pending websocket notifications through the synchronous receive loop before reading the ring. There is no background reader. This is a measured design choice for the current poll-based API: deterministic Chromium tests recover a complete 64-event idle burst with no loss, while a 1,500-event idle burst produces exactly the expected 476 evictions from the 1,024-entry ring and exposes that loss through `cursor_lost`/drop accounting. Notifications are therefore observable when a later request or poll drains the socket, not continuously while Jelly is idle. Subscriptions live only in the owning `BrowserSession`; browser/MCP-session restart invalidates their opaque IDs and later use returns `subscription_not_found`. MCP `browser-events` therefore requires persistent MCP browser sessions and is incompatible with `JELLY_MCP_PERSISTENT_SESSION=0`.
+
+`browser-events` does not implicitly enable CDP domains. Events such as Runtime or Network notifications must already be enabled by the workflow when the protocol requires it. Jelly does enable Target discovery and flattened page-only auto-attach so notifications from multiple page sessions can be attributed to logical targets. The agent addresses `main`/`tab-N`; it never supplies or receives CDP `sessionId` values. Detach/crash clears the affected in-memory session binding, and destroy removes the logical target after retaining the lifecycle event with its logical attribution.
+
 ## Errors
 
 Reliability-sensitive browser errors carry stable machine-readable kinds:
@@ -53,10 +73,12 @@ delivery_failed
 human_intervention_required
 authentication_required
 unsupported
+subscription_not_found
+cdp_failed
 internal
 ```
 
-The message is for people. The kind is for branching.
+The message is for people. The kind is for branching. Protocol failures use `cdp_failed` and may also include machine-readable `error.details` with the CDP method, numeric code, and protocol message; transport/session loss remains `browser_unavailable` and retryable. `subscription_not_found` means a browser-event subscription ID is unknown in the current BrowserSession, including after runtime/session restart; repeating the same poll cannot recreate it, so the caller must subscribe again.
 
 Retries are not automatically applied to side-effecting actions. Repeating inspection or verification may be safe; repeating a purchase, submission, message, or destructive click may not be.
 
@@ -92,7 +114,7 @@ Failures use the same shape:
 }
 ```
 
-`data` may naturally contain an object, array, scalar, or null; the outer MCP shape does not change.
+`data` may naturally contain an object, array, scalar, or null; the outer MCP shape does not change. `error.details` is optional. For a CDP protocol failure it has the stable core shape `{ "protocol": "cdp", "method": "Domain.command", "code": -32601, "message": "..." }`.
 
 ## Artifacts
 
@@ -165,7 +187,7 @@ Telegram is the current HITL transport. Jelly requires the Telegram API response
 
 Waiting operations have finite deadlines. A timeout is evidence that the requested predicate was not established in time, not evidence that the opposite predicate is permanently true.
 
-Navigation and condition waits therefore return typed timeout errors that a graph can recover from, escalate, or terminate on. CDP socket reads/writes are also bounded by `JELLY_CDP_TIMEOUT_SECS` (default: 30 seconds), so a wedged browser connection does not wait forever.
+Navigation and condition waits therefore return typed timeout errors that a graph can recover from, escalate, or terminate on. CDP socket reads/writes are also bounded by `JELLY_CDP_TIMEOUT_SECS` (default: 60 seconds), so a wedged browser connection does not wait forever.
 
 ## Profile reuse
 

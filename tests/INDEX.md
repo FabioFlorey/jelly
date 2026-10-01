@@ -4,20 +4,29 @@ This directory is the entry point for Jelly validation.
 
 Jelly uses two complementary test layers:
 
-- Rust tests, run with `cargo test --all-targets`, for unit- and target-level behavior.
+- Rust tests, run with `cargo test-jelly --all-targets` for the tabular frontend (or directly with `cargo test --all-targets`), for unit- and target-level behavior.
 - The scenario suite in [`suite/`](./suite/README.md), which exercises Jelly through its binaries, MCP boundary, browser runtime, fixtures, rollback modes, and real-world browser workflows.
 
 ## Start here
 
-For normal repository validation:
+For Rust validation with a compact per-target table:
+
+```bash
+cargo test-jelly --all-targets
+```
+
+For normal behavioral repository validation:
 
 ```bash
 tests/suite/run.sh
 ```
 
-That runs the `deterministic` batch. To inspect the available executable cases before running them:
+That runs the `deterministic` batch. To inspect the available executable cases before running them, use either the raw suite commands or the tabular Cargo frontend:
 
 ```bash
+cargo test-jelly --catalog
+cargo test-jelly --catalog --id QLT-003 --full
+
 tests/suite/run.sh --list
 tests/suite/run.sh --catalog
 tests/suite/run.sh --catalog --json
@@ -48,8 +57,10 @@ Browser/build runtime state likewise stays outside the repository.
 
 | Group | Scope |
 | --- | --- |
-| `quality` | Formatting, compilation, Rust tests, Clippy, generated documentation, suite metadata/syntax, test-index coverage, and suite locking |
+| `quality` | Formatting, compilation, Rust tests, Clippy, generated documentation, suite metadata/syntax, `test-jelly` CLI contract, compact MCP instruction/discovery/raw-CDP documentation contracts, auxiliary Rust lockfile alignment, compact MCP surface budget, test-index coverage, and suite locking |
 | `session` | Persistent MCP/CDP session reuse, active-target synchronization, and reconnect behavior |
+| `agent-api` | Compact/legacy Agent API catalog, discovery, browser-call, raw-CDP, logical-target, event, stale-ref, and failure-policy regressions |
+| `events` | Idle CDP notification recovery, synchronous poll-barrier completeness, and bounded-loss accounting |
 | `runtime` | In-page runtime indexing, mutation invalidation, live state, ref stability, and runtime reinstall/rollback |
 | `refs` | Document-scoped refs, DOM identity, stale-ref collision resistance, and namespace transitions |
 | `semantic` | Accessible-name extraction, semantic lookup/ranking, generic text fallback, visibility, and text targeting |

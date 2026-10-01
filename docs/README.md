@@ -9,13 +9,14 @@ jelly keeps documentation modular. Each document covers one part of the system a
 | [**Requirements**](./REQUIREMENTS.md) | Software, platform assumptions, and optional integrations |
 | [**Glossary**](./GLOSSARY.md) | Definitions for jelly and agent/browser terminology |
 | [**Architecture**](./ARCHITECTURE.md) | How browser actions flow from agent to Chromium |
-| [**Tool Discovery**](./DISCOVERY.md) | How agents discover capabilities and load schemas |
+| [**Capability & Agent API Discovery**](./DISCOVERY.md) | Internal capability discovery vs published MCP Agent API discovery |
 | [**Routines**](./ROUTINES.md) | Guarded workflow graphs, branching, loops, and continuation |
 | [**Reliability**](./RELIABILITY.md) | Verification, errors, artifacts, timeouts, cleanup, and profile reuse |
 | [**Runtime Layout**](./RUNTIME.md) | Where runtime state, artifacts, profiles, and build output live |
 | [**Development**](./DEVELOPMENT.md) | Design rules, testing, generated docs, and cleanup |
 | [**Test Index**](../tests/INDEX.md) | Test-suite layout, coverage groups, batches, and executable catalog entry points |
-| [**MCP Server**](./MCP.md) | Local MCP endpoint, tool mapping, and security boundary |
-| [**Tool Index**](../.agent/tools/index.md) | Generated reference for browser primitives and system tools |
+| [**MCP Server**](./MCP.md) | Local MCP endpoint, compact-default Agent API, legacy rollback, tool mapping, and security boundary |
+| [**MCP Surface Benchmarks**](./MCP_SURFACE_BENCHMARKS.md) | Legacy vs compact tool/schema footprint, latency, and agent round-trip measurements |
+| [**Internal Capability Index**](../.agent/tools/index.md) | Generated reference for semantic browser primitives and system capabilities; not the MCP catalog |
 
 <p align="right"><sub><a href="../README.md">⭐ Back to README</a></sub></p>

@@ -2,7 +2,7 @@
 
 # Requirements
 
-jelly has a small core dependency set plus a few optional tools used by specific integrations.
+jelly has a small core dependency set plus a few optional tools used by specific integrations. The compact MCP Agent API is the default surface and requires no additional runtime dependency beyond the normal Jelly stack; the legacy MCP surface remains available only as an explicit compatibility rollback.
 
 ## Required
 
@@ -24,7 +24,6 @@ jelly has a small core dependency set plus a few optional tools used by specific
 | **curl** | Selected integrations and setup flows | Used by Telegram HITL, paired OAuth owner-status checks, and nip.io public IPv4 discovery |
 | **cloudflared** | Quick or fixed public MCP tunnel | Required for `quick-tunnel` and `cloudflare-fixed`; the service wrapper can reuse PiLink's private binary when present |
 | **Caddy** | Direct nip.io HTTPS | Required only for `JELLY_HOSTING_MODE=nip-io` |
-| **python3** | nip.io public IPv4 validation | Required only for `nip-io` |
 | **iproute2 (`ip`)** | nip.io LAN route discovery | Required only for `nip-io` |
 | **upnpc / natpmpc** | Automatic nip.io router mappings | Required only for automatic nip.io router mapping; manual port forwarding avoids these helpers |
 | **ffmpeg / ffprobe** | Browser recording export | Required only when exporting browser recordings; encodes frames into MP4 and probes step-frame dimensions |
@@ -50,8 +49,7 @@ Some repository regression and performance scripts use additional command-line t
 | Dependency | Used by | Notes |
 | :--- | :--- | :--- |
 | **jq** | Regression and browser verification scripts | Used to inspect and assert JSON output |
-| **curl** | MCP lifecycle and benchmark scripts | Used to call local MCP/health endpoints |
-| **python3** | Browser performance benchmark | Used to summarize benchmark output |
+| **curl** | MCP lifecycle and verification scripts | Used to call local MCP/health endpoints |
 | **util-linux (`flock`)** | Scenario test suite | Serializes executable suite runs that share Jelly browser/service state |
 
 ## Optional integration configuration

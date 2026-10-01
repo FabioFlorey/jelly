@@ -40,8 +40,10 @@ Generated run artifacts are intentionally outside the repository at `/data/jelly
 
 | Group | Prefix | What it validates |
 | --- | --- | --- |
-| `quality` | `QLT` | Rust/tooling quality gates plus test-harness metadata, syntax, test-index coverage, and concurrency locking |
+| `quality` | `QLT` | Rust/tooling quality gates plus test-harness metadata, `test-jelly` CLI contract, compact MCP instruction/discovery/raw-CDP documentation contracts, auxiliary Rust lockfile alignment, compact MCP surface budget, syntax, test-index coverage, and concurrency locking |
 | `session` | `SES` | Persistent MCP/CDP reuse and browser/target recovery |
+| `agent-api` | `API` | Dedicated compact/legacy Agent API regressions across catalog, discovery, browser-call, raw CDP, logical targets, events, stale refs, and failure policy |
+| `events` | `EVT` | Idle CDP notification recovery, poll-barrier completeness, and explicit bounded-loss behavior |
 | `runtime` | `RUN` | Page runtime indexing, invalidation, live state, ref stability, and rollback/reinstall |
 | `refs` | `REF` | Document-scoped refs, DOM identity, stale refs, and namespace transitions |
 | `semantic` | `SEM` | Accessible-name lookup, ranking, text fallback, visibility, and duplicate-text resolution |
@@ -100,6 +102,39 @@ tests/suite/run.sh --all
 ```
 
 With no selector, the deterministic batch is used. Network-dependent tests are separated into the `network` batch because external sites can change independently of Jelly.
+
+## Unified Cargo test frontend
+
+Jelly provides a Cargo alias for a compact tabular Rust-test view:
+
+```bash
+cargo test-jelly
+cargo test-jelly --all-targets
+cargo test-jelly --lib error::tests
+cargo test-jelly --all-targets -- --nocapture
+```
+
+All normal arguments are forwarded to the real `cargo test`; arguments after `--` remain libtest arguments. The wrapper preserves Cargo's exit code exactly. Use `--raw` when the captured Cargo/libtest output should also be printed.
+
+Help is built in:
+
+```bash
+cargo test-jelly -h
+cargo test-jelly --help
+```
+
+The terminal presentation follows Jelly's Quickstart theme: the shared full logo, honey `#ffc107` brand accents, green success state, red failure state, dim secondary text, and the same ordinary Unicode icon family. Colors are emitted only on an interactive terminal and honor `NO_COLOR`; `JELLY_NO_ICONS=true` replaces decorative Unicode icons with ASCII equivalents.
+
+The same command exposes the canonical behavioral-test metadata without executing scenarios:
+
+```bash
+cargo test-jelly --catalog
+cargo test-jelly --catalog --group semantic
+cargo test-jelly --catalog --id QLT-003 --full
+cargo test-jelly --catalog --json
+```
+
+The default catalog table includes ID, group, kind, enabled state, name, description, and preconditions. `--full` also includes input and expected output. Catalog rows come directly from the same `jt_register` records consumed by `tests/suite/run.sh`; `test-jelly` does not maintain a second metadata source. `--json` is intentionally undecorated: no logo, ANSI color, or prose is emitted, so it remains safe for scripts and `jq`.
 
 ## Listing and catalog metadata
 
