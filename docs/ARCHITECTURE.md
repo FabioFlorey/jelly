@@ -45,38 +45,70 @@ src/
 │   ├── agent-open-browser.rs
 │   └── ...
 ├── agent/
-│   ├── browser_call.rs
+│   ├── mod.rs
+│   ├── browser_call/
+│   │   ├── mod.rs
+│   │   ├── prepare.rs
+│   │   ├── execute.rs
+│   │   ├── raw.rs
+│   │   ├── result.rs
+│   │   └── schema.rs
 │   ├── browser_events.rs
 │   ├── browser_schema.rs
 │   ├── builtin.rs
 │   ├── catalog.rs
-│   └── schema.rs
+│   ├── catalog_build.rs
+│   ├── catalog_cache.rs
+│   ├── catalog_config.rs
+│   ├── schema.rs
+│   └── surface.rs
 ├── browser/
+│   ├── mod.rs
 │   ├── events.rs
 │   ├── perf.rs
 │   ├── runtime.rs
 │   ├── session.rs
 │   ├── target.rs
-│   └── targets.rs
-├── artifacts.rs
-├── error.rs
-├── mcp.rs
-├── mcp_auth.rs
+│   ├── target_manager.rs
+│   ├── targets.rs
+│   └── transport.rs
+├── mcp/
+│   ├── mod.rs
+│   ├── browser_session.rs
+│   ├── dispatch.rs
+│   ├── protocol.rs
+│   └── system_tools.rs
+├── mcp_auth/
+│   ├── mod.rs
+│   ├── dcr.rs
+│   ├── oauth.rs
+│   ├── pages.rs
+│   ├── state.rs
+│   └── storage.rs
 ├── primitives/
+│   ├── mod.rs
 │   ├── input.rs
 │   ├── navigation.rs
 │   ├── inspect.rs
+│   ├── js_helpers.rs
 │   ├── verify.rs
 │   ├── tabs.rs
 │   ├── files.rs
 │   ├── script.rs
 │   └── visual.rs
-└── execution/
-    ├── registry.rs
-    ├── named.rs
-    ├── tools.rs
-    ├── discovery.rs
-    └── tracing.rs
+├── execution/
+│   ├── mod.rs
+│   ├── registry.rs
+│   ├── named.rs
+│   ├── tools.rs
+│   ├── discovery.rs
+│   └── tracing.rs
+├── artifacts.rs
+├── browser_launcher.rs
+├── error.rs
+├── recording.rs
+├── routine.rs
+└── lib.rs
 ```
 
 Most browser primitives share one persistent `BrowserSession` inside a routine. MCP browser-bound catalog entries also reuse a cached `BrowserSession` by default; `JELLY_MCP_PERSISTENT_SESSION=0` restores one connection/attach per MCP call for rollback diagnostics. `BrowserSession` owns logical target state plus a bounded in-memory CDP notification ring and subscription registry. It enables Target discovery and flattened auto-attach for page targets, maintaining `sessionId ↔ targetId ↔ logical label` mappings in memory while persisting only logical labels/target IDs. Synchronous request waits retain notifications instead of discarding them, and `browser-events poll` uses a barrier request to drain pending frames before cursor/filter evaluation. Idle-event tests showed that this barrier model preserves the current poll-based contract, including explicit bounded-loss reporting under ring overflow, so Jelly intentionally does not add a background CDP reader at this stage. JSON routines are guarded directed graphs: evidence is stored in context, edges can branch/loop/jump, and typed failures can select recovery paths. A graph that starts Chromium owns that browser and finalizes it on terminal completion or unhandled failure; HITL suspension preserves the session for continuation.
