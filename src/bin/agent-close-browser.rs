@@ -9,6 +9,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+fn remove_if_exists(path: impl AsRef<std::path::Path>) -> Result<(), std::io::Error> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pid = match fs::read_to_string(BROWSER_PID) {
         Ok(pid) => pid.trim().to_string(),
@@ -18,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .status();
-            cleanup_files();
+            cleanup_files()?;
             println!("No jelly browser running.");
             return Ok(());
         }
@@ -38,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 })
                 .unwrap_or(false);
         if exited {
-            cleanup_files();
+            cleanup_files()?;
             println!("Browser closed.");
             return Ok(());
         }
@@ -50,18 +58,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .args(["--user", "stop", "jelly-browser.service"])
         .status();
     thread::sleep(Duration::from_millis(500));
-    cleanup_files();
+    cleanup_files()?;
     Ok(())
 }
 
-fn cleanup_files() {
-    if let Ok(entries) = fs::read_dir(INJECTION_DIR) {
-        for e in entries.flatten() {
-            let p = e.path();
-            if p.is_file() {
-                let _ = fs::remove_file(p);
+fn cleanup_files() -> Result<(), Box<dyn std::error::Error>> {
+    match fs::read_dir(INJECTION_DIR) {
+        Ok(entries) => {
+            for entry in entries {
+                let p = entry?.path();
+                if p.is_file() {
+                    remove_if_exists(&p)?;
+                }
             }
         }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
     }
     for path in [
         ENDPOINT,
@@ -73,6 +85,7 @@ fn cleanup_files() {
         BROWSER_MODE,
         BROWSER_READY,
     ] {
-        let _ = fs::remove_file(path);
+        remove_if_exists(path)?;
     }
+    Ok(())
 }

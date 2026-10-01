@@ -11,6 +11,14 @@ use std::{
 };
 use tungstenite::{Message, connect};
 
+fn remove_if_exists(path: &str) -> rustwright::Result<()> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(rustwright::Error::Io(error)),
+    }
+}
+
 /// Run the browser launcher using the current process arguments and environment.
 pub fn run_from_env() -> rustwright::Result<()> {
     if !std::env::args().any(|a| a == "--serve") {
@@ -29,7 +37,7 @@ pub fn run_from_env() -> rustwright::Result<()> {
     ] {
         fs::create_dir_all(dir).map_err(rustwright::Error::Io)?;
     }
-    let _ = fs::remove_file(BROWSER_STOP);
+    remove_if_exists(BROWSER_STOP)?;
     for stale in [
         BROWSER_READY,
         ENDPOINT,
@@ -38,7 +46,7 @@ pub fn run_from_env() -> rustwright::Result<()> {
         LOGICAL_TARGETS,
         BROWSER_PID,
     ] {
-        let _ = fs::remove_file(stale);
+        remove_if_exists(stale)?;
     }
     let args: Vec<String> = env::args().skip(1).collect();
     let headless = args.iter().any(|arg| arg == "--headless");
@@ -126,7 +134,7 @@ pub fn run_from_env() -> rustwright::Result<()> {
 
     loop {
         if fs::metadata(BROWSER_STOP).is_ok() {
-            let _ = fs::remove_file(BROWSER_STOP);
+            remove_if_exists(BROWSER_STOP)?;
             for stale in [
                 ENDPOINT,
                 PAGE_TARGET,
@@ -134,16 +142,20 @@ pub fn run_from_env() -> rustwright::Result<()> {
                 LOGICAL_TARGETS,
                 BROWSER_PID,
             ] {
-                let _ = fs::remove_file(stale);
+                remove_if_exists(stale)?;
             }
             browser.close()?;
-            let _ = fs::remove_file(ENDPOINT);
-            let _ = fs::remove_file(PAGE_TARGET);
-            let _ = fs::remove_file(ACTIVE_TARGET);
-            let _ = fs::remove_file(LOGICAL_TARGETS);
-            let _ = fs::remove_file(BROWSER_PID);
-            let _ = fs::remove_file(BROWSER_MODE);
-            let _ = fs::remove_file(BROWSER_READY);
+            for stale in [
+                ENDPOINT,
+                PAGE_TARGET,
+                ACTIVE_TARGET,
+                LOGICAL_TARGETS,
+                BROWSER_PID,
+                BROWSER_MODE,
+                BROWSER_READY,
+            ] {
+                remove_if_exists(stale)?;
+            }
             println!("Browser closed cleanly.");
             return Ok(());
         }
@@ -152,13 +164,17 @@ pub fn run_from_env() -> rustwright::Result<()> {
 }
 
 fn launch_service() -> rustwright::Result<()> {
-    if let Ok(entries) = fs::read_dir(INJECTION_DIR) {
-        for e in entries.flatten() {
-            let p = e.path();
-            if p.is_file() {
-                let _ = fs::remove_file(p);
+    match fs::read_dir(INJECTION_DIR) {
+        Ok(entries) => {
+            for entry in entries {
+                let p = entry.map_err(rustwright::Error::Io)?.path();
+                if p.is_file() {
+                    fs::remove_file(p).map_err(rustwright::Error::Io)?;
+                }
             }
         }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(rustwright::Error::Io(error)),
     }
 
     use std::process::Command;
@@ -178,7 +194,7 @@ fn launch_service() -> rustwright::Result<()> {
         BROWSER_PID,
         BROWSER_MODE,
     ] {
-        let _ = fs::remove_file(stale);
+        remove_if_exists(stale)?;
     }
     let mut cmd = Command::new("systemd-run");
     cmd.args([

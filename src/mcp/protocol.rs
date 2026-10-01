@@ -25,13 +25,9 @@ impl McpRequest {
     }
 }
 
-pub(super) fn initialize(params: &Value) -> Value {
-    let protocol_version = params
-        .get("protocolVersion")
-        .and_then(Value::as_str)
-        .unwrap_or(DEFAULT_PROTOCOL_VERSION);
+pub(super) fn initialize(_params: &Value) -> Value {
     json!({
-        "protocolVersion": protocol_version,
+        "protocolVersion": DEFAULT_PROTOCOL_VERSION,
         "capabilities": {
             "tools": {"listChanged": false}
         },
@@ -65,6 +61,12 @@ mod tests {
         assert!(request.id.is_none());
         assert_eq!(request.method, "ping");
         assert_eq!(request.params, json!({}));
+    }
+
+    #[test]
+    fn initialize_never_claims_an_unknown_client_protocol_version() {
+        let response = initialize(&json!({"protocolVersion":"2099-01-01"}));
+        assert_eq!(response["protocolVersion"], DEFAULT_PROTOCOL_VERSION);
     }
 
     #[test]

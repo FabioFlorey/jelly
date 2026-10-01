@@ -5,11 +5,26 @@ use std::{
     path::{Path, PathBuf},
 };
 
-fn browser_running() -> bool {
-    let Ok(pid) = fs::read_to_string(BROWSER_PID) else {
+fn browser_running_from_pid_file(pid_file: &Path) -> bool {
+    let Ok(pid) = fs::read_to_string(pid_file) else {
         return false;
     };
-    Path::new(&format!("/proc/{}", pid.trim())).exists()
+    let pid = pid.trim();
+    if pid.parse::<u32>().is_err() {
+        return false;
+    }
+    let proc = PathBuf::from(format!("/proc/{pid}"));
+    if !proc.is_dir() {
+        return false;
+    }
+    fs::read(proc.join("cmdline")).ok().is_some_and(|cmdline| {
+        let text = String::from_utf8_lossy(&cmdline).replace('\0', " ");
+        text.contains("agent-open-browser") && text.contains("--serve")
+    })
+}
+
+fn browser_running() -> bool {
+    browser_running_from_pid_file(Path::new(BROWSER_PID))
 }
 
 fn ignored(name: &str) -> bool {
@@ -154,6 +169,18 @@ mod tests {
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).unwrap();
         path
+    }
+
+    #[test]
+    fn malformed_or_reused_browser_pid_is_not_treated_as_running() {
+        let dir = temp_dir("pid-check");
+        let pid_file = dir.join("browser.pid");
+        fs::write(&pid_file, b"not-a-pid").unwrap();
+        assert!(!browser_running_from_pid_file(&pid_file));
+
+        fs::write(&pid_file, std::process::id().to_string()).unwrap();
+        assert!(!browser_running_from_pid_file(&pid_file));
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]
