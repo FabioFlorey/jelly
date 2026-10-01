@@ -2,11 +2,11 @@
 use crate::primitive_specs;
 use crate::{
     BrowserSession, Error, ErrorKind, PrimitiveSpec, classify_error, execute_browser_primitive,
-    jelly_error, structured_error,
+    jelly_error,
 };
+use serde_json::Value;
 #[cfg(test)]
-use serde_json::Map;
-use serde_json::{Value, json};
+use serde_json::{Map, json};
 use std::collections::HashSet;
 
 pub(super) const MAX_BATCH_CALLS: usize = 64;
@@ -28,6 +28,7 @@ pub mod schema;
 pub use schema::{browser_call_input_schema, cdp_call_input_schema};
 mod prepare;
 mod raw;
+mod result;
 use prepare::{
     BatchFailurePolicy, PreparedBrowserCall, PreparedCall, prepare_browser_call,
     prepare_cdp_only_call,
@@ -36,6 +37,9 @@ pub use raw::RawCdpAccess;
 #[cfg(test)]
 use raw::validate_cdp_method;
 use raw::{CdpScope, execute_cdp};
+use result::{
+    batch_envelope, cdp_failure, cdp_success, output_value, semantic_failure, semantic_success,
+};
 
 pub fn validate_browser_call(arguments: &Value, raw_cdp: RawCdpAccess) -> Result<(), Error> {
     prepare_browser_call(arguments, raw_cdp).map(|_| ())
@@ -126,17 +130,7 @@ where
                     operation: call.operation,
                     positional_args: &call.positional_args,
                 })
-                .map(|data| {
-                    json!({
-                        "index": call.index,
-                        "kind": "jelly",
-                        "operation": call.operation.name,
-                        "target": call.target,
-                        "ok": true,
-                        "data": data,
-                        "error": Value::Null
-                    })
-                })
+                .map(|data| semantic_success(call, data))
             }
             PreparedCall::Cdp(call) => {
                 cdp_count += 1;
@@ -146,18 +140,7 @@ where
                     method: &call.method,
                     params: &call.params,
                 })
-                .map(|data| {
-                    json!({
-                        "index": call.index,
-                        "kind": "cdp",
-                        "scope": call.scope.as_str(),
-                        "target": call.target,
-                        "method": call.method,
-                        "ok": true,
-                        "data": data,
-                        "error": Value::Null
-                    })
-                })
+                .map(|data| cdp_success(call, data))
             }
         };
 
@@ -180,25 +163,8 @@ where
                 }
 
                 let failure = match call {
-                    PreparedCall::Semantic(call) => json!({
-                        "index": call.index,
-                        "kind": "jelly",
-                        "operation": call.operation.name,
-                        "target": call.target,
-                        "ok": false,
-                        "data": Value::Null,
-                        "error": structured_error(error.as_ref())
-                    }),
-                    PreparedCall::Cdp(call) => json!({
-                        "index": call.index,
-                        "kind": "cdp",
-                        "scope": call.scope.as_str(),
-                        "target": call.target,
-                        "method": call.method,
-                        "ok": false,
-                        "data": Value::Null,
-                        "error": structured_error(error.as_ref())
-                    }),
+                    PreparedCall::Semantic(call) => semantic_failure(call, error.as_ref()),
+                    PreparedCall::Cdp(call) => cdp_failure(call, error.as_ref()),
                 };
                 results.push(failure);
 
@@ -210,39 +176,13 @@ where
         }
     }
 
-    let attempted = results.len();
-    let succeeded = results.iter().filter(|result| result["ok"] == true).count();
-    let failed = attempted - succeeded;
-    let status = if stopped_at.is_some() {
-        "stopped"
-    } else if failed > 0 {
-        "completed_with_errors"
-    } else {
-        "completed"
-    };
-    let kind = match (semantic_count > 0, cdp_count > 0) {
-        (true, true) => "mixed",
-        (true, false) => "semantic",
-        (false, true) => "cdp",
-        (false, false) => unreachable!("validated browser-call batch cannot be empty"),
-    };
-
-    Ok(json!({
-        "schema_version": 1,
-        "kind": kind,
-        "on_error": prepared.policy.as_str(),
-        "status": status,
-        "calls_total": prepared.calls.len(),
-        "calls_attempted": attempted,
-        "calls_succeeded": succeeded,
-        "calls_failed": failed,
-        "stopped_at": stopped_at,
-        "results": results
-    }))
-}
-
-fn output_value(output: &str) -> Value {
-    serde_json::from_str(output).unwrap_or_else(|_| Value::String(output.to_owned()))
+    Ok(batch_envelope(
+        prepared,
+        results,
+        stopped_at,
+        semantic_count,
+        cdp_count,
+    ))
 }
 
 #[cfg(test)]
