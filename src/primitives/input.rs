@@ -1,3 +1,6 @@
+use crate::primitives::js_helpers::{
+    CENTER_POINT_FN, LAYOUT_VISIBLE_FN, NORMALIZE_TEXT_FN, RENDERED_VISIBLE_FN, TEXTBOX_SELECTOR,
+};
 use crate::primitives::{arg, js, missing_target, pretty, target};
 use crate::{BrowserSession, Error, ErrorKind, Target, jelly_error};
 use serde_json::{Value, json};
@@ -62,7 +65,15 @@ pub fn type_text(browser: &mut BrowserSession, args: &[String]) -> Result<String
     let request = parse_text_input(args, TYPE_TEXT_USAGE)?;
     let resolver = textbox_resolver(request.target.as_ref());
     let point = browser.eval(&format!(
-        "(()=>{{const e={resolver};if(!e)return {{ok:false,error:'textbox not found'}};if(e.disabled)return {{ok:false,error:'target is disabled'}};if(e.readOnly)return {{ok:false,error:'target is readonly'}};e.scrollIntoView({{block:'center'}});const r=e.getBoundingClientRect();return {{ok:true,x:r.left+r.width/2,y:r.top+r.height/2}}}})()"
+        r#"(() => {{
+            const element = {resolver};
+            if (!element) return {{ok:false,error:'textbox not found'}};
+            if (element.disabled) return {{ok:false,error:'target is disabled'}};
+            if (element.readOnly) return {{ok:false,error:'target is readonly'}};
+            element.scrollIntoView({{block:'center'}});
+            const center = {CENTER_POINT_FN};
+            return {{ok:true,...center(element)}};
+        }})()"#
     ))?;
 
     let (x, y) = textbox_point(&point, request.target.as_ref())?;
@@ -84,30 +95,46 @@ pub fn fill(browser: &mut BrowserSession, args: &[String]) -> Result<String, Err
     let resolver = textbox_resolver(request.target.as_ref());
     let value = js(request.text);
     let result = browser.eval(&format!(
-        r#"(()=>{{
-        const e={resolver};
-        if(!e)return {{ok:false,error:'textbox not found'}};
-        if(e.disabled)return {{ok:false,error:'target is disabled'}};
-        if(e.readOnly)return {{ok:false,error:'target is readonly'}};
-        e.scrollIntoView({{block:'center'}});
-        e.focus();
-        const tag=e.tagName;
-        if(tag==='INPUT'||tag==='TEXTAREA'){{
-            const proto=tag==='INPUT'?HTMLInputElement.prototype:HTMLTextAreaElement.prototype;
-            const setter=Object.getOwnPropertyDescriptor(proto,'value')?.set;
-            if(setter)setter.call(e,{value});else e.value={value};
-            e.dispatchEvent(new InputEvent('input',{{bubbles:true,inputType:'insertText',data:{value}}}));
-            e.dispatchEvent(new Event('change',{{bubbles:true}}));
-            return {{ok:true,value:e.value}};
-        }}
-        if(e.isContentEditable||e.getAttribute('role')==='textbox'){{
-            e.textContent={value};
-            e.dispatchEvent(new InputEvent('input',{{bubbles:true,inputType:'insertText',data:{value}}}));
-            e.dispatchEvent(new Event('change',{{bubbles:true}}));
-            return {{ok:true,value:e.textContent}};
-        }}
-        return {{ok:false,error:'target is not editable'}};
-    }})()"#
+        r#"(() => {{
+            const element = {resolver};
+            if (!element) return {{ok:false,error:'textbox not found'}};
+            if (element.disabled) return {{ok:false,error:'target is disabled'}};
+            if (element.readOnly) return {{ok:false,error:'target is readonly'}};
+
+            element.scrollIntoView({{block:'center'}});
+            element.focus();
+
+            const tag = element.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') {{
+                const prototype = tag === 'INPUT'
+                    ? HTMLInputElement.prototype
+                    : HTMLTextAreaElement.prototype;
+                const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+                if (setter) setter.call(element, {value});
+                else element.value = {value};
+
+                element.dispatchEvent(new InputEvent('input', {{
+                    bubbles:true,
+                    inputType:'insertText',
+                    data:{value}
+                }}));
+                element.dispatchEvent(new Event('change', {{bubbles:true}}));
+                return {{ok:true,value:element.value}};
+            }}
+
+            if (element.isContentEditable || element.getAttribute('role') === 'textbox') {{
+                element.textContent = {value};
+                element.dispatchEvent(new InputEvent('input', {{
+                    bubbles:true,
+                    inputType:'insertText',
+                    data:{value}
+                }}));
+                element.dispatchEvent(new Event('change', {{bubbles:true}}));
+                return {{ok:true,value:element.textContent}};
+            }}
+
+            return {{ok:false,error:'target is not editable'}};
+        }})()"#
     ))?;
 
     validate_textbox_result(&result, request.target.as_ref(), "fill failed")?;
@@ -123,7 +150,21 @@ pub fn press_key(browser: &mut BrowserSession, args: &[String]) -> Result<String
 pub fn select(browser: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     let request = parse_select_request(args)?;
     let result = browser.eval(&format!(
-        r#"(()=>{{const e={};if(!e)return {{ok:false,error:'target not found'}};if(e.disabled)return {{ok:false,error:'target is disabled'}};const v={};if(e.tagName!=='SELECT')return {{ok:false,error:'target is not select'}};const o=[...e.options].find(o=>o.value===v||o.text.trim()===v);if(!o)return {{ok:false,error:'option not found'}};e.value=o.value;e.dispatchEvent(new Event('input',{{bubbles:true}}));e.dispatchEvent(new Event('change',{{bubbles:true}}));return {{ok:true,value:o.value}}}})()"#,
+        r#"(() => {{
+            const element = {};
+            if (!element) return {{ok:false,error:'target not found'}};
+            if (element.disabled) return {{ok:false,error:'target is disabled'}};
+            const value = {};
+            if (element.tagName !== 'SELECT') return {{ok:false,error:'target is not select'}};
+            const option = [...element.options].find(option =>
+                option.value === value || option.text.trim() === value
+            );
+            if (!option) return {{ok:false,error:'option not found'}};
+            element.value = option.value;
+            element.dispatchEvent(new Event('input', {{bubbles:true}}));
+            element.dispatchEvent(new Event('change', {{bubbles:true}}));
+            return {{ok:true,value:option.value}};
+        }})()"#,
         request.target.js_resolver(),
         js(request.value)
     ))?;
@@ -135,7 +176,14 @@ pub fn select(browser: &mut BrowserSession, args: &[String]) -> Result<String, E
 pub fn check(browser: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     let target = target(args, 0, CHECK_USAGE)?;
     let result = browser.eval(&format!(
-        r#"(()=>{{const e={};if(!e)return {{ok:false,error:'target not found'}};if(e.disabled)return {{ok:false,error:'target is disabled'}};if(e.checked===undefined)return {{ok:false,error:'target not checkable'}};if(!e.checked)e.click();return {{ok:true,checked:!!e.checked}}}})()"#,
+        r#"(() => {{
+            const element = {};
+            if (!element) return {{ok:false,error:'target not found'}};
+            if (element.disabled) return {{ok:false,error:'target is disabled'}};
+            if (element.checked === undefined) return {{ok:false,error:'target not checkable'}};
+            if (!element.checked) element.click();
+            return {{ok:true,checked:!!element.checked}};
+        }})()"#,
         target.js_resolver()
     ))?;
 
@@ -232,7 +280,34 @@ fn parse_drag_request(args: &[String]) -> Result<DragRequest<'_>, Error> {
 
 fn prepare_click(browser: &mut BrowserSession, target: &Target) -> Result<ClickPlan, Error> {
     let result = browser.eval(&format!(
-        r#"(()=>{{const e={};if(!e)return {{ok:false,reason:'missing'}};if(e.matches?.(':disabled')||e.getAttribute('aria-disabled')==='true')return {{ok:false,reason:'disabled'}};e.scrollIntoView({{block:'center',inline:'center'}});const r=e.getBoundingClientRect(),s=getComputedStyle(e);if(r.width<=0||r.height<=0||s.display==='none'||s.visibility==='hidden'||s.opacity==='0')return {{ok:false,reason:'hidden'}};return {{ok:true,x:r.left+r.width/2,y:r.top+r.height/2,tag:e.tagName.toLowerCase(),text:(e.innerText||e.value||e.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim().slice(0,160)}}}})()"#,
+        r#"(() => {{
+            const element = {};
+            if (!element) return {{ok:false,reason:'missing'}};
+            if (
+                element.matches?.(':disabled') ||
+                element.getAttribute('aria-disabled') === 'true'
+            ) {{
+                return {{ok:false,reason:'disabled'}};
+            }}
+
+            element.scrollIntoView({{block:'center',inline:'center'}});
+            const visible = {RENDERED_VISIBLE_FN};
+            if (!visible(element)) return {{ok:false,reason:'hidden'}};
+
+            const center = {CENTER_POINT_FN};
+            const normalizeText = {NORMALIZE_TEXT_FN};
+            return {{
+                ok:true,
+                ...center(element),
+                tag:element.tagName.toLowerCase(),
+                text:normalizeText(
+                    element.innerText ||
+                    element.value ||
+                    element.getAttribute('aria-label') ||
+                    ''
+                ).slice(0,160)
+            }};
+        }})()"#,
         target.js_resolver()
     ))?;
 
@@ -280,7 +355,17 @@ fn dispatch_left_click(browser: &mut BrowserSession, x: f64, y: f64) -> Result<(
 
 fn textbox_resolver(target: Option<&Target>) -> String {
     target.map(Target::js_resolver).unwrap_or_else(|| {
-        "[...document.querySelectorAll('input:not([type]),input[type=text],input[type=search],input[type=email],input[type=password],input[type=url],input[type=number],textarea,[role=textbox],[contenteditable=true]')].find(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return !e.disabled&&!e.readOnly&&r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'})".into()
+        format!(
+            r#"(() => {{
+                const visible = {LAYOUT_VISIBLE_FN};
+                return [...document.querySelectorAll({})].find(element =>
+                    !element.disabled &&
+                    !element.readOnly &&
+                    visible(element)
+                );
+            }})()"#,
+            js(TEXTBOX_SELECTOR)
+        )
     })
 }
 
@@ -366,7 +451,13 @@ fn resolve_drag_target(
     role: &str,
 ) -> Result<(f64, f64), Error> {
     let value = browser.eval(&format!(
-        r#"(()=>{{const e={};if(!e)return null;e.scrollIntoView({{block:'center',inline:'center'}});const r=e.getBoundingClientRect();return {{x:r.left+r.width/2,y:r.top+r.height/2}}}})()"#,
+        r#"(() => {{
+            const element = {};
+            if (!element) return null;
+            element.scrollIntoView({{block:'center',inline:'center'}});
+            const center = {CENTER_POINT_FN};
+            return center(element);
+        }})()"#,
         target.js_resolver()
     ))?;
     if value.is_null() {

@@ -1,3 +1,4 @@
+use crate::primitives::js_helpers::LAYOUT_VISIBLE_FN;
 use crate::primitives::{arg, js};
 use crate::{BrowserSession, Error, ErrorKind, INJECTION_DIR, jelly_error};
 use serde_json::{Value, json};
@@ -84,7 +85,12 @@ fn wait_expression(condition: &str, value: &str) -> Result<String, Error> {
         )),
         "css" => Ok(format!("!!document.querySelector({})", js(value))),
         "visible" => Ok(format!(
-            "(()=>{{const e=document.querySelector({});if(!e)return false;const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'}})()",
+            r#"(() => {{
+                const element = document.querySelector({});
+                if (!element) return false;
+                const visible = {LAYOUT_VISIBLE_FN};
+                return visible(element);
+            }})()"#,
             js(value)
         )),
         "url" => Ok(format!("location.href.includes({})", js(value))),

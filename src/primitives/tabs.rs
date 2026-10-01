@@ -81,7 +81,18 @@ fn close_target(browser: &mut BrowserSession, target_id: &str) -> Result<(), Err
 
 fn resolve_openable_url(browser: &mut BrowserSession, target: &Target) -> Result<String, Error> {
     let value = browser.eval(&format!(
-        r#"(()=>{{const e={};if(!e)return null;const a=e.closest('a[href]');return a?.href||(e.tagName==='IMG'?(e.currentSrc||e.src):null)}})()"#,
+        r#"(() => {{
+            const element = {};
+            if (!element) return null;
+
+            const link = element.closest('a[href]');
+            if (link?.href) return link.href;
+
+            if (element.tagName === 'IMG') {{
+                return element.currentSrc || element.src;
+            }}
+            return null;
+        }})()"#,
         target.js_resolver()
     ))?;
     value.as_str().map(str::to_owned).ok_or_else(|| {

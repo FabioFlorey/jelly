@@ -1,6 +1,7 @@
 pub mod files;
 pub mod input;
 pub mod inspect;
+pub(crate) mod js_helpers;
 pub mod navigation;
 pub mod script;
 pub mod tabs;

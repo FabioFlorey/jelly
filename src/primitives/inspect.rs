@@ -1,3 +1,4 @@
+use crate::primitives::js_helpers::{LAYOUT_VISIBLE_FN, NORMALIZE_TEXT_FN, RENDERED_VISIBLE_FN};
 use crate::primitives::{js, missing_target, pretty, target};
 use crate::{BrowserSession, Error};
 use serde_json::{Value, json};
@@ -100,23 +101,124 @@ pub fn find_interactive(b: &mut BrowserSession, args: &[String]) -> Result<Strin
 }
 
 pub fn read_page(b: &mut BrowserSession, _: &[String]) -> Result<String, Error> {
-    Ok(pretty(&b.eval(r#"(()=>{const root=document.querySelector('main,article,[role="main"]')||document.body||document.documentElement;return {title:document.title||'',url:location.href,headings:[...document.querySelectorAll('h1,h2,h3')].filter(e=>e.offsetParent).map(e=>(e.innerText||'').trim()).filter(Boolean).slice(0,30),text:(root?.innerText||'').replace(/\n{3,}/g,'\n\n').slice(0,12000)}})()"#)?))
+    Ok(pretty(&b.eval(
+        r#"(() => {
+            const root =
+                document.querySelector('main,article,[role="main"]') ||
+                document.body ||
+                document.documentElement;
+            const headings = [...document.querySelectorAll('h1,h2,h3')]
+                .filter(element => element.offsetParent)
+                .map(element => (element.innerText || '').trim())
+                .filter(Boolean)
+                .slice(0, 30);
+            return {
+                title:document.title || '',
+                url:location.href,
+                headings,
+                text:(root?.innerText || '').replace(/\n{3,}/g, '\n\n').slice(0, 12000)
+            };
+        })()"#,
+    )?))
 }
+
 pub fn inspect_inputs(b: &mut BrowserSession, _: &[String]) -> Result<String, Error> {
-    Ok(pretty(&b.eval(r#"(()=>[...document.querySelectorAll('input,textarea,select,[contenteditable=true],[role=textbox],[role=combobox],[role=checkbox],[role=radio]')].filter(e=>e.offsetParent).map((e,i)=>({n:i+1,tag:e.tagName.toLowerCase(),type:e.type||e.getAttribute('role')||'',label:e.getAttribute('aria-label')||e.labels?.[0]?.innerText||'',placeholder:e.placeholder||'',name:e.name||'',value:e.value||'',checked:e.checked??null})))()"#)?))
+    Ok(pretty(&b.eval(
+        r#"(() => [...document.querySelectorAll(
+            'input,textarea,select,[contenteditable=true],[role=textbox],[role=combobox],[role=checkbox],[role=radio]'
+        )]
+            .filter(element => element.offsetParent)
+            .map((element, index) => ({
+                n:index + 1,
+                tag:element.tagName.toLowerCase(),
+                type:element.type || element.getAttribute('role') || '',
+                label:element.getAttribute('aria-label') || element.labels?.[0]?.innerText || '',
+                placeholder:element.placeholder || '',
+                name:element.name || '',
+                value:element.value || '',
+                checked:element.checked ?? null
+            })))()"#,
+    )?))
 }
+
 pub fn inspect_elements(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     let q = args.first().map(String::as_str).unwrap_or("*");
-    Ok(pretty(&b.eval(&format!(r#"(()=>[...document.querySelectorAll({})].filter(e=>e.offsetParent).slice(0,100).map((e,i)=>{{const r=e.getBoundingClientRect();return {{n:i+1,tag:e.tagName.toLowerCase(),text:(e.innerText||'').trim().slice(0,200),role:e.getAttribute('role'),label:e.getAttribute('aria-label'),id:e.id,class:e.className?.toString().slice(0,120),href:e.href||null,src:e.currentSrc||e.src||null,x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height)}}}}))()"#,js(q)))?))
+    Ok(pretty(&b.eval(&format!(
+        r#"(() => [...document.querySelectorAll({})]
+            .filter(element => element.offsetParent)
+            .slice(0, 100)
+            .map((element, index) => {{
+                const rect = element.getBoundingClientRect();
+                return {{
+                    n:index + 1,
+                    tag:element.tagName.toLowerCase(),
+                    text:(element.innerText || '').trim().slice(0, 200),
+                    role:element.getAttribute('role'),
+                    label:element.getAttribute('aria-label'),
+                    id:element.id,
+                    class:element.className?.toString().slice(0, 120),
+                    href:element.href || null,
+                    src:element.currentSrc || element.src || null,
+                    x:Math.round(rect.x),
+                    y:Math.round(rect.y),
+                    width:Math.round(rect.width),
+                    height:Math.round(rect.height)
+                }};
+            }}))()"#,
+        js(q)
+    ))?))
 }
+
 pub fn element_info(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     let t = target(args, 0, "usage: element-info <target>")?;
-    let v=b.eval(&format!(r#"(()=>{{const e={};if(!e)return null;const r=e.getBoundingClientRect(),s=getComputedStyle(e),visible=r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0';const image=e instanceof HTMLImageElement?{{complete:e.complete,natural_width:e.naturalWidth,natural_height:e.naturalHeight}}:null;return {{tag:e.tagName.toLowerCase(),text:(e.innerText||e.textContent||'').trim(),role:e.getAttribute('role'),label:e.getAttribute('aria-label'),href:e.href||null,src:e.currentSrc||e.src||null,value:e.value??null,checked:e.checked??null,disabled:e.disabled??null,visible,rect:{{x:r.x,y:r.y,width:r.width,height:r.height}},image,style:{{color:s.color,backgroundColor:s.backgroundColor,borderColor:s.borderColor,font:s.font,display:s.display,visibility:s.visibility,opacity:s.opacity}}}}}})()"#,t.js_resolver()))?;
+    let v = b.eval(&format!(
+        r#"(() => {{
+            const element = {};
+            if (!element) return null;
+
+            const visible = {RENDERED_VISIBLE_FN};
+            const rect = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            const image = element instanceof HTMLImageElement
+                ? {{
+                    complete:element.complete,
+                    natural_width:element.naturalWidth,
+                    natural_height:element.naturalHeight
+                }}
+                : null;
+
+            return {{
+                tag:element.tagName.toLowerCase(),
+                text:(element.innerText || element.textContent || '').trim(),
+                role:element.getAttribute('role'),
+                label:element.getAttribute('aria-label'),
+                href:element.href || null,
+                src:element.currentSrc || element.src || null,
+                value:element.value ?? null,
+                checked:element.checked ?? null,
+                disabled:element.disabled ?? null,
+                visible:visible(element),
+                rect:{{x:rect.x,y:rect.y,width:rect.width,height:rect.height}},
+                image,
+                style:{{
+                    color:style.color,
+                    backgroundColor:style.backgroundColor,
+                    borderColor:style.borderColor,
+                    font:style.font,
+                    display:style.display,
+                    visibility:style.visibility,
+                    opacity:style.opacity
+                }}
+            }};
+        }})()"#,
+        t.js_resolver()
+    ))?;
     if v.is_null() {
         return Err(missing_target(&t));
     }
     Ok(pretty(&v))
 }
+
 pub fn scroll(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     let raw = args.first().map(String::as_str).unwrap_or("down");
     let mut resolved_target = None;
@@ -130,7 +232,12 @@ pub fn scroll(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> 
             let resolver = t.js_scroll_resolver();
             resolved_target = Some(t);
             format!(
-                "(()=>{{const e={resolver};if(!e)return null;e.scrollIntoView({{block:'center'}});return 'ok'}})()"
+                r#"(() => {{
+                    const element = {resolver};
+                    if (!element) return null;
+                    element.scrollIntoView({{block:'center'}});
+                    return 'ok';
+                }})()"#
             )
         }
     };
@@ -149,6 +256,7 @@ pub fn scroll(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> 
         .map(str::to_owned)
         .unwrap_or_else(|| v.to_string()))
 }
+
 pub fn query_selector(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     let q = args.first().ok_or_else(|| {
         crate::jelly_error(
@@ -157,8 +265,29 @@ pub fn query_selector(b: &mut BrowserSession, args: &[String]) -> Result<String,
             false,
         )
     })?;
-    Ok(pretty(&b.eval(&format!(r#"(()=>[...document.querySelectorAll({})].map((e,i)=>{{const r=e.getBoundingClientRect();return {{n:i+1,tag:e.tagName.toLowerCase(),text:(e.innerText||e.textContent||'').replace(/\s+/g,' ').trim().slice(0,300),html:e.outerHTML.slice(0,1000),visible:r.width>0&&r.height>0&&getComputedStyle(e).visibility!=='hidden'&&getComputedStyle(e).display!=='none',x:r.x,y:r.y,width:r.width,height:r.height}}}}))()"#,js(q)))?))
+    Ok(pretty(&b.eval(&format!(
+        r#"(() => {{
+            const visible = {LAYOUT_VISIBLE_FN};
+            const normalizeText = {NORMALIZE_TEXT_FN};
+            return [...document.querySelectorAll({})].map((element, index) => {{
+                const rect = element.getBoundingClientRect();
+                return {{
+                    n:index + 1,
+                    tag:element.tagName.toLowerCase(),
+                    text:normalizeText(element.innerText || element.textContent || '').slice(0, 300),
+                    html:element.outerHTML.slice(0, 1000),
+                    visible:visible(element),
+                    x:rect.x,
+                    y:rect.y,
+                    width:rect.width,
+                    height:rect.height
+                }};
+            }});
+        }})()"#,
+        js(q)
+    ))?))
 }
+
 pub fn get_element(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     if args.is_empty() {
         return Err(crate::jelly_error(
@@ -169,7 +298,17 @@ pub fn get_element(b: &mut BrowserSession, args: &[String]) -> Result<String, Er
     }
     let t = target(args, 0, "usage: get-element <target> [text|html|both]")?;
     let mode = args.get(1).map(String::as_str).unwrap_or("both");
-    let v=b.eval(&format!(r#"(()=>{{const e={};if(!e)return null;return {{text:(e.innerText||e.textContent||'').trim(),html:e.outerHTML}}}})()"#,t.js_resolver()))?;
+    let v = b.eval(&format!(
+        r#"(() => {{
+            const element = {};
+            if (!element) return null;
+            return {{
+                text:(element.innerText || element.textContent || '').trim(),
+                html:element.outerHTML
+            }};
+        }})()"#,
+        t.js_resolver()
+    ))?;
     if v.is_null() {
         return Err(missing_target(&t));
     }
@@ -207,7 +346,19 @@ pub fn accessibility_tree(b: &mut BrowserSession, args: &[String]) -> Result<Str
     Ok(pretty(&Value::Array(out)))
 }
 pub fn inspect_links(b: &mut BrowserSession, _: &[String]) -> Result<String, Error> {
-    let v=b.eval(r#"(()=>[...document.querySelectorAll('a[href]')].filter(a=>{const r=a.getBoundingClientRect(),s=getComputedStyle(a);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'}).map(a=>({text:(a.innerText||a.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim(),href:a.href})).filter(x=>x.text||x.href))()"#)?;
+    let v = b.eval(&format!(
+        r#"(() => {{
+            const visible = {LAYOUT_VISIBLE_FN};
+            const normalizeText = {NORMALIZE_TEXT_FN};
+            return [...document.querySelectorAll('a[href]')]
+                .filter(link => visible(link))
+                .map(link => ({{
+                    text:normalizeText(link.innerText || link.getAttribute('aria-label') || ''),
+                    href:link.href
+                }}))
+                .filter(link => link.text || link.href);
+        }})()"#
+    ))?;
     let mut out = Vec::new();
     let links = inspected_links(&v)?;
     for (i, x) in links.iter().enumerate() {
@@ -232,10 +383,33 @@ fn inspected_links(value: &Value) -> Result<&[Value], Error> {
 }
 
 pub fn inspect_images(b: &mut BrowserSession, _: &[String]) -> Result<String, Error> {
-    let v=b.eval(r#"(()=>[...document.images].map((img,i)=>{const ref='img'+(i+1);img.setAttribute('data-jelly-ref',ref);const r=img.getBoundingClientRect(),s=getComputedStyle(img),visible=r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0';return {ref:'@'+ref,n:i+1,alt:(img.alt||img.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim(),src:img.currentSrc||img.src||'',visible,complete:img.complete,natural_width:img.naturalWidth,natural_height:img.naturalHeight,width:Math.round(r.width),height:Math.round(r.height)}}).filter(img=>img.src))()"#)?;
+    let v = b.eval(&format!(
+        r#"(() => {{
+            const visible = {RENDERED_VISIBLE_FN};
+            const normalizeText = {NORMALIZE_TEXT_FN};
+            return [...document.images]
+                .map((image, index) => {{
+                    const ref = 'img' + (index + 1);
+                    image.setAttribute('data-jelly-ref', ref);
+                    const rect = image.getBoundingClientRect();
+                    return {{
+                        ref:'@' + ref,
+                        n:index + 1,
+                        alt:normalizeText(image.alt || image.getAttribute('aria-label') || ''),
+                        src:image.currentSrc || image.src || '',
+                        visible:visible(image),
+                        complete:image.complete,
+                        natural_width:image.naturalWidth,
+                        natural_height:image.naturalHeight,
+                        width:Math.round(rect.width),
+                        height:Math.round(rect.height)
+                    }};
+                }})
+                .filter(image => image.src);
+        }})()"#
+    ))?;
     Ok(pretty(&v))
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

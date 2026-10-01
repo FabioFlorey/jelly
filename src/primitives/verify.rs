@@ -1,3 +1,4 @@
+use crate::primitives::js_helpers::{NORMALIZE_TEXT_FN, RENDERED_VISIBLE_FN};
 use crate::primitives::{missing_target, pretty, target};
 use crate::{BrowserSession, Error, ErrorKind, Target, jelly_error};
 use serde_json::{Value, json};
@@ -8,7 +9,37 @@ use std::{
 
 fn target_state(b: &mut BrowserSession, target: &Target) -> Result<Value, Error> {
     b.eval(&format!(
-        r#"(()=>{{const e={};if(!e)return {{exists:false}};const r=e.getBoundingClientRect(),s=getComputedStyle(e);const visible=r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0';const image=e instanceof HTMLImageElement?{{complete:e.complete,natural_width:e.naturalWidth,natural_height:e.naturalHeight,src:e.currentSrc||e.src||''}}:null;return {{exists:true,visible,tag:e.tagName.toLowerCase(),text:(e.innerText||e.textContent||e.getAttribute('aria-label')||e.getAttribute('alt')||'').replace(/\s+/g,' ').trim(),rect:{{x:r.x,y:r.y,width:r.width,height:r.height}},image}}}})()"#,
+        r#"(() => {{
+            const element = {};
+            if (!element) return {{exists:false}};
+
+            const visible = {RENDERED_VISIBLE_FN};
+            const normalizeText = {NORMALIZE_TEXT_FN};
+            const rect = element.getBoundingClientRect();
+            const image = element instanceof HTMLImageElement
+                ? {{
+                    complete:element.complete,
+                    natural_width:element.naturalWidth,
+                    natural_height:element.naturalHeight,
+                    src:element.currentSrc || element.src || ''
+                }}
+                : null;
+
+            return {{
+                exists:true,
+                visible:visible(element),
+                tag:element.tagName.toLowerCase(),
+                text:normalizeText(
+                    element.innerText ||
+                    element.textContent ||
+                    element.getAttribute('aria-label') ||
+                    element.getAttribute('alt') ||
+                    ''
+                ),
+                rect:{{x:rect.x,y:rect.y,width:rect.width,height:rect.height}},
+                image
+            }};
+        }})()"#,
         target.js_resolver()
     ))
 }

@@ -30,7 +30,21 @@ fn parse_upload_request(args: &[String]) -> Result<UploadRequest, Error> {
 
 fn mark_upload_target(browser: &mut BrowserSession, target: &Target) -> Result<(), Error> {
     let state = browser.eval(&format!(
-        "(()=>{{document.querySelectorAll('[data-jelly-upload]').forEach(e=>e.removeAttribute('data-jelly-upload'));const e={};if(!e)return {{ok:false,error:'target not found'}};if(e.tagName!=='INPUT'||e.type!=='file')return {{ok:false,error:'target is not a file input'}};if(e.disabled)return {{ok:false,error:'target is disabled'}};e.setAttribute('data-jelly-upload','1');return {{ok:true}}}})()",
+        r#"(() => {{
+            document.querySelectorAll('[data-jelly-upload]').forEach(element =>
+                element.removeAttribute('data-jelly-upload')
+            );
+
+            const element = {};
+            if (!element) return {{ok:false,error:'target not found'}};
+            if (element.tagName !== 'INPUT' || element.type !== 'file') {{
+                return {{ok:false,error:'target is not a file input'}};
+            }}
+            if (element.disabled) return {{ok:false,error:'target is disabled'}};
+
+            element.setAttribute('data-jelly-upload', '1');
+            return {{ok:true}};
+        }})()"#,
         target.js_resolver()
     ))?;
     if state["ok"] == true {
@@ -64,7 +78,9 @@ fn set_file_input(browser: &mut BrowserSession, target: &Target, file: &str) -> 
 
 fn clear_upload_marker(browser: &mut BrowserSession) {
     let _ = browser.eval(
-        "document.querySelectorAll('[data-jelly-upload]').forEach(e=>e.removeAttribute('data-jelly-upload'))",
+        r#"document.querySelectorAll('[data-jelly-upload]').forEach(element =>
+            element.removeAttribute('data-jelly-upload')
+        )"#,
     );
 }
 
