@@ -12,9 +12,8 @@ pub use agent::{
     AgentToolEntry, AgentToolSpec, JELLY_MCP_SURFACE, McpSurface, RawCdpAccess,
     active_agent_catalog, agent_catalog_for_surface, agent_catalog_from_config,
     browser_call_input_schema, browser_events_input_schema, browser_schema_input_schema,
-    cdp_call_input_schema, compact_agent_catalog, execute_browser_call, execute_browser_events,
-    execute_browser_schema, execute_cdp_call, large_surface_agent_catalog,
-    large_surface_agent_catalog_with_raw, legacy_agent_catalog, legacy_agent_catalog_with_raw,
+    cdp_call_input_schema, execute_browser_call, execute_browser_events, execute_browser_schema,
+    execute_cdp_call, large_surface_agent_catalog, large_surface_agent_catalog_with_raw,
     small_surface_agent_catalog, validate_browser_call, validate_browser_events, validate_cdp_call,
 };
 pub use artifacts::{

@@ -20,7 +20,7 @@
 
 It turns browser operations such as reading pages, finding interactive elements, clicking, typing, navigating, switching tabs, uploading files, inspecting network traffic, and taking screenshots into reusable primitives that agents can discover and compose.
 
-You do not need to know Chrome DevTools Protocol to use it. Jelly's MCP server now defaults to a compact Agent API: `browser-schema` discovers semantic operations, `browser-call` executes ordered semantic batches, and `browser-events` handles retained CDP notifications. The legacy flat browser-tool surface remains available as an explicit rollback, and raw CDP stays separately opt-in.
+You do not need to know Chrome DevTools Protocol to use it. Jelly's MCP server now defaults to the `small-surface` Agent API: `browser-schema` discovers semantic operations, `browser-call` executes ordered semantic batches, and `browser-events` handles retained CDP notifications. The expanded individual-tool API is available as `large-surface`, and raw CDP stays separately opt-in.
 
 > [!CAUTION]
 > Jelly controls a real browser and can perform real actions on websites. Review routines before running them against accounts or systems you care about.
@@ -97,7 +97,7 @@ cargo run --quiet --bin agent-discover -- schema type-text
 | 📂 [**Runtime Layout**](./docs/RUNTIME.md) | Runtime state, build output, logs, screenshots, and cleanup |
 | 🧈 [**Development**](./docs/DEVELOPMENT.md) | Project conventions, tests, and contribution rules |
 | 🧪 [**Test Index**](./tests/INDEX.md) | Test-suite layout, coverage groups, batches, and executable catalog |
-| ⚡ [**MCP Server**](./docs/MCP.md) | Compact-default Agent API, legacy rollback, authentication, tool mapping, and deployment boundary |
+| ⚡ [**MCP Server**](./docs/MCP.md) | Small-surface Agent API, large-surface mode, authentication, tool mapping, and deployment boundary |
 | 🍯 [**Tool Index**](./.agent/tools/index.md) | Generated reference for browser primitives and system tools |
 | 🌟 [**Changelog**](./CHANGELOG.md) | Development history |
 

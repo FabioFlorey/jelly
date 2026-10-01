@@ -27,8 +27,8 @@ impl McpSurface {
             return Ok(Self::SmallSurface);
         };
         match value.trim().to_ascii_lowercase().as_str() {
-            "large-surface" | "legacy" => Ok(Self::LargeSurface),
-            "small-surface" | "compact" => Ok(Self::SmallSurface),
+            "large-surface" => Ok(Self::LargeSurface),
+            "small-surface" => Ok(Self::SmallSurface),
             other => Err(format!(
                 "{JELLY_MCP_SURFACE} must be large-surface or small-surface; got {other}"
             )),
@@ -279,20 +279,6 @@ impl AgentToolCatalog {
         Self::try_new(specs)
     }
 
-    // Temporary source-compatibility wrappers for callers compiled against the previous
-    // terminology. New internal code must use large_surface / small_surface.
-    pub fn legacy() -> Result<Self, AgentCatalogError> {
-        Self::large_surface()
-    }
-
-    pub fn legacy_with_raw(raw_cdp: crate::RawCdpAccess) -> Result<Self, AgentCatalogError> {
-        Self::large_surface_with_raw(raw_cdp)
-    }
-
-    pub fn compact(raw_cdp: crate::RawCdpAccess) -> Result<Self, AgentCatalogError> {
-        Self::small_surface(raw_cdp)
-    }
-
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &AgentToolEntry> {
         self.entries.iter()
     }
@@ -343,16 +329,6 @@ pub fn large_surface_agent_catalog_with_raw(
     })
 }
 
-// Temporary source-compatibility wrappers for the pre-rename public API. New internal
-// callers must use large_surface_agent_catalog / small_surface_agent_catalog.
-pub fn legacy_agent_catalog() -> &'static AgentToolCatalog {
-    large_surface_agent_catalog()
-}
-
-pub fn legacy_agent_catalog_with_raw(raw_cdp: crate::RawCdpAccess) -> &'static AgentToolCatalog {
-    large_surface_agent_catalog_with_raw(raw_cdp)
-}
-
 pub fn small_surface_agent_catalog(raw_cdp: crate::RawCdpAccess) -> &'static AgentToolCatalog {
     static DISABLED: OnceLock<AgentToolCatalog> = OnceLock::new();
     static ENABLED: OnceLock<AgentToolCatalog> = OnceLock::new();
@@ -365,10 +341,6 @@ pub fn small_surface_agent_catalog(raw_cdp: crate::RawCdpAccess) -> &'static Age
         AgentToolCatalog::small_surface(raw_cdp)
             .unwrap_or_else(|error| panic!("invalid small-surface agent tool catalog: {error}"))
     })
-}
-
-pub fn compact_agent_catalog(raw_cdp: crate::RawCdpAccess) -> &'static AgentToolCatalog {
-    small_surface_agent_catalog(raw_cdp)
 }
 
 pub fn agent_catalog_for_surface(
@@ -576,7 +548,7 @@ mod tests {
     }
 
     #[test]
-    fn mcp_surface_parser_defaults_to_small_surface_and_accepts_compatibility_aliases() {
+    fn mcp_surface_parser_accepts_only_canonical_names() {
         assert_eq!(McpSurface::parse(None).unwrap(), McpSurface::SmallSurface);
         assert_eq!(McpSurface::SmallSurface.as_str(), "small-surface");
         assert_eq!(McpSurface::LargeSurface.as_str(), "large-surface");
@@ -589,16 +561,10 @@ mod tests {
             McpSurface::parse(Some(" Small-Surface ")).unwrap(),
             McpSurface::SmallSurface
         );
-        assert_eq!(
-            McpSurface::parse(Some("legacy")).unwrap(),
-            McpSurface::LargeSurface
-        );
-        assert_eq!(
-            McpSurface::parse(Some("compact")).unwrap(),
-            McpSurface::SmallSurface
-        );
-        let error = McpSurface::parse(Some("both")).unwrap_err();
-        assert!(error.contains("must be large-surface or small-surface"));
+        for unsupported in ["legacy", "compact", "both"] {
+            let error = McpSurface::parse(Some(unsupported)).unwrap_err();
+            assert!(error.contains("must be large-surface or small-surface"));
+        }
     }
 
     #[test]
@@ -727,19 +693,5 @@ mod tests {
                 .len(),
             3
         );
-    }
-
-    #[test]
-    fn previous_catalog_names_remain_compatibility_wrappers() {
-        let legacy = legacy_agent_catalog();
-        let large = large_surface_agent_catalog();
-        assert!(std::ptr::eq(legacy, large));
-        assert!(legacy.get("click").is_some());
-        assert!(legacy.get("hitl").is_some());
-
-        let compact = compact_agent_catalog(crate::RawCdpAccess::Disabled);
-        let small = small_surface_agent_catalog(crate::RawCdpAccess::Disabled);
-        assert!(std::ptr::eq(compact, small));
-        assert!(compact.get("browser-call").is_some());
     }
 }
