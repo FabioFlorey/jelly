@@ -7,12 +7,12 @@ mod target_manager;
 mod targets;
 mod transport;
 
+pub(crate) use events::EventState;
 pub use events::{
     CdpEvent, CdpEventCursor, CdpEventFilter, CdpEventPoll, CdpEventRingStats,
     DEFAULT_CDP_EVENT_MAX_BYTES, DEFAULT_CDP_EVENT_MAX_COUNT, DEFAULT_CDP_EVENT_POLL_LIMIT,
     MAX_CDP_EVENT_POLL_LIMIT, MAX_CDP_EVENT_SUBSCRIPTIONS,
 };
-pub(crate) use events::{CdpEventRing, CdpEventSubscriptions};
 pub(crate) use runtime::{
     legacy_search_expression, legacy_snapshot_expression, page_runtime_bootstrap,
     search_expression, snapshot_expression,

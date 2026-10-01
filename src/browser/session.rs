@@ -1,6 +1,6 @@
 use super::{
-    CdpEvent, CdpEventFilter, CdpEventPoll, CdpEventRing, CdpEventRingStats, CdpEventSubscriptions,
-    LogicalTarget, TargetManager, perf,
+    CdpEvent, CdpEventFilter, CdpEventPoll, CdpEventRingStats, EventState, LogicalTarget,
+    TargetManager, perf,
     transport::{CdpNotification, CdpTransport, browser_unavailable, check_error},
 };
 use crate::{DOWNLOAD_DIR, ENDPOINT, Error, ErrorKind, jelly_error};
@@ -10,15 +10,14 @@ use std::time::Instant;
 pub struct BrowserSession {
     transport: CdpTransport,
     targets: TargetManager,
-    events: CdpEventRing,
-    subscriptions: CdpEventSubscriptions,
+    events: EventState,
 }
 
 impl BrowserSession {
     pub fn connect() -> Result<Self, Error> {
         let started = Instant::now();
         let mut transport = CdpTransport::connect(ENDPOINT)?;
-        let mut events = CdpEventRing::default();
+        let mut events = EventState::default();
         let exchange = transport.request("Target.getTargets", None, json!({}))?;
         retain_initial_notifications(&mut events, exchange.notifications)?;
         check_error(&exchange.response, "Target.getTargets")?;
@@ -46,7 +45,6 @@ impl BrowserSession {
             transport,
             targets,
             events,
-            subscriptions: CdpEventSubscriptions::default(),
         };
 
         let mut download_params = json!({
@@ -111,7 +109,7 @@ impl BrowserSession {
         if let Some(target) = filter.target() {
             self.validate_logical_targets(&[target])?;
         }
-        self.subscriptions.subscribe(filter, self.events.stats())
+        self.events.subscribe(filter)
     }
 
     pub fn poll_cdp_events(
@@ -119,21 +117,20 @@ impl BrowserSession {
         subscription_id: &str,
         limit: usize,
     ) -> Result<CdpEventPoll, Error> {
-        self.subscriptions.filter(subscription_id)?;
+        self.events.ensure_subscription(subscription_id)?;
         self.pump_cdp_events()?;
-        self.subscriptions
-            .poll(subscription_id, &self.events, limit)
+        self.events.poll(subscription_id, limit)
     }
 
     pub fn unsubscribe_cdp_events(&mut self, subscription_id: &str) -> Result<(), Error> {
-        self.subscriptions.unsubscribe(subscription_id)
+        self.events.unsubscribe(subscription_id)
     }
 
     pub fn cdp_event_subscription_filter(
         &self,
         subscription_id: &str,
     ) -> Result<CdpEventFilter, Error> {
-        self.subscriptions.filter(subscription_id).cloned()
+        self.events.subscription_filter(subscription_id)
     }
 
     pub fn pump_cdp_events(&mut self) -> Result<(), Error> {
@@ -428,7 +425,7 @@ impl BrowserSession {
 }
 
 fn retain_initial_notifications(
-    events: &mut CdpEventRing,
+    events: &mut EventState,
     notifications: Vec<CdpNotification>,
 ) -> Result<(), Error> {
     for notification in notifications {

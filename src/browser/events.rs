@@ -144,7 +144,7 @@ struct CdpEventSubscription {
 }
 
 #[derive(Debug, Clone, Default)]
-pub(crate) struct CdpEventSubscriptions {
+struct CdpEventSubscriptions {
     subscriptions: HashMap<String, CdpEventSubscription>,
 }
 
@@ -314,7 +314,7 @@ fn subscription_not_found(id: &str) -> Error {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct CdpEventRing {
+struct CdpEventRing {
     events: VecDeque<CdpEvent>,
     retained_bytes: usize,
     dropped: u64,
@@ -425,6 +425,62 @@ impl CdpEventRing {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct EventState {
+    ring: CdpEventRing,
+    subscriptions: CdpEventSubscriptions,
+}
+
+impl EventState {
+    pub(crate) fn events(&self) -> Vec<CdpEvent> {
+        self.ring.events()
+    }
+
+    pub(crate) fn stats(&self) -> CdpEventRingStats {
+        self.ring.stats()
+    }
+
+    pub(crate) fn reset_stream(&mut self) {
+        self.ring.reset_stream();
+    }
+
+    pub(crate) fn subscribe(
+        &mut self,
+        filter: CdpEventFilter,
+    ) -> Result<(String, CdpEventCursor), Error> {
+        self.subscriptions.subscribe(filter, self.ring.stats())
+    }
+
+    pub(crate) fn ensure_subscription(&self, id: &str) -> Result<(), Error> {
+        self.subscriptions.filter(id).map(|_| ())
+    }
+
+    pub(crate) fn subscription_filter(&self, id: &str) -> Result<CdpEventFilter, Error> {
+        self.subscriptions.filter(id).cloned()
+    }
+
+    pub(crate) fn poll(&mut self, id: &str, limit: usize) -> Result<CdpEventPoll, Error> {
+        self.subscriptions.poll(id, &self.ring, limit)
+    }
+
+    pub(crate) fn unsubscribe(&mut self, id: &str) -> Result<(), Error> {
+        self.subscriptions.unsubscribe(id)
+    }
+
+    pub(crate) fn push(
+        &mut self,
+        method: String,
+        params: Value,
+        session_id: Option<String>,
+        target_id: Option<String>,
+        target: Option<String>,
+        wire_bytes: usize,
+    ) -> u64 {
+        self.ring
+            .push(method, params, session_id, target_id, target, wire_bytes)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -443,6 +499,36 @@ mod tests {
             Some(target.to_owned()),
             bytes,
         )
+    }
+
+    #[test]
+    fn event_state_owns_ring_and_subscription_lifecycle_together() {
+        let mut state = EventState::default();
+        let (id, cursor) = state
+            .subscribe(CdpEventFilter::new(
+                Some("main".into()),
+                vec!["Page.loadEventFired".into()],
+                Vec::new(),
+            ))
+            .unwrap();
+        assert_eq!(cursor.sequence, 0);
+
+        state.push(
+            "Page.loadEventFired".into(),
+            json!({"timestamp":1}),
+            Some("session-main".into()),
+            Some("target-main".into()),
+            Some("main".into()),
+            32,
+        );
+
+        let poll = state.poll(&id, 10).unwrap();
+        assert_eq!(poll.events.len(), 1);
+        assert_eq!(poll.events[0].target(), Some("main"));
+        assert_eq!(poll.cursor_after.sequence, 1);
+
+        state.unsubscribe(&id).unwrap();
+        assert!(state.ensure_subscription(&id).is_err());
     }
 
     #[test]
