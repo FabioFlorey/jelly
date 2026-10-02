@@ -4,10 +4,6 @@ use super::prepare::{
 };
 use crate::{BrowserSession, Error, ErrorKind, jelly_error};
 use serde_json::{Map, Value, json};
-use std::env;
-
-const RAW_CDP_ENV: &str = "JELLY_MCP_RAW_CDP";
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RawCdpAccess {
     Disabled,
@@ -19,13 +15,11 @@ impl RawCdpAccess {
         matches!(self, Self::Enabled)
     }
 
-    pub fn from_env() -> Result<Self, String> {
-        match env::var(RAW_CDP_ENV) {
-            Ok(value) => Self::parse(Some(&value)),
-            Err(env::VarError::NotPresent) => Ok(Self::Disabled),
-            Err(env::VarError::NotUnicode(_)) => {
-                Err(format!("{RAW_CDP_ENV} must contain valid UTF-8"))
-            }
+    pub fn from_config() -> Self {
+        if crate::config::config().mcp.raw_cdp {
+            Self::Enabled
+        } else {
+            Self::Disabled
         }
     }
 
@@ -37,7 +31,7 @@ impl RawCdpAccess {
             "1" | "true" | "on" => Ok(Self::Enabled),
             "0" | "false" | "off" => Ok(Self::Disabled),
             other => Err(format!(
-                "{RAW_CDP_ENV} must be one of 1,true,on,0,false,off; got {other}"
+                "mcp.raw_cdp must be one of 1,true,on,0,false,off; got {other}"
             )),
         }
     }
@@ -76,9 +70,7 @@ pub(super) fn prepare_cdp_call(
     if !raw_cdp.enabled() {
         return Err(jelly_error(
             ErrorKind::Unsupported,
-            format!(
-                "raw CDP is disabled; set {RAW_CDP_ENV}=1 before publishing or executing raw browser-call entries"
-            ),
+            "raw CDP is disabled by config/jelly.toml [mcp].raw_cdp".to_owned(),
             false,
         ));
     }

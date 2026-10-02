@@ -10,8 +10,13 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-const ACTIVE: &str = "/data/jelly-runtime/artifacts/recordings/active.json";
-const START_LOCK: &str = "/data/jelly-runtime/artifacts/recordings/start.lock";
+fn active_path() -> PathBuf {
+    PathBuf::from(RECORDING_DIR.as_str()).join("active.json")
+}
+
+fn start_lock_path() -> PathBuf {
+    PathBuf::from(RECORDING_DIR.as_str()).join("start.lock")
+}
 
 fn now_ms() -> u128 {
     SystemTime::now()
@@ -28,25 +33,25 @@ impl StartLock {
             match fs::OpenOptions::new()
                 .write(true)
                 .create_new(true)
-                .open(START_LOCK)
+                .open(start_lock_path())
             {
                 Ok(mut file) => {
                     writeln!(file, "{}", std::process::id())?;
                     return Ok(Self);
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                    let owner = fs::read_to_string(START_LOCK)
+                    let owner = fs::read_to_string(start_lock_path())
                         .ok()
                         .and_then(|value| value.trim().parse::<u64>().ok());
                     let stale = owner.is_some_and(|pid| !process_alive(pid))
                         || (owner.is_none()
-                            && fs::metadata(START_LOCK)
+                            && fs::metadata(start_lock_path())
                                 .and_then(|metadata| metadata.modified())
                                 .ok()
                                 .and_then(|modified| modified.elapsed().ok())
                                 .is_some_and(|age| age >= Duration::from_secs(30)));
                     if attempt == 0 && stale {
-                        fs::remove_file(START_LOCK)?;
+                        fs::remove_file(start_lock_path())?;
                         continue;
                     }
                     return Err("another browser recording start is already in progress".into());
@@ -60,14 +65,14 @@ impl StartLock {
 
 impl Drop for StartLock {
     fn drop(&mut self) {
-        let _ = fs::remove_file(START_LOCK);
+        let _ = fs::remove_file(start_lock_path());
     }
 }
 
 fn write_active_state(state: &Value) -> Result<(), Box<dyn std::error::Error>> {
-    let temp = format!("{ACTIVE}.tmp.{}", std::process::id());
+    let temp = format!("{}.tmp.{}", active_path().display(), std::process::id());
     fs::write(&temp, serde_json::to_vec_pretty(state)?)?;
-    fs::rename(temp, ACTIVE)?;
+    fs::rename(temp, active_path())?;
     Ok(())
 }
 
@@ -130,14 +135,14 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn ensure_not_active() -> Result<(), Box<dyn std::error::Error>> {
-    if let Ok(active) = fs::read_to_string(ACTIVE) {
+    if let Ok(active) = fs::read_to_string(active_path()) {
         if let Ok(value) = serde_json::from_str::<Value>(&active) {
             let mode = value["mode"].as_str().unwrap_or("continuous");
             if mode == "steps" || value["pid"].as_u64().is_some_and(process_alive) {
                 return Err("a browser recording is already active".into());
             }
         }
-        let _ = fs::remove_file(ACTIVE);
+        let _ = fs::remove_file(active_path());
     }
     Ok(())
 }
@@ -214,8 +219,9 @@ fn start(mode: &str, interval_ms: u64, hold_ms: u64) -> Result<(), Box<dyn std::
 }
 
 fn stop() -> Result<(), Box<dyn std::error::Error>> {
-    let active: Value =
-        serde_json::from_slice(&fs::read(ACTIVE).map_err(|_| "no browser recording is active")?)?;
+    let active: Value = serde_json::from_slice(
+        &fs::read(active_path()).map_err(|_| "no browser recording is active")?,
+    )?;
     match active["mode"].as_str().unwrap_or("continuous") {
         "steps" => stop_steps(&active),
         "continuous" => stop_continuous(&active),
@@ -311,7 +317,7 @@ fn finalize(active: &Value, dir: &Path, manifest: &Path) -> Result<(), Box<dyn s
             .or(recorded["final_target_id"].as_str()),
         frame_count,
     )?;
-    let _ = fs::remove_file(ACTIVE);
+    let _ = fs::remove_file(active_path());
     fs::remove_dir_all(dir)?;
     println!("{}", serde_json::to_string(&artifact)?);
     Ok(())

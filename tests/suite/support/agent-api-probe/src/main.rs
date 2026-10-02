@@ -166,23 +166,8 @@ fn raw_disabled() -> Result<(), Box<dyn Error>> {
 }
 
 fn default_small_surface() -> Result<(), Box<dyn Error>> {
-    let exe = env::current_exe()?;
-    let output = Command::new(exe)
-        .arg("active-tools-list")
-        .env_remove("JELLY_MCP_SURFACE")
-        .env_remove("JELLY_MCP_RAW_CDP")
-        .output()?;
-    ensure(
-        output.status.success(),
-        format!(
-            "default tools/list subprocess failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ),
-    )?;
-    let payload: Value = serde_json::from_slice(&output.stdout)?;
-    let names = payload["tools"]
-        .as_array()
-        .ok_or("default tools/list payload missing tools")?
+    let tools = jelly::mcp::mcp_tools()?;
+    let names = tools
         .iter()
         .filter_map(|tool| tool["name"].as_str())
         .collect::<HashSet<_>>();
@@ -199,23 +184,8 @@ fn default_small_surface() -> Result<(), Box<dyn Error>> {
 }
 
 fn explicit_large_surface() -> Result<(), Box<dyn Error>> {
-    let exe = env::current_exe()?;
-    let output = Command::new(exe)
-        .arg("active-tools-list")
-        .env("JELLY_MCP_SURFACE", "large-surface")
-        .env("JELLY_MCP_RAW_CDP", "1")
-        .output()?;
-    ensure(
-        output.status.success(),
-        format!(
-            "large-surface tools/list subprocess failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ),
-    )?;
-    let payload: Value = serde_json::from_slice(&output.stdout)?;
-    let names = payload["tools"]
-        .as_array()
-        .ok_or("large-surface tools/list payload missing tools")?
+    let tools = jelly::mcp::mcp_tools_for_config(Some("large-surface"), Some("1"))?;
+    let names = tools
         .iter()
         .filter_map(|tool| tool["name"].as_str())
         .collect::<HashSet<_>>();
@@ -760,24 +730,11 @@ fn active_tools_list() -> Result<(), Box<dyn Error>> {
 }
 
 fn subprocess_tools_list(surface: McpSurface, raw: RawCdpAccess) -> Result<Value, Box<dyn Error>> {
-    let exe = env::current_exe()?;
-    let mut command = Command::new(exe);
-    command.arg("active-tools-list");
-    command.env("JELLY_MCP_SURFACE", surface.as_str());
-    if surface == McpSurface::SmallSurface {
-        command.env("JELLY_MCP_RAW_CDP", if raw.enabled() { "1" } else { "0" });
-    } else {
-        command.env_remove("JELLY_MCP_RAW_CDP");
-    }
-    let output = command.output()?;
-    ensure(
-        output.status.success(),
-        format!(
-            "tools/list subprocess failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ),
+    let tools = jelly::mcp::mcp_tools_for_config(
+        Some(surface.as_str()),
+        Some(if raw.enabled() { "1" } else { "0" }),
     )?;
-    Ok(serde_json::from_slice(&output.stdout)?)
+    Ok(json!({"tools": tools}))
 }
 
 fn measure_read_pair(

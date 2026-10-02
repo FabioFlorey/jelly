@@ -43,7 +43,9 @@ pub fn log_primitive(
     Ok(())
 }
 
-const RECORDING_ACTIVE: &str = "/data/jelly-runtime/artifacts/recordings/active.json";
+fn recording_active_path() -> std::path::PathBuf {
+    std::path::PathBuf::from(crate::RECORDING_DIR.as_str()).join("active.json")
+}
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct PreparedStep {
@@ -55,7 +57,7 @@ pub(crate) fn prepare_step(
     name: &str,
     args: &[String],
 ) -> Option<PreparedStep> {
-    let active: Value = serde_json::from_slice(&fs::read(RECORDING_ACTIVE).ok()?).ok()?;
+    let active: Value = serde_json::from_slice(&fs::read(recording_active_path()).ok()?).ok()?;
     if active["mode"].as_str() != Some("steps") || !step_worthy_primitive(name) {
         return None;
     }
@@ -156,7 +158,7 @@ fn record_step_prepared(
     span_id: &str,
     prepared: Option<&PreparedStep>,
 ) -> Result<(), Error> {
-    let active_bytes = match fs::read(RECORDING_ACTIVE) {
+    let active_bytes = match fs::read(recording_active_path()) {
         Ok(bytes) => bytes,
         Err(_) => return Ok(()),
     };

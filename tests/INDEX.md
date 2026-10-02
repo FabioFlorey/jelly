@@ -48,7 +48,7 @@ The detailed suite contract, command reference, reporting format, and test-desig
 Generated test-run data does not belong in this directory. By default it is written to:
 
 ```text
-/data/jelly-runtime/test-runs/<RUN_ID>/
+<runtime_root>/test-runs/<RUN_ID>/
 ```
 
 Browser/build runtime state likewise stays outside the repository.
@@ -112,4 +112,4 @@ A selected disabled test is reported as `DISABLED` rather than silently omitted.
 
 A test implementation is not considered trustworthy merely because its shell function exists. Repository validation should cover the harness itself as well as the product behavior. The `quality` group therefore checks Rust formatting/build/tests/Clippy, generated-tool-index consistency, suite catalog integrity, shell syntax, test-index coverage, and the global suite lock.
 
-For project-level development guidance, see [`../docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md).
+For project-level development guidance, see [`../docs/wiki/DEVELOPMENT.md`](../docs/wiki/DEVELOPMENT.md).

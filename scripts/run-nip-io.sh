@@ -2,14 +2,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD_DIR="$(cd "$ROOT/.." && pwd)/.jelly-build"
+# shellcheck source=scripts/config.sh
+source "$ROOT/scripts/config.sh"
+BUILD_DIR="$CONFIG_BUILD_ROOT"
 ADDR="${JELLY_MCP_ADDR:-127.0.0.1:8787}"
 NETWORK_MODE="${JELLY_NIP_IO_NETWORK:-manual}"
 HTTP_PORT="${JELLY_NIP_IO_HTTP_PORT:-8080}"
 HTTPS_PORT="${JELLY_NIP_IO_HTTPS_PORT:-8443}"
 MCP_BIN="${JELLY_MCP_BIN:-$BUILD_DIR/release/jelly-mcp}"
 VALIDATE_IP_BIN="${JELLY_VALIDATE_PUBLIC_IP_BIN:-$BUILD_DIR/release/jelly-validate-public-ip}"
-RUNTIME="/data/jelly-runtime/nip-io"
+RUNTIME="$CONFIG_RUNTIME_ROOT/nip-io"
 CADDYFILE="$RUNTIME/Caddyfile"
 
 resolve_caddy() {

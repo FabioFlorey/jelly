@@ -2,14 +2,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/config.sh
+source "$ROOT/scripts/config.sh"
 ENV_FILE="$ROOT/.env"
-
-if [[ -f "$ENV_FILE" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "$ENV_FILE"
-  set +a
-fi
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
   C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
@@ -51,8 +46,9 @@ if [[ -n "$public_url" ]]; then
 fi
 printf '  OAuth consent   %s\n' "$consent"
 printf '  ChatGPT DCR     %s\n' "${JELLY_OAUTH_PUBLIC_CHATGPT_DCR:-false}"
-printf '  Config          %s\n' "$ENV_FILE"
-printf '  Runtime         /data/jelly-runtime\n'
+printf '  Environment     %s\n' "$ENV_FILE"
+printf '  Config          %s\n' "$CONFIG_FILE"
+printf '  Runtime         %s\n' "$CONFIG_RUNTIME_ROOT"
 printf '\n%b◇  Operations%b\n' "$C_HONEY$C_BOLD" "$C_RESET"
 printf '  Logs            journalctl --user -u jelly-mcp.service -f\n'
 printf '  Restart         systemctl --user restart jelly-mcp.service\n'

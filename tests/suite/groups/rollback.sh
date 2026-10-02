@@ -43,13 +43,13 @@ rollback_start_server() {
   local port="$1" persistent="$2" runtime="$3" limit="${4:-17}"
   rollback_stop_server
   RB_PORT="$port"
+  jt_config_set mcp surface large-surface
+  jt_config_set mcp persistent_session "$([[ "$persistent" == 1 ]] && echo true || echo false)"
+  jt_config_set page runtime "$([[ "$runtime" == 1 ]] && echo true || echo false)"
+  jt_config_set page snapshot_limit "$limit"
   JELLY_MCP_ADDR="127.0.0.1:${port}" \
   JELLY_PUBLIC_URL="http://127.0.0.1:${port}" \
-  JELLY_MCP_SURFACE="large-surface" \
-  JELLY_MCP_PERSISTENT_SESSION="$persistent" \
-  JELLY_PAGE_RUNTIME="$runtime" \
-  JELLY_SNAPSHOT_LIMIT="$limit" \
-    "$JELLY_BIN_DIR/jelly-mcp" >"/tmp/jelly-suite-rollback-${port}.log" 2>&1 &
+    "$BIN_DIR/jelly-mcp" >"/tmp/jelly-suite-rollback-${port}.log" 2>&1 &
   RB_PID=$!
   for _ in {1..80}; do
     curl -fsS "http://127.0.0.1:${port}/health" >/dev/null 2>&1 && return 0
@@ -71,7 +71,7 @@ rollback_expect_ok() {
 
 rollback_open_small() {
   rollback_close_browser
-  "$JELLY_BIN_DIR/agent-open-browser" --headless "file://${JELLY_REPO_ROOT}/tests/fixtures/browser-perf.html" >/dev/null
+  "$BIN_DIR/agent-open-browser" --headless "file://${REPO_ROOT}/tests/fixtures/browser-perf.html" >/dev/null
   jt_runtime_eval "window.__jellyBench.setCase('small')" >/dev/null
 }
 
@@ -159,12 +159,12 @@ rollback_limit_zero() {
   local runtime port=18850 r data
   for runtime in 0 1; do
     rollback_close_browser
-    "$JELLY_BIN_DIR/agent-open-browser" --headless "file://${JELLY_REPO_ROOT}/tests/fixtures/browser-perf.html" >/dev/null
+    "$BIN_DIR/agent-open-browser" --headless "file://${REPO_ROOT}/tests/fixtures/browser-perf.html" >/dev/null
     jt_runtime_eval "window.__jellyBench.setCase('large')" >/dev/null
     rollback_start_server "$port" 1 "$runtime" 0
     r="$(rollback_call 201 snapshot-interactive '{}')"; rollback_expect_ok "$r" "limit-zero unlimited snapshot failed"
     data="$(jq -c '.result.structuredContent.data' <<<"$r")"
-    jt_assert_ge "$(jq 'length' <<<"$data")" "1000" "JELLY_SNAPSHOT_LIMIT=0 must restore unlimited results"
+    jt_assert_ge "$(jq 'length' <<<"$data")" "1000" "configured snapshot_limit=0 must return unlimited results"
     r="$(rollback_call 202 snapshot-interactive '{"limit":7}')"; rollback_expect_ok "$r" "explicit limit over zero failed"
     jt_assert_eq "$(jq '.result.structuredContent.data|length' <<<"$r")" "7" "explicit limit must override zero default"
     rollback_stop_server
@@ -175,4 +175,4 @@ rollback_limit_zero() {
 
 jt_register "RBK-001" "rollback" "Persistent/runtime rollback matrix" "Verify all four combinations of persistent MCP session and page runtime preserve snapshot, ref, click and search behavior while using the intended ref mechanism." "MCP credentials available; browser-perf small fixture." "Run persistent={0,1} × runtime={0,1} with snapshot limit 17." "All combinations work; runtime-on uses tokenized/no DOM refs and runtime-off uses legacy DOM refs." "mcp" rollback_matrix
 jt_register "RBK-002" "rollback" "Same-document runtime on/off/on" "Verify toggling runtime feature flags between MCP server instances on the same document never leaves hybrid refs and always invalidates old namespaces." "MCP credentials; same browser document retained while MCP servers restart." "runtime on → off → on for persistent=0 and persistent=1." "Legacy/runtime states are coherent; stale refs from prior modes fail; re-enabled runtime uses fresh namespace." "mcp" rollback_transitions
-jt_register "RBK-003" "rollback" "Snapshot-limit zero rollback" "Verify JELLY_SNAPSHOT_LIMIT=0 restores unlimited compatibility while explicit per-call limits still win." "Large fixture; MCP credentials." "runtime={0,1}, env snapshot limit 0, then explicit limit 7." "Default result contains >=1000 controls and explicit request contains exactly 7 in both modes." "mcp" rollback_limit_zero
+jt_register "RBK-003" "rollback" "Snapshot-limit zero rollback" "Verify configured snapshot_limit=0 returns unlimited results while explicit per-call limits still win." "Large fixture; MCP credentials." "runtime={0,1}, configured snapshot limit 0, then explicit limit 7." "Default result contains >=1000 controls and explicit request contains exactly 7 in both modes." "mcp" rollback_limit_zero

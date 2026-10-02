@@ -207,10 +207,7 @@ fn run_system_tool(name: &str, args: &[String]) -> Result<String, String> {
     let direct = bin_dir.join(format!("agent-{name}"));
     let output = if direct.is_file() {
         Command::new(direct).args(args).output()
-    } else if env::var("JELLY_MCP_ALLOW_CARGO_FALLBACK")
-        .ok()
-        .is_some_and(|value| matches!(value.trim(), "1" | "true" | "on"))
-    {
+    } else if crate::config::config().mcp.allow_cargo_fallback {
         Command::new("cargo")
             .current_dir(env!("CARGO_MANIFEST_DIR"))
             .args(["run", "--quiet", "--bin", &format!("agent-{name}"), "--"])
@@ -218,7 +215,7 @@ fn run_system_tool(name: &str, args: &[String]) -> Result<String, String> {
             .output()
     } else {
         return Err(format!(
-            "required MCP system tool binary is missing: {} (set JELLY_MCP_ALLOW_CARGO_FALLBACK=1 only for explicit development fallback)",
+            "required MCP system tool binary is missing: {} (enable [mcp].allow_cargo_fallback in config/jelly.toml only for development)",
             direct.display()
         ));
     }

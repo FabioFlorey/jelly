@@ -6,7 +6,7 @@
 
 **Browser instrumentation for agents.**
 
-✨ [**Quickstart**](#2-quickstart)　•　⭐ [**Architecture**](./docs/ARCHITECTURE.md)　•　⚡ [**MCP**](./docs/MCP.md)　•　💡 [**Documentation**](./docs/README.md)　•　🍯 [**Tool Index**](./.agent/tools/index.md)
+✨ [**Quickstart**](#2-quickstart)　•　⭐ [**Architecture**](./docs/wiki/ARCHITECTURE.md)　•　⚡ [**MCP**](./docs/wiki/MCP.md)　•　💡 [**Documentation**](./docs/wiki/README.md)　•　🍯 [**Tool Index**](./.agent/tools/index.md)
 
 📒 [Visit the project website](https://fabioflorey.github.io/jelly/)
 
@@ -37,7 +37,7 @@ cd jelly
 ./quickstart.sh
 ```
 
-The wizard checks dependencies, configures OAuth + hosting, and can install/start Jelly. See [MCP](./docs/MCP.md) for hosting modes and advanced setup.
+The wizard checks dependencies, configures OAuth + hosting, and can install/start Jelly. See [MCP](./docs/wiki/MCP.md) for hosting modes and advanced setup.
 
 Use `./quickstart.sh --dry-run` to preview setup, or `./quickstart.sh --check` for prerequisites only.
 
@@ -87,17 +87,18 @@ cargo run --quiet --bin agent-discover -- schema type-text
 
 | Document | Description |
 | :--- | :--- |
-| 📒 [**Documentation Index**](./docs/README.md) | Main entry point for the documentation |
-| ⚠️ [**Requirements**](./docs/REQUIREMENTS.md) | What must be installed before running Jelly |
-| 💡 [**Glossary**](./docs/GLOSSARY.md) | Definitions for technical and project-specific terminology |
-| ⭐ [**Architecture**](./docs/ARCHITECTURE.md) | Browser session, primitives, registry, and execution model |
-| 🔑 [**Tool Discovery**](./docs/DISCOVERY.md) | Capability discovery, search, and schema loading |
-| 🔆 [**Routines**](./docs/ROUTINES.md) | Guarded workflow graphs, branching, loops, and HITL continuation |
-| 🍯 [**Reliability**](./docs/RELIABILITY.md) | Verification, typed failures, artifacts, timeouts, and cleanup |
-| 📂 [**Runtime Layout**](./docs/RUNTIME.md) | Runtime state, build output, logs, screenshots, and cleanup |
-| 🧈 [**Development**](./docs/DEVELOPMENT.md) | Project conventions, tests, and contribution rules |
+| 📒 [**Documentation Index**](./docs/wiki/README.md) | Main entry point for the documentation |
+| ⚠️ [**Requirements**](./docs/wiki/REQUIREMENTS.md) | What must be installed before running Jelly |
+| 💡 [**Glossary**](./docs/wiki/GLOSSARY.md) | Definitions for technical and project-specific terminology |
+| ⭐ [**Architecture**](./docs/wiki/ARCHITECTURE.md) | Browser session, primitives, registry, and execution model |
+| 🔑 [**Tool Discovery**](./docs/wiki/DISCOVERY.md) | Capability discovery, search, and schema loading |
+| 🔆 [**Routines**](./docs/wiki/ROUTINES.md) | Guarded workflow graphs, branching, loops, and HITL continuation |
+| 🍯 [**Reliability**](./docs/wiki/RELIABILITY.md) | Verification, typed failures, artifacts, timeouts, and cleanup |
+| ⚙️ [**Configuration**](./docs/wiki/CONFIGURATION.md) | Versioned technical configuration, secrets/deployment environment, and runtime roots |
+| 📂 [**Runtime Layout**](./docs/wiki/RUNTIME.md) | Runtime state, build output, logs, screenshots, and cleanup |
+| 🧈 [**Development**](./docs/wiki/DEVELOPMENT.md) | Project conventions, tests, and contribution rules |
 | 🧪 [**Test Index**](./tests/INDEX.md) | Test-suite layout, coverage groups, batches, and executable catalog |
-| ⚡ [**MCP Server**](./docs/MCP.md) | Small-surface Agent API, large-surface mode, authentication, tool mapping, and deployment boundary |
+| ⚡ [**MCP Server**](./docs/wiki/MCP.md) | Small-surface Agent API, large-surface mode, authentication, tool mapping, and deployment boundary |
 | 🍯 [**Tool Index**](./.agent/tools/index.md) | Generated reference for browser primitives and system tools |
 | 🌟 [**Changelog**](./CHANGELOG.md) | Development history |
 

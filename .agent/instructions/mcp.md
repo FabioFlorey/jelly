@@ -106,11 +106,11 @@ Use one selection rule:
 ## Reference documentation
 
 - Generated internal tool index: `.agent/tools/index.md`
-- Tool discovery and schema loading: `docs/DISCOVERY.md`
-- MCP surface and rollout behavior: `docs/MCP.md`
-- Browser/system architecture: `docs/ARCHITECTURE.md`
-- Guarded routines and continuation: `docs/ROUTINES.md`
-- Verification, artifacts, errors, timeouts, and cleanup: `docs/RELIABILITY.md`
-- Runtime paths and state: `docs/RUNTIME.md`
+- Tool discovery and schema loading: `docs/wiki/DISCOVERY.md`
+- MCP surface and rollout behavior: `docs/wiki/MCP.md`
+- Browser/system architecture: `docs/wiki/ARCHITECTURE.md`
+- Guarded routines and continuation: `docs/wiki/ROUTINES.md`
+- Verification, artifacts, errors, timeouts, and cleanup: `docs/wiki/RELIABILITY.md`
+- Runtime paths and state: `docs/wiki/RUNTIME.md`
 - Security and raw-CDP authority: `SECURITY.md`
 - CLI discovery: `agent-discover capabilities`, `agent-discover search <query>`, and `agent-discover schema <tool>`.

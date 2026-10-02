@@ -19,54 +19,30 @@
 #              ░░░░░░░░░                                                      ░░░░▒▒▒▒▒▒░░░░
 #                                                                                ░░░░░░░░
 #
-# Deployment-local environment values and secrets.
-# Technical behavior belongs in config/jelly.toml.
+[paths]
+runtime_root = "/data/jelly-runtime"
 
-# jelly MCP bearer token for local/manual clients.
-# Generate with: openssl rand -hex 32
-JELLY_MCP_TOKEN=
+[browser]
+startup_timeout_secs = 30
+cdp_timeout_secs = 60
 
-# OAuth owner/bootstrap secret. Used for paired owner sessions and private DCR.
-# Generate with: openssl rand -hex 32
-JELLY_BOOTSTRAP_SECRET=
+[mcp]
+surface = "small-surface"
+persistent_session = true
+raw_cdp = false
+allow_cargo_fallback = false
 
-# OAuth consent: browser | paired
-JELLY_OAUTH_CONSENT_MODE=browser
+[page]
+runtime = true
+snapshot_limit = 0
 
-# Required only in browser consent mode.
-JELLY_OAUTH_PASSWORD=
+[diagnostics]
+perf_log = false
 
-# Allow unauthenticated Dynamic Client Registration only for ChatGPT callback URLs.
-JELLY_OAUTH_PUBLIC_CHATGPT_DCR=false
+[tests]
+default_batch = "deterministic"
 
-# Hosting: local | quick-tunnel | nip-io | cloudflare-fixed
-JELLY_HOSTING_MODE=local
-
-# Local listen address.
-# JELLY_MCP_ADDR=127.0.0.1:8787
-
-# Stable public origin for cloudflare-fixed, e.g. https://jelly.example.com
-# JELLY_PUBLIC_URL=
-
-# nip.io direct HTTPS
-# Network setup: manual | auto. Auto requires upnpc or natpmpc.
-JELLY_NIP_IO_NETWORK=manual
-# Optional public IPv4 override; otherwise discovered through public HTTP services.
-# JELLY_PUBLIC_IPV4=
-# Optional hostname override; otherwise jelly-<public-ip>.nip.io is derived.
-# JELLY_NIP_IO_HOSTNAME=
-# Optional Caddy executable; caddy from PATH or PiLink's private binary is auto-detected.
-# JELLY_CADDY_BIN=
-# Local forwarded ports used by Caddy. Public 80/443 must map here.
-# JELLY_NIP_IO_HTTP_PORT=8080
-# JELLY_NIP_IO_HTTPS_PORT=8443
-
-# Fixed Cloudflare named-tunnel token. Not used by quick-tunnel mode.
-JELLY_CLOUDFLARE_TUNNEL_TOKEN=
-
-# Optional cloudflared path. PiLink's private binary is auto-detected if present.
-# JELLY_CLOUDFLARED_BIN=
-
-# Telegram HITL
-JELLY_TELEGRAM_BOT_TOKEN=
-JELLY_TELEGRAM_CHAT_ID=
+[ui]
+animation = true
+icons = true
+logo = "assets/quickstart-full-logo.txt"

@@ -54,13 +54,13 @@ runtime_replacement_navigation() {
   jt_runtime_eval "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent==='small action 3');const c=b.cloneNode(true);b.replaceWith(c);return true})()" >/dev/null
   replacement="$(jt_ref_for_name 'small action 3' <<<"$(jt_snapshot 200 0)")"
   jt_assert_ne "$replacement" "$old" "replacement node must receive new ref"
-  jt_expect_failure "stale ref after replacement" env JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-element-info" "$old"
-  fixture="file://${JELLY_REPO_ROOT}/tests/fixtures/browser-perf.html"
-  "$JELLY_BIN_DIR/agent-navigate" "$fixture" >/dev/null
+  jt_expect_failure "stale ref after replacement" env "$BIN_DIR/agent-element-info" "$old"
+  fixture="file://${REPO_ROOT}/tests/fixtures/browser-perf.html"
+  "$BIN_DIR/agent-navigate" "$fixture" >/dev/null
   jt_runtime_eval "window.__jellyBench.setCase('small')" >/dev/null
   after_nav="$(jt_ref_for_name 'small action 3' <<<"$(jt_snapshot 200 0)")"
   jt_assert_ne "$after_nav" "$replacement" "navigation must create new ref namespace"
-  jt_expect_failure "pre-navigation ref must be stale" env JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-element-info" "$replacement"
+  jt_expect_failure "pre-navigation ref must be stale" env "$BIN_DIR/agent-element-info" "$replacement"
 }
 
 runtime_shadow_invalidation() {
@@ -111,7 +111,8 @@ runtime_rollback_reinstall() {
   runtime_prepare_small
   local runtime_ref legacy legacy_ref runtime_present native new_runtime
   runtime_ref="$(jt_ref_for_name 'small action 3' <<<"$(jt_snapshot 200 0)")"
-  legacy="$(JELLY_PAGE_RUNTIME=0 "$JELLY_BIN_DIR/agent-snapshot-interactive" 10)"
+  jt_config_set page runtime false
+  legacy="$("$BIN_DIR/agent-snapshot-interactive" 10)"
   legacy_ref="$(jq -r '.[0].ref' <<<"$legacy")"
   [[ "$legacy_ref" =~ ^@e[0-9]+$ ]] || jt_fail "rollback must restore legacy numeric refs"
   runtime_present="$(jt_runtime_eval '!!globalThis.__jellyRuntimeV1')"
@@ -119,12 +120,14 @@ runtime_rollback_reinstall() {
   native="$(jt_runtime_eval "Function.prototype.toString.call(Element.prototype.attachShadow).includes('[native code]')")"
   jt_assert_true "$native" "rollback must restore native attachShadow"
   jt_assert_gt "$(jt_runtime_eval "document.querySelectorAll('[data-jelly-ref]').length")" "0" "legacy mode must restore DOM-backed refs"
+  jt_config_set page runtime true
   jt_snapshot 200 0 >/dev/null
   jt_assert_true "$(jt_runtime_eval '!!globalThis.__jellyRuntimeV1')" "runtime must reinstall after rollback"
   jt_assert_true "$(jt_runtime_eval 'Element.prototype.attachShadow===globalThis.__jellyRuntimeV1.attachShadowHook')" "reinstalled runtime must own exactly one active attachShadow hook"
   new_runtime="$(jt_ref_for_name 'small action 3' <<<"$(jt_snapshot 200 0)")"
   jt_assert_ne "$new_runtime" "$runtime_ref" "reinstall must create fresh runtime namespace"
-  JELLY_PAGE_RUNTIME=0 "$JELLY_BIN_DIR/agent-snapshot-interactive" 1 >/dev/null
+  jt_config_set page runtime false
+  "$BIN_DIR/agent-snapshot-interactive" 1 >/dev/null
   jt_assert_false "$(jt_runtime_eval '!!globalThis.__jellyRuntimeV1')" "second rollback must dispose reinstalled runtime"
 }
 

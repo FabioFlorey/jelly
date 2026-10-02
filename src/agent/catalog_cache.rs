@@ -57,7 +57,7 @@ pub fn agent_catalog_from_config(
 pub fn active_agent_catalog() -> Result<&'static AgentToolCatalog, String> {
     static ACTIVE: OnceLock<Result<&'static AgentToolCatalog, String>> = OnceLock::new();
     match ACTIVE.get_or_init(|| {
-        let config = AgentCatalogConfig::from_env()?;
+        let config = AgentCatalogConfig::from_config()?;
         Ok(agent_catalog_for_surface(config.surface, config.raw_cdp))
     }) {
         Ok(catalog) => Ok(*catalog),

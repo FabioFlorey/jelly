@@ -2,10 +2,10 @@
 
 # Runtime Layout
 
-Jelly keeps browser state, profiles, logs, artifacts, and build output outside the repository. MCP surface selection is startup configuration rather than persisted runtime state: an unset `JELLY_MCP_SURFACE` selects `small-surface`, while `large-surface` selects the expanded individual-tool mode.
+Jelly keeps browser state, profiles, logs, artifacts, and build output outside the repository. The runtime root is configured by `config/jelly.toml` (`/data/jelly-runtime` by default); every path below is derived from that root. MCP surface selection is startup configuration rather than persisted runtime state and follows the configuration precedence documented in [Configuration](./CONFIGURATION.md).
 
 ```text
-/data/jelly-runtime/
+<runtime_root>/
 ├── state/
 │   ├── oauth.json
 │   └── ... browser/CDP state
@@ -14,7 +14,7 @@ Jelly keeps browser state, profiles, logs, artifacts, and build output outside t
 │   └── headless/
 ├── logs/
 │   ├── actions.jsonl
-│   └── perf.jsonl        # only when JELLY_PERF_LOG is enabled
+│   └── perf.jsonl        # only when [diagnostics].perf_log is enabled
 ├── network/
 │   └── requests.jsonl
 ├── routines/
@@ -46,11 +46,7 @@ Browser recordings support two modes. `continuous` streams renderer frames for t
 
 Imported Chromium session data is copied into `profiles/headed/`. Profile data and `state/oauth.json` are sensitive local state and stay outside Git.
 
-Cargo output lives separately in:
-
-```text
-/data/.jelly-build/
-```
+Cargo output lives separately under `config/cargo.toml` `build.target-dir` (currently `/data/.jelly-build`).
 
 Clean runtime state:
 

@@ -19,7 +19,7 @@
   A browser-provided semantic representation of a page focused on roles, names, states, and relationships rather than visual layout. Agents can use it to understand controls and content without relying only on raw HTML.  
   **Acronyms**: AX tree  
   **Synonyms**: accessibility tree, AX tree  
-  **References**: [Tool Index](../.agent/tools/index.md)
+  **References**: [Tool Index](../../.agent/tools/index.md)
 
 + **Active Target**  
   The Chromium target currently attached to jelly's shared browser session. Browser commands and page evaluation are directed to this target until the session switches elsewhere.  
@@ -87,7 +87,7 @@
   A command-oriented interface used to invoke jelly tools from a shell. Examples include `agent-run`, `agent-discover`, and individual `agent-*` binaries.  
   **Acronyms**: Command-Line Interface  
   **Synonyms**: command-line interface  
-  **References**: [README](../README.md)
+  **References**: [README](../../README.md)
 
 <div align="right"><sub><a href="#top">⭐ Go to the top of the document</a></sub></div>
 
@@ -179,7 +179,7 @@
   Executing custom JavaScript inside the active page. jelly treats this as an escape hatch for unusual or exploratory behavior rather than the default way to implement common browser operations.  
   **Acronyms**: JS injection  
   **Synonyms**: script injection  
-  **References**: [Tool Index](../.agent/tools/index.md)
+  **References**: [Tool Index](../../.agent/tools/index.md)
 
 + **JSON Schema**  
   A machine-readable description of a tool's accepted arguments and structure. jelly can expose primitive metadata as schemas for agent runtimes or protocol adapters.  
@@ -192,7 +192,7 @@
 ## L
 
 + **Large Surface**
-  Jelly's expanded MCP publication mode, selected with `JELLY_MCP_SURFACE=large-surface`. It publishes individual semantic browser primitives as top-level MCP tools together with the current system-tool set. When raw CDP is enabled, it also publishes the dedicated `cdp-call` tool. Large surface is useful for compatibility, diagnostics, and clients that prefer individually published browser operations.
+  Jelly's expanded MCP publication mode, selected with `[mcp].surface = "large-surface"`. It publishes individual semantic browser primitives as top-level MCP tools together with the current system-tool set. When raw CDP is enabled, it also publishes the dedicated `cdp-call` tool. Large surface is useful for compatibility, diagnostics, and clients that prefer individually published browser operations.
   **Acronyms**: ∅
   **Synonyms**: large-surface, expanded MCP surface
   **References**: [MCP Server](./MCP.md), [Tool Discovery](./DISCOVERY.md)
@@ -235,13 +235,13 @@
   A small, generic browser capability that performs one focused operation, such as clicking, reading a page, waiting for a condition, or switching tabs. Primitives are intended to be composable rather than workflow-specific.  
   **Acronyms**: ∅  
   **Synonyms**: browser primitive, tool  
-  **References**: [Tool Index](../.agent/tools/index.md)
+  **References**: [Tool Index](../../.agent/tools/index.md)
 
 + **Persistent Injection**  
   JavaScript saved by jelly so it can be applied again after navigation initiated through jelly. It is useful for page instrumentation that must survive controlled navigations.  
   **Acronyms**: ∅  
   **Synonyms**: persistent script injection  
-  **References**: [Tool Index](../.agent/tools/index.md)
+  **References**: [Tool Index](../../.agent/tools/index.md)
 
 + **Primitive Registry**  
   The declarative Rust registry that acts as jelly's source of truth for primitive names, descriptions, usage, categories, arguments, validation, schemas, and handlers.  
@@ -263,7 +263,7 @@
   Software automation that performs repetitive user-facing tasks by interacting with applications and interfaces. jelly overlaps with RPA, but is designed specifically around agent-driven inspection, reasoning, and browser control.  
   **Acronyms**: Robotic Process Automation  
   **Synonyms**: process automation  
-  **References**: [README](../README.md)
+  **References**: [README](../../README.md)
 
 + **Runtime**  
   The mutable state produced while jelly is operating, including browser profiles, PIDs, logs, screenshots, network captures, and continuation state. Runtime data is intentionally kept outside the repository.  
@@ -291,13 +291,13 @@
   A locator used to identify a browser element. jelly supports stable references, CSS selectors, and exact visible text through its typed Target abstraction.  
   **Acronyms**: ∅  
   **Synonyms**: element locator  
-  **References**: [Tool Index](../.agent/tools/index.md)
+  **References**: [Tool Index](../../.agent/tools/index.md)
 
 + **Side Effect**  
   A tool action that intentionally changes browser or external state rather than only observing it. Examples include clicking, typing, uploading a file, submitting a form, or sending a message.  
   **Acronyms**: ∅  
   **Synonyms**: state-changing operation  
-  **References**: [README](../README.md)
+  **References**: [README](../../README.md)
 
 + **Single Source of Truth**  
   A design principle where one authoritative representation owns a piece of information. In jelly, the browser primitive registry owns semantic browser-capability metadata and the system tool registry owns lifecycle/integration metadata. Internal discovery and generated capability documentation consume those registries; the MCP Agent Tool Catalog is a separate validated projection that decides what is remotely published and executable.<br>
@@ -306,7 +306,7 @@
   **References**: [Architecture](./ARCHITECTURE.md)
 
 + **Small Surface**
-  Jelly's default MCP publication mode, selected automatically when `JELLY_MCP_SURFACE` is unset or explicitly with `small-surface`. Instead of publishing every browser primitive individually, it exposes the browser facade tools `browser-schema`, `browser-call`, and `browser-events`, while retaining the same current system-tool set as large surface. Raw CDP remains separately opt-in and, when enabled, is exposed through `browser-call`.
+  Jelly's default MCP publication mode, selected with `[mcp].surface = "small-surface"` in `config/jelly.toml`. Instead of publishing every browser primitive individually, it exposes the browser facade tools `browser-schema`, `browser-call`, and `browser-events`, while retaining the same current system-tool set as large surface. Raw CDP remains separately opt-in and, when enabled, is exposed through `browser-call`.
   **Acronyms**: ∅
   **Synonyms**: small-surface, browser facade
   **References**: [MCP Server](./MCP.md), [Tool Discovery](./DISCOVERY.md)
@@ -321,7 +321,7 @@
   A jelly identifier assigned during inspection so later actions can refer to the same discovered element without repeating a selector. The default runtime uses document-scoped refs such as `@eabc123-7`; rollback mode uses numeric refs such as `@e7`, and `inspect-images` exposes DOM-backed image refs such as `@img2`.<br>
   **Acronyms**: ∅  
   **Synonyms**: element reference, jelly ref  
-  **References**: [Tool Index](../.agent/tools/index.md)
+  **References**: [Tool Index](../../.agent/tools/index.md)
 
 <div align="right"><sub><a href="#top">⭐ Go to the top of the document</a></sub></div>
 
@@ -337,7 +337,7 @@
   A typed description of the browser element an operation should act on. jelly supports runtime/DOM-backed references, CSS selectors such as `css:#submit`, `text:<exact text>`, and plain exact visible text.<br>
   **Acronyms**: ∅  
   **Synonyms**: element target  
-  **References**: [Tool Index](../.agent/tools/index.md)
+  **References**: [Tool Index](../../.agent/tools/index.md)
 
 + **Tool**  
   A callable capability. Internally Jelly has semantic browser primitives and system/integration tools; the remotely agent-callable MCP set is the selected Agent Tool Catalog projection and may not publish each internal capability as a top-level tool.<br>
@@ -381,7 +381,7 @@
   The currently visible rectangular area of a web page. Pointer coordinates, scrolling behavior, and viewport screenshots are all defined relative to this visible browser area.  
   **Acronyms**: ∅  
   **Synonyms**: visible page area  
-  **References**: [Tool Index](../.agent/tools/index.md)
+  **References**: [Tool Index](../../.agent/tools/index.md)
 
 <div align="right"><sub><a href="#top">⭐ Go to the top of the document</a></sub></div>
 

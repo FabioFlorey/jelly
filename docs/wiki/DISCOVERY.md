@@ -33,7 +33,7 @@ cargo run --quiet --bin agent-discover -- schema hitl
 
 Browser primitive metadata comes from the same registry used for validation and execution. System capability metadata comes from its separate registry.
 
-The generated internal reference is [`.agent/tools/index.md`](../.agent/tools/index.md). Its entries are implementation capabilities, not a promise that each name is remotely published through MCP.
+The generated internal reference is [`.agent/tools/index.md`](../../.agent/tools/index.md). Its entries are implementation capabilities, not a promise that each name is remotely published through MCP.
 
 ## Published Agent API discovery
 

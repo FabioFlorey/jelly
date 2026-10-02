@@ -1,16 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+# shellcheck source=scripts/config.sh
+source "$ROOT/scripts/config.sh"
 
-BIN_DIR="${JELLY_BIN_DIR:-/data/.jelly-build/debug}"
+BIN_DIR="$CONFIG_BUILD_ROOT/debug"
 FIXTURE="file://$(pwd)/tests/fixtures/browser-perf.html"
 RUNS="${JELLY_PROFILE_RUNS:-15}"
+CONFIG_BACKUP="$(mktemp)"
+cp "$CONFIG_FILE" "$CONFIG_BACKUP"
 
 cleanup() {
+  cp "$CONFIG_BACKUP" "$CONFIG_FILE"
+  rm -f "$CONFIG_BACKUP"
   "${BIN_DIR}/agent-close-browser" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
+
+jelly_config_set page runtime true
+jelly_config_set diagnostics perf_log false
 
 if ! [[ "${RUNS}" =~ ^[1-9][0-9]*$ ]]; then
   echo "JELLY_PROFILE_RUNS must be a positive integer" >&2
@@ -25,7 +35,7 @@ profile_case() {
   local case_name="$1"
   echo "--- ${case_name}: rebuild phases (ms) ---"
   "${BIN_DIR}/agent-evaluate-js" "window.__jellyBench.setCase('${case_name}')" >/dev/null
-  JELLY_PAGE_RUNTIME=1 "${BIN_DIR}/agent-snapshot-interactive" 1 >/dev/null
+  "${BIN_DIR}/agent-snapshot-interactive" 1 >/dev/null
   "${BIN_DIR}/agent-evaluate-js" "globalThis.__jellyRuntimeV1.lastRebuildTimings"
 
   echo "--- ${case_name}: browser-side hot-path probes ---"
@@ -67,10 +77,11 @@ profile_case shadow
 
 echo '--- bounded snapshot CDP comparison ---'
 "${BIN_DIR}/agent-evaluate-js" "window.__jellyBench.setCase('large')" >/dev/null
-JELLY_PAGE_RUNTIME=1 "${BIN_DIR}/agent-snapshot-interactive" 1 >/dev/null
-rm -f /data/jelly-runtime/logs/perf.jsonl
+"${BIN_DIR}/agent-snapshot-interactive" 1 >/dev/null
+rm -f "$CONFIG_RUNTIME_ROOT/logs/perf.jsonl"
+jelly_config_set diagnostics perf_log true
 for _ in $(seq 1 "${RUNS}"); do
-  JELLY_PAGE_RUNTIME=1 JELLY_PERF_LOG=1 "${BIN_DIR}/agent-snapshot-interactive" 50 >/dev/null
+  "${BIN_DIR}/agent-snapshot-interactive" 50 >/dev/null
 done
 jq -s '{
   runtime_evaluate_avg_ms:
@@ -79,4 +90,4 @@ jq -s '{
   browser_connect_avg_ms:
     ([.[] | select(.event=="browser.connect") | .duration_ms] |
       if length==0 then 0 else add/length end)
-}' /data/jelly-runtime/logs/perf.jsonl
+}' "$CONFIG_RUNTIME_ROOT/logs/perf.jsonl"

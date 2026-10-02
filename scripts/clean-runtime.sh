@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD_DIR="$(cd "$ROOT/.." && pwd)/.jelly-build"
-RUNTIME="/data/jelly-runtime"
+# shellcheck source=scripts/config.sh
+source "$ROOT/scripts/config.sh"
+BUILD_DIR="$CONFIG_BUILD_ROOT"
+RUNTIME="$CONFIG_RUNTIME_ROOT"
 
 systemctl --user stop jelly-cloudflared.service >/dev/null 2>&1 || true
 systemctl --user stop jelly-mcp.service >/dev/null 2>&1 || true

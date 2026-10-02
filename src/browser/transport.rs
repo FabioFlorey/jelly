@@ -1,6 +1,6 @@
 use crate::{Error, ErrorKind, cdp_error, jelly_error};
 use serde_json::{Value, json};
-use std::{env, fs, io, time::Duration};
+use std::{fs, io, time::Duration};
 use tungstenite::{Message, WebSocket, connect};
 
 type CdpSocket = WebSocket<tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>;
@@ -62,11 +62,7 @@ impl CdpTransport {
 }
 
 fn configure_socket_timeout(ws: &mut CdpSocket) -> Result<(), Error> {
-    let timeout_secs = env::var("JELLY_CDP_TIMEOUT_SECS")
-        .ok()
-        .and_then(|value| value.parse::<u64>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(60);
+    let timeout_secs = crate::config::config().browser.cdp_timeout_secs.max(1);
 
     if let tungstenite::stream::MaybeTlsStream::Plain(stream) = ws.get_mut() {
         let timeout = Some(Duration::from_secs(timeout_secs));

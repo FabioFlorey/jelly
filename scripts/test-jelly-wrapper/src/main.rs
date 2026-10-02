@@ -6,7 +6,8 @@ use std::{
     io::{self, IsTerminal, Write},
     path::{Path, PathBuf},
     process::{Command, ExitCode, Stdio},
-    time::{SystemTime, UNIX_EPOCH},
+    thread,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 const HELP: &str = r#"Usage:
@@ -66,17 +67,53 @@ struct RustSummary {
 
 #[derive(Clone, Copy)]
 struct Theme {
+    interactive: bool,
     color: bool,
     icons: bool,
+    animation: bool,
+}
+
+fn config_value(root: &Path, section: &str, key: &str) -> Option<String> {
+    let path = root.join("config/jelly.toml");
+    let text = fs::read_to_string(path).ok()?;
+    let mut current = "";
+    for raw in text.lines() {
+        let line = raw.split('#').next().unwrap_or("").trim();
+        if line.starts_with('[') && line.ends_with(']') {
+            current = line.trim_matches(['[', ']']);
+            continue;
+        }
+        if current != section {
+            continue;
+        }
+        let Some((name, value)) = line.split_once('=') else {
+            continue;
+        };
+        if name.trim() == key {
+            return Some(value.trim().trim_matches('"').to_owned());
+        }
+    }
+    None
+}
+
+fn config_bool(root: &Path, section: &str, key: &str) -> bool {
+    let value = config_value(root, section, key)
+        .unwrap_or_else(|| panic!("missing {section}.{key} in config/jelly.toml"));
+    match value.to_ascii_lowercase().as_str() {
+        "true" => true,
+        "false" => false,
+        other => panic!("{section}.{key} must be true or false; got {other}"),
+    }
 }
 
 impl Theme {
-    fn detect() -> Self {
+    fn detect(root: &Path) -> Self {
+        let interactive = io::stdout().is_terminal();
         Self {
-            color: io::stdout().is_terminal() && env::var_os("NO_COLOR").is_none(),
-            icons: env::var("JELLY_NO_ICONS")
-                .map(|value| !value.eq_ignore_ascii_case("true"))
-                .unwrap_or(true),
+            interactive,
+            color: interactive && env::var_os("NO_COLOR").is_none(),
+            icons: config_bool(root, "ui", "icons"),
+            animation: config_bool(root, "ui", "animation"),
         }
     }
 
@@ -88,60 +125,212 @@ impl Theme {
         }
     }
 
-    fn brand(self) -> &'static str {
-        if self.icons { "◆" } else { "*" }
-    }
-
     fn info(self) -> &'static str {
         if self.icons { "›" } else { ">" }
-    }
-
-    fn ok(self) -> &'static str {
-        if self.icons { "✓" } else { "+" }
-    }
-
-    fn fail(self) -> &'static str {
-        if self.icons { "✕" } else { "x" }
     }
 }
 
 fn repo_root() -> PathBuf {
-    env::var_os("JELLY_REPO_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .and_then(Path::parent)
-                .expect("test-jelly wrapper must live under <repo>/scripts/test-jelly-wrapper")
-                .to_path_buf()
-        })
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("test-jelly wrapper must live under <repo>/scripts/test-jelly-wrapper")
+        .to_path_buf()
 }
 
-fn banner(root: &Path, theme: Theme, mode: &str, detail: &str) -> String {
-    let logo = fs::read_to_string(root.join("assets/quickstart-full-logo.txt"))
+fn terminal_width(theme: Theme) -> usize {
+    if !theme.interactive {
+        return 100;
+    }
+
+    let tty_width = File::open("/dev/tty").ok().and_then(|tty| {
+        Command::new("stty")
+            .arg("size")
+            .stdin(Stdio::from(tty))
+            .output()
+            .ok()
+            .filter(|output| output.status.success())
+            .and_then(|output| String::from_utf8(output.stdout).ok())
+            .and_then(|value| value.split_whitespace().nth(1)?.parse::<usize>().ok())
+            .filter(|width| *width >= 40)
+    });
+
+    tty_width
+        .or_else(|| {
+            env::var("COLUMNS")
+                .ok()
+                .and_then(|value| value.parse::<usize>().ok())
+                .filter(|width| *width >= 40)
+        })
+        .or_else(|| {
+            Command::new("tput")
+                .arg("cols")
+                .output()
+                .ok()
+                .filter(|output| output.status.success())
+                .and_then(|output| String::from_utf8(output.stdout).ok())
+                .and_then(|value| value.trim().parse::<usize>().ok())
+                .filter(|width| *width >= 40)
+        })
+        .unwrap_or(100)
+}
+
+fn center_line(line: &str, width: usize) -> String {
+    let len = line.chars().count();
+    if len >= width {
+        return line.to_owned();
+    }
+    format!("{}{}", " ".repeat((width - len) / 2), line)
+}
+
+fn center_block(block: &str, width: usize) -> String {
+    let block_width = block
+        .lines()
+        .map(|line| line.chars().count())
+        .max()
+        .unwrap_or(0);
+    let padding = width.saturating_sub(block_width) / 2;
+    let prefix = " ".repeat(padding);
+    block
+        .lines()
+        .map(|line| format!("{prefix}{line}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn center_lines(block: &str, width: usize) -> String {
+    block
+        .lines()
+        .map(|line| center_line(line, width))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn logo_text(root: &Path) -> String {
+    let configured =
+        config_value(root, "ui", "logo").expect("missing ui.logo in config/jelly.toml");
+    fs::read_to_string(root.join(configured))
         .unwrap_or_else(|_| "JELLY".to_owned())
         .trim_end()
-        .to_owned();
-    let subtitle = format!(
-        "{}  browser instrumentation for agents  ·  {mode}",
-        theme.brand()
-    );
-    let mut lines = vec![
-        String::new(),
-        theme.paint(&logo, "38;2;255;193;7;1"),
-        String::new(),
-        theme.paint(&subtitle, "38;2;255;193;7;1"),
-    ];
-    if !detail.is_empty() {
-        lines.push(theme.paint(&format!("   {detail}"), "2"));
-    }
-    lines.push(String::new());
-    lines.join("\n")
+        .to_owned()
 }
 
-fn section_title(theme: Theme, title: &str) -> String {
-    let marker = if theme.icons { "◇" } else { ">" };
-    theme.paint(&format!("{marker}  {title}"), "38;2;255;193;7;1")
+fn logo_animation_enabled(theme: Theme) -> bool {
+    theme.interactive
+        && theme.animation
+        && env::var("TERM").map(|term| term != "dumb").unwrap_or(true)
+}
+
+fn drip_frame(logo: &str, frame: usize, frames: usize) -> String {
+    let rows = logo
+        .lines()
+        .map(|line| line.chars().collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    let height = rows.len().max(1);
+    let width = rows.iter().map(Vec::len).max().unwrap_or(0);
+    let mut canvas = vec![vec![' '; width]; height];
+
+    for col in 0..width {
+        let delay = (col.wrapping_mul(7) + col / 3) % 4;
+        let progress = frame.saturating_sub(delay);
+        let reveal_rows = ((progress + 1) * (height + 2) / frames.max(1)).min(height);
+        let mut lowest_revealed = None;
+        let mut has_more = false;
+
+        for row in 0..height {
+            let ch = rows
+                .get(row)
+                .and_then(|line| line.get(col))
+                .copied()
+                .unwrap_or(' ');
+            if row < reveal_rows {
+                if ch != ' ' {
+                    canvas[row][col] = ch;
+                    lowest_revealed = Some(row);
+                }
+            } else if ch != ' ' {
+                has_more = true;
+            }
+        }
+
+        if has_more {
+            let drip_row = lowest_revealed.map(|row| row + 1).unwrap_or(0);
+            if drip_row < height && canvas[drip_row][col] == ' ' {
+                canvas[drip_row][col] = if (col + frame) % 3 == 0 { '▒' } else { '░' };
+            }
+        }
+    }
+
+    canvas
+        .into_iter()
+        .map(|line| line.into_iter().collect::<String>().trim_end().to_owned())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn animate_logo(root: &Path, theme: Theme) {
+    if !logo_animation_enabled(theme) {
+        return;
+    }
+
+    let logo = logo_text(root);
+    let terminal = terminal_width(theme);
+    let logo_width = logo
+        .lines()
+        .map(|line| line.chars().count())
+        .max()
+        .unwrap_or(0);
+    if logo_width == 0 || logo_width > terminal {
+        return;
+    }
+
+    let height = logo.lines().count();
+    let frames = 12;
+    let mut stdout = io::stdout();
+    let _ = write!(stdout, "\x1b[?25l\n");
+
+    for frame in 0..frames {
+        if frame > 0 {
+            let _ = write!(stdout, "\x1b[{height}A");
+        }
+        let rendered = center_block(&drip_frame(&logo, frame, frames), terminal);
+        for line in rendered.lines() {
+            let _ = writeln!(stdout, "\x1b[2K{}", theme.paint(line, "38;2;255;193;7;1"));
+        }
+        let _ = stdout.flush();
+        thread::sleep(Duration::from_millis(28));
+    }
+
+    let _ = write!(stdout, "\x1b[{height}A");
+    for _ in 0..height {
+        let _ = writeln!(stdout, "\x1b[2K");
+    }
+    let _ = write!(stdout, "\x1b[{height}A\x1b[?25h");
+    let _ = stdout.flush();
+}
+
+fn banner(root: &Path, theme: Theme) -> String {
+    animate_logo(root, theme);
+    let width = terminal_width(theme);
+    let logo = center_block(&logo_text(root), width);
+    let subtitle = center_line("browser instrumentation for agents", width);
+    format!(
+        "\n{}\n\n{}\n",
+        theme.paint(&logo, "38;2;255;193;7;1"),
+        theme.paint(&subtitle, "2")
+    )
+}
+
+fn centered_heading(theme: Theme, title: &str) -> String {
+    theme.paint(&center_line(title, terminal_width(theme)), "1")
+}
+
+fn centered_description(theme: Theme, text: &str) -> String {
+    let width = terminal_width(theme);
+    let content_width = width.saturating_sub(12).clamp(40, 76);
+    let lines = wrap_cell(text, content_width);
+    let block = lines.join("\n");
+    theme.paint(&center_lines(&block, width), "2")
 }
 
 fn target_label(raw: &str) -> String {
@@ -331,29 +520,104 @@ fn render_table(
     lines.join("\n")
 }
 
-fn style_table(theme: Theme, table: &str) -> String {
+fn style_table(
+    theme: Theme,
+    table: &str,
+    bold_first_column: bool,
+    bold_name_column: bool,
+) -> String {
+    let centered = center_block(table, terminal_width(theme));
     if !theme.color {
-        return table.to_owned();
+        return centered;
     }
-    table
-        .lines()
+
+    let lines = centered.lines().collect::<Vec<_>>();
+    let name_range = if bold_name_column {
+        lines.first().and_then(|header| {
+            let start = header.find("NAME")?;
+            let end = header.find("DESCRIPTION").unwrap_or(header.len());
+            Some((start, end))
+        })
+    } else {
+        None
+    };
+
+    lines
+        .iter()
         .enumerate()
         .map(|(index, line)| {
-            if index == 0 {
-                return theme.paint(line, "38;2;255;193;7;1");
-            }
             if index == 1 {
-                return theme.paint(line, "38;2;255;193;7");
+                return theme.paint(line, "2");
             }
-            line.replace(" PASS ", &format!(" {} ", theme.paint("PASS", "32;1")))
-                .replace(" FAIL ", &format!(" {} ", theme.paint("FAIL", "31;1")))
+            if index == 0 {
+                return (*line).to_owned();
+            }
+
+            let mut rendered = (*line).to_owned();
+            if let Some((start, end)) = name_range {
+                let chars = rendered.chars().collect::<Vec<_>>();
+                if start < chars.len() {
+                    let end = end.min(chars.len());
+                    let cell = chars[start..end].iter().collect::<String>();
+                    let leading = cell.chars().take_while(|ch| ch.is_whitespace()).count();
+                    let trailing = cell
+                        .chars()
+                        .rev()
+                        .take_while(|ch| ch.is_whitespace())
+                        .count();
+                    let content_end = cell.chars().count().saturating_sub(trailing);
+                    if leading < content_end {
+                        let prefix = chars[..start].iter().collect::<String>();
+                        let suffix = chars[end..].iter().collect::<String>();
+                        let left = cell.chars().take(leading).collect::<String>();
+                        let content = cell
+                            .chars()
+                            .skip(leading)
+                            .take(content_end - leading)
+                            .collect::<String>();
+                        let right = cell.chars().skip(content_end).collect::<String>();
+                        rendered = format!(
+                            "{prefix}{left}{}{right}{suffix}",
+                            theme.paint(&content, "1")
+                        );
+                    }
+                }
+            }
+
+            for status in ["PASS", "FAIL", "ENABLED", "DISABLED", "SKIPPED"] {
+                let code = match status {
+                    "PASS" | "ENABLED" => "32;1",
+                    "FAIL" => "31;1",
+                    "DISABLED" | "SKIPPED" => "33;1",
+                    _ => "1",
+                };
+                rendered = rendered.replace(
+                    &format!(" {status} "),
+                    &format!(" {} ", theme.paint(status, code)),
+                );
+            }
+            if bold_first_column {
+                let leading = rendered.chars().take_while(|ch| ch.is_whitespace()).count();
+                let rest = &rendered[leading..];
+                if let Some(end) = rest.find(char::is_whitespace) {
+                    let first = &rest[..end];
+                    rendered = format!(
+                        "{}{}{}",
+                        " ".repeat(leading),
+                        theme.paint(first, "1"),
+                        &rest[end..]
+                    );
+                }
+            }
+            rendered
         })
         .collect::<Vec<_>>()
         .join("\n")
 }
 
 fn load_catalog(root: &Path) -> Result<Vec<Value>, i32> {
-    let output = Command::new(root.join("tests/suite/run.sh"))
+    let output = Command::new("bash")
+        .arg(root.join("tests/suite/run.sh"))
         .args(["--catalog", "--json"])
         .current_dir(root)
         .output()
@@ -428,16 +692,17 @@ fn run_catalog(root: &Path, theme: Theme, args: &[String]) -> i32 {
     }
 
     if !as_json {
+        println!("{}", banner(root, theme));
+        println!("{}", centered_heading(theme, "Tests · catalog"));
+        println!();
         println!(
             "{}",
-            banner(
-                root,
+            centered_description(
                 theme,
-                "test catalog",
-                "canonical jt_register metadata · read-only · no tests executed"
+                "Canonical behavioral-test metadata. Read-only view; no tests are executed."
             )
         );
-        println!("{}", section_title(theme, "Behavioral test catalog"));
+        println!();
     }
 
     let mut rows = match load_catalog(root) {
@@ -496,47 +761,104 @@ fn run_catalog(root: &Path, theme: Theme, args: &[String]) -> i32 {
         return 0;
     }
 
-    let mut headers = vec![
-        "ID",
-        "GROUP",
-        "KIND",
-        "ENABLED",
-        "NAME",
-        "DESCRIPTION",
-        "PRECONDITIONS",
-    ];
-    let mut keys = vec![
-        "id",
-        "group",
-        "kind",
-        "enabled",
-        "name",
-        "description",
-        "preconditions",
-    ];
+    let mut headers = vec!["ID", "GROUP", "KIND", "STATUS", "NAME", "DESCRIPTION"];
+    let mut keys = vec!["id", "group", "kind", "enabled", "name", "description"];
     if full {
         headers.extend(["INPUT", "EXPECTED"]);
         keys.extend(["input", "expected_output"]);
     }
     let table_rows = rows
         .iter()
-        .map(|row| keys.iter().map(|key| field(row, key)).collect::<Vec<_>>())
+        .map(|row| {
+            keys.iter()
+                .map(|key| {
+                    if *key == "enabled" {
+                        if field(row, key) == "yes" {
+                            "ENABLED".to_owned()
+                        } else {
+                            "DISABLED".to_owned()
+                        }
+                    } else {
+                        field(row, key)
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
         .collect::<Vec<_>>();
-    let widths = if full {
-        vec![9, 12, 9, 7, 28, 24, 24, 24, 24]
-    } else {
-        vec![9, 12, 9, 7, 28, 36, 36]
+    let content_width = |index: usize, minimum: usize, maximum: usize| {
+        table_rows
+            .iter()
+            .filter_map(|row| row.get(index))
+            .map(|cell| cell.chars().count())
+            .fold(headers[index].chars().count(), usize::max)
+            .clamp(minimum, maximum)
     };
+
+    let id_width = content_width(0, 7, 10);
+    let group_width = content_width(1, 5, 14);
+    let kind_width = content_width(2, 4, 10);
+    let status_width = content_width(3, 6, 8);
+    let technical_width = id_width + group_width + kind_width + status_width;
+    let column_count = if full { 8 } else { 6 };
+    let gap_width = (column_count - 1) * 2;
+    let terminal = terminal_width(theme);
+    let target_width = terminal.saturating_sub(8).min(if full { 220 } else { 180 });
+    let flexible = target_width.saturating_sub(technical_width + gap_width);
+
+    let widths = if full {
+        let name = (flexible * 22 / 100).max(20);
+        let description = (flexible * 30 / 100).max(28);
+        let input = (flexible * 24 / 100).max(22);
+        let expected = flexible.saturating_sub(name + description + input).max(22);
+        vec![
+            id_width,
+            group_width,
+            kind_width,
+            status_width,
+            name,
+            description,
+            input,
+            expected,
+        ]
+    } else {
+        let name = (flexible * 38 / 100).max(24);
+        let description = flexible.saturating_sub(name).max(34);
+        vec![
+            id_width,
+            group_width,
+            kind_width,
+            status_width,
+            name,
+            description,
+        ]
+    };
+    let enabled = rows
+        .iter()
+        .filter(|row| field(row, "enabled") == "yes")
+        .count();
+    let disabled = rows.len().saturating_sub(enabled);
+    let mut review = format!(
+        "{} test{} · {} enabled",
+        rows.len(),
+        if rows.len() == 1 { "" } else { "s" },
+        enabled
+    );
+    if disabled > 0 {
+        review.push_str(&format!(" · {} disabled", disabled));
+    }
+    println!(
+        "{}",
+        theme.paint(&center_line(&review, terminal_width(theme)), "1")
+    );
+    println!();
     println!(
         "{}",
         style_table(
             theme,
-            &render_table(&headers, &table_rows, Some(widths), true)
+            &render_table(&headers, &table_rows, Some(widths), true),
+            true,
+            true
         )
-    );
-    println!(
-        "{}",
-        theme.paint(&format!("\n{}  {} test(s)", theme.info(), rows.len()), "2")
     );
     0
 }
@@ -586,19 +908,20 @@ fn run_rust_tests(root: &Path, theme: Theme, args: &[String]) -> i32 {
     let mut display = vec!["cargo".to_owned(), "test".to_owned()];
     display.extend(forwarded.iter().cloned());
 
+    println!("{}", banner(root, theme));
+    println!("{}", centered_heading(theme, "Tests · rust"));
+    println!();
     println!(
         "{}",
-        banner(
-            root,
+        centered_description(
             theme,
-            "test console",
-            "tabular cargo test frontend · exact cargo exit status preserved"
+            "Rust unit and target-level checks executed through Cargo with the original exit status preserved."
         )
     );
-    println!("{}", section_title(theme, "Rust test run"));
+    println!();
     println!(
         "{}",
-        theme.paint(&format!("{}  {}", theme.info(), display.join(" ")), "2")
+        theme.paint(&center_line(&display.join(" "), terminal_width(theme)), "2")
     );
     println!();
 
@@ -633,6 +956,25 @@ fn run_rust_tests(root: &Path, theme: Theme, args: &[String]) -> i32 {
                 ]
             })
             .collect::<Vec<_>>();
+        let passed: u64 = summaries.iter().map(|row| row.passed).sum();
+        let failed: u64 = summaries.iter().map(|row| row.failed).sum();
+        let ignored: u64 = summaries.iter().map(|row| row.ignored).sum();
+        let tests = passed + failed + ignored;
+        let review = format!(
+            "{tests} test{} · {passed} passed · {failed} failed{}",
+            if tests == 1 { "" } else { "s" },
+            if ignored > 0 {
+                format!(" · {ignored} ignored")
+            } else {
+                String::new()
+            }
+        );
+        let review_code = if failed == 0 { "32;1" } else { "31;1" };
+        println!(
+            "{}",
+            theme.paint(&center_line(&review, terminal_width(theme)), review_code)
+        );
+        println!();
         println!(
             "{}",
             style_table(
@@ -645,22 +987,9 @@ fn run_rust_tests(root: &Path, theme: Theme, args: &[String]) -> i32 {
                     &rows,
                     None,
                     false
-                )
-            )
-        );
-        let passed: u64 = summaries.iter().map(|row| row.passed).sum();
-        let failed: u64 = summaries.iter().map(|row| row.failed).sum();
-        let ignored: u64 = summaries.iter().map(|row| row.ignored).sum();
-        let icon = if code == 0 { theme.ok() } else { theme.fail() };
-        let total = format!(
-            "{icon}  TOTAL  passed={passed} failed={failed} ignored={ignored} targets={} exit={code}",
-            summaries.len()
-        );
-        println!(
-            "{}",
-            theme.paint(
-                &format!("\n{total}"),
-                if code == 0 { "32;1" } else { "31;1" }
+                ),
+                false,
+                false
             )
         );
     }
@@ -680,9 +1009,16 @@ fn exit_code(code: i32) -> ExitCode {
     }
 }
 
+fn clear_screen(theme: Theme) {
+    if theme.interactive {
+        print!("\x1b[2J\x1b[H");
+        let _ = io::stdout().flush();
+    }
+}
+
 fn main() -> ExitCode {
     let root = repo_root();
-    let theme = Theme::detect();
+    let theme = Theme::detect(&root);
     let args = env::args().skip(1).collect::<Vec<_>>();
 
     let before_separator = args
@@ -690,20 +1026,18 @@ fn main() -> ExitCode {
         .position(|arg| arg == "--")
         .map(|index| &args[..index])
         .unwrap_or(&args);
+
+    if !before_separator.iter().any(|arg| arg == "--json") {
+        clear_screen(theme);
+    }
+
     if before_separator
         .iter()
         .any(|arg| matches!(arg.as_str(), "-h" | "--help"))
     {
-        println!(
-            "{}",
-            banner(
-                &root,
-                theme,
-                "test console",
-                "Rust tests + behavioral metadata"
-            )
-        );
-        println!("{}", section_title(theme, "Help"));
+        println!("{}", banner(&root, theme));
+        println!("{}", centered_heading(theme, "Tests · help"));
+        println!();
         print!("{HELP}");
         return ExitCode::SUCCESS;
     }

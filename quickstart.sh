@@ -2,9 +2,11 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-ENV_FILE="${JELLY_ENV_FILE:-$ROOT/.env}"
+# shellcheck source=scripts/config.sh
+source "$ROOT/scripts/config.sh"
+ENV_FILE="$ROOT/.env"
 ENV_EXAMPLE="$ROOT/.env.example"
-LOGO_FILE="${JELLY_LOGO_FILE:-$ROOT/assets/quickstart-full-logo.txt}"
+LOGO_FILE="$ROOT/$CONFIG_UI_LOGO"
 LOGO_WIDTH=100
 
 MODE="run"
@@ -45,7 +47,7 @@ else
   C_RESET=''; C_BOLD=''; C_DIM=''; C_RED=''; C_GREEN=''; C_YELLOW=''; C_HONEY=''
 fi
 
-if [[ "${JELLY_NO_ICONS:-false}" == "true" ]]; then
+if [[ "$CONFIG_UI_ICONS" == "false" ]]; then
   I_BRAND='*'; I_OK='+'; I_FAIL='x'; I_INFO='>'; I_SECTION='>'; I_LOCK='>'; I_NET='>'
 else
   # Deliberately use ordinary Unicode here, not Nerd Font PUA glyphs. These
@@ -178,7 +180,7 @@ check_core_requirements() {
   fi
 
   if (( CHECK_FAILURES > before )); then
-    printf '\n%b%s  Missing required dependencies. See docs/REQUIREMENTS.md before continuing.%b\n' "$C_RED$C_BOLD" "$I_FAIL" "$C_RESET" >&2
+    printf '\n%b%s  Missing required dependencies. See docs/wiki/REQUIREMENTS.md before continuing.%b\n' "$C_RED$C_BOLD" "$I_FAIL" "$C_RESET" >&2
     exit 2
   fi
   printf '\n'
@@ -412,8 +414,6 @@ JELLY_OAUTH_PASSWORD=${CFG[JELLY_OAUTH_PASSWORD]:-}
 JELLY_OAUTH_PUBLIC_CHATGPT_DCR=${CFG[JELLY_OAUTH_PUBLIC_CHATGPT_DCR]:-false}
 JELLY_HOSTING_MODE=${CFG[JELLY_HOSTING_MODE]:-local}
 JELLY_MCP_ADDR=${CFG[JELLY_MCP_ADDR]:-127.0.0.1:8787}
-JELLY_BROWSER_STARTUP_TIMEOUT_SECS=${CFG[JELLY_BROWSER_STARTUP_TIMEOUT_SECS]:-30}
-JELLY_CDP_TIMEOUT_SECS=${CFG[JELLY_CDP_TIMEOUT_SECS]:-60}
 JELLY_PUBLIC_URL=${CFG[JELLY_PUBLIC_URL]:-}
 JELLY_NIP_IO_NETWORK=${CFG[JELLY_NIP_IO_NETWORK]:-manual}
 JELLY_PUBLIC_IPV4=${CFG[JELLY_PUBLIC_IPV4]:-}

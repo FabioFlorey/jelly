@@ -14,7 +14,7 @@ events_prepare() {
 events_idle_exact() {
   events_prepare
   local result
-  result="$("$JELLY_BIN_DIR/jelly-event-probe" 64 100)"
+  result="$("$BIN_DIR/jelly-event-probe" 64 100)"
 
   jt_assert_eq "$(jq -r '.before_idle.retained_count' <<<"$result")" "0"     "event ring must be empty immediately before the idle period"
   jt_assert_eq "$(jq -r '.after_idle_before_poll.retained_count' <<<"$result")" "0"     "idle websocket traffic must remain unread until a later pump"
@@ -31,7 +31,7 @@ events_idle_exact() {
 events_multitab_routing() {
   events_prepare
   local result
-  result="$("$JELLY_BIN_DIR/jelly-event-probe" multitab)"
+  result="$("$BIN_DIR/jelly-event-probe" multitab)"
 
   jt_assert_true "$(jq -r '.sessions_distinct' <<<"$result")"     "main and tab-2 must have distinct auto-attached CDP sessions"
   jt_assert_eq "$(jq -r '.routed | length' <<<"$result")" "2"     "multi-tab probe must retain exactly two routed console events"
@@ -47,7 +47,7 @@ events_multitab_routing() {
 events_idle_overflow() {
   events_prepare
   local result
-  result="$("$JELLY_BIN_DIR/jelly-event-probe" 1500 100)"
+  result="$("$BIN_DIR/jelly-event-probe" 1500 100)"
 
   jt_assert_eq "$(jq -r '.after_idle_before_poll.retained_count' <<<"$result")" "0"     "idle burst must remain unread before poll"
   jt_assert_eq "$(jq -r '.final_ring.max_count' <<<"$result")" "1024"     "probe assumes the default count-bounded event ring"

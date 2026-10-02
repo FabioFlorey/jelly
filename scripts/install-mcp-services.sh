@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/config.sh
+source "$ROOT/scripts/config.sh"
 USER_UNITS="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 ENV_FILE="$ROOT/.env"
 
@@ -10,11 +12,6 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 2
 fi
 chmod 600 "$ENV_FILE"
-
-set -a
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
 
 mcp_token="${JELLY_MCP_TOKEN:-}"
 bootstrap_secret="${JELLY_BOOTSTRAP_SECRET:-}"
@@ -219,8 +216,9 @@ elif [[ "$hosting_mode" != "local" ]]; then
 fi
 printf '  OAuth consent   %s\n' "$consent_mode"
 printf '  ChatGPT DCR     %s\n' "${JELLY_OAUTH_PUBLIC_CHATGPT_DCR:-false}"
-printf '  Config          %s %b(mode 0600)%b\n' "$ENV_FILE" "$C_DIM" "$C_RESET"
-printf '  Runtime         /data/jelly-runtime\n'
+printf '  Environment     %s %b(mode 0600)%b\n' "$ENV_FILE" "$C_DIM" "$C_RESET"
+printf '  Config          %s\n' "$CONFIG_FILE"
+printf '  Runtime         %s\n' "$CONFIG_RUNTIME_ROOT"
 printf '\n%b◇  Operations%b\n' "$C_HONEY$C_BOLD" "$C_RESET"
 printf '  Status          scripts/status-mcp-services.sh\n'
 printf '  Logs            journalctl --user -u jelly-mcp.service -f\n'

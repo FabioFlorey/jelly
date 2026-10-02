@@ -2,7 +2,6 @@ use crate::primitives::js_helpers::{LAYOUT_VISIBLE_FN, NORMALIZE_TEXT_FN, RENDER
 use crate::primitives::{js, missing_target, pretty, target};
 use crate::{BrowserSession, Error};
 use serde_json::{Value, json};
-use std::env;
 
 fn bounded_usize(value: &str, name: &str, max: usize, allow_zero: bool) -> Result<usize, Error> {
     let parsed = value.parse::<usize>().map_err(|_| {
@@ -23,9 +22,7 @@ fn bounded_usize(value: &str, name: &str, max: usize, allow_zero: bool) -> Resul
 }
 
 fn page_runtime_enabled() -> bool {
-    !env::var("JELLY_PAGE_RUNTIME")
-        .ok()
-        .is_some_and(|value| matches!(value.trim(), "0" | "false" | "off"))
+    crate::config::config().page.runtime
 }
 
 fn eval_page_runtime(b: &mut BrowserSession, expression: &str) -> Result<Value, Error> {
@@ -47,10 +44,8 @@ fn dispose_page_runtime(b: &mut BrowserSession) -> Result<(), Error> {
 pub fn snapshot_interactive(b: &mut BrowserSession, args: &[String]) -> Result<String, Error> {
     let limit = if let Some(value) = args.first() {
         bounded_usize(value, "snapshot limit", 1000, true)?
-    } else if let Ok(value) = env::var("JELLY_SNAPSHOT_LIMIT") {
-        bounded_usize(&value, "JELLY_SNAPSHOT_LIMIT", 1000, true)?
     } else {
-        0
+        crate::config::config().page.snapshot_limit.min(1000)
     };
     let offset = match args.get(1) {
         Some(value) => bounded_usize(value, "snapshot offset", 1_000_000, true)?,
