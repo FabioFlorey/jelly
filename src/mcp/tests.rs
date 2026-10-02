@@ -4,6 +4,14 @@ use super::*;
 fn initialize_includes_operating_instructions() {
     let response = initialize(&json!({"protocolVersion": DEFAULT_PROTOCOL_VERSION}));
     let instructions = response["instructions"].as_str().unwrap();
+    assert!(instructions.contains("**Interface uncertainty**"));
+    assert!(instructions.contains("**Browser-state uncertainty**"));
+    assert!(instructions.contains("**User-intent uncertainty**"));
+    assert!(
+        instructions.contains("never use an environment-changing operation as an interface probe")
+    );
+    assert!(instructions.contains("current machine-readable information"));
+    assert!(instructions.contains("do not redefine Jelly's tool surface"));
     assert!(instructions.contains("Inspect before mutation"));
     assert!(instructions.contains("Reject nonessential cookies by default"));
     assert!(instructions.contains("active ChatGPT conversation"));
@@ -14,8 +22,7 @@ fn initialize_includes_operating_instructions() {
     assert!(instructions.contains("agent-discover schema <tool>"));
     assert!(instructions.contains("Detect the active surface from `tools/list`"));
     assert!(instructions.contains("Prefer a **semantic Jelly operation**"));
-    assert!(instructions.contains("use **browser-schema** to discover it"));
-    assert!(instructions.contains("Execute semantic operations through **browser-call**"));
+    assert!(instructions.contains("execute semantic operations through `browser-call`"));
     assert!(instructions.contains("Use **browser-events** only when"));
     assert!(instructions.contains("Use **raw CDP** only when it is published"));
     assert!(instructions.contains("Do not supply Chromium `targetId` or `sessionId` values"));
@@ -23,7 +30,15 @@ fn initialize_includes_operating_instructions() {
     assert!(instructions.contains("published system artifact tools"));
     assert!(instructions.contains("inputSchema"));
     assert!(instructions.contains("agent-run <tool> [args...]"));
+    assert!(instructions.contains("agent-run type-text -- --help"));
     assert!(instructions.contains("Do not automatically retry side-effecting operations"));
+    assert!(instructions.contains("Treat browser lifecycle as owned state"));
+    assert!(instructions.contains("close that Jelly-owned browser when the task is complete"));
+    assert!(instructions.contains("Continuous mode streams captured renderer frames into FFmpeg"));
+    assert!(
+        instructions.contains("automatically derives a short action comment from trace metadata")
+    );
+    assert!(instructions.contains("stores it as the step `label`"));
     assert!(!instructions.contains("Use direct primitives for short, local interactions"));
     assert!(!instructions.contains("Use snapshot-interactive before clicking"));
 }

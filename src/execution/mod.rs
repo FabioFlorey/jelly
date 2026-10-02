@@ -60,8 +60,37 @@ pub fn execute_browser_primitive(
     result
 }
 
+fn normalize_cli_primitive_args(args: Vec<String>) -> Result<Vec<String>, &'static str> {
+    match args.first().map(String::as_str) {
+        Some("-h" | "--help") => Err("help"),
+        Some("--") => Ok(args.into_iter().skip(1).collect()),
+        _ => Ok(args),
+    }
+}
+
+fn print_cli_primitive_help(name: &str) -> Result<(), Error> {
+    let spec = registry::lookup(name).ok_or_else(|| {
+        crate::jelly_error(
+            crate::ErrorKind::Unsupported,
+            format!("unsupported browser primitive: {name}"),
+            false,
+        )
+    })?;
+    let args = spec.usage.strip_prefix(name).unwrap_or(spec.usage);
+    println!(
+        "{}\n\nUsage: agent-{name}{args}\n\nUse `--` before arguments to pass a literal value beginning with `-`.",
+        spec.description
+    );
+    Ok(())
+}
+
 pub fn run_cli_primitive(name: &str) -> Result<(), Error> {
     let args: Vec<String> = env::args().skip(1).collect();
+    let args = match normalize_cli_primitive_args(args) {
+        Ok(args) => args,
+        Err("help") => return print_cli_primitive_help(name),
+        Err(_) => unreachable!(),
+    };
     let mut browser = BrowserSession::connect()?;
     let output = execute_browser_primitive(&mut browser, name, &args)?;
     if !output.is_empty() {
@@ -73,4 +102,26 @@ pub fn run_cli_primitive(name: &str) -> Result<(), Error> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use super::normalize_cli_primitive_args;
+
+    #[test]
+    fn help_flags_are_not_forwarded_to_browser_primitives() {
+        assert_eq!(
+            normalize_cli_primitive_args(vec!["--help".into()]),
+            Err("help")
+        );
+        assert_eq!(normalize_cli_primitive_args(vec!["-h".into()]), Err("help"));
+    }
+
+    #[test]
+    fn separator_allows_literal_help_text() {
+        assert_eq!(
+            normalize_cli_primitive_args(vec!["--".into(), "--help".into()]),
+            Ok(vec!["--help".into()])
+        );
+    }
 }

@@ -1,5 +1,6 @@
 use jelly::{
-    ACTIVE_TARGET, BROWSER_MODE, LOG_DIR, PAGE_TARGET, new_id, record_step, redact_tool_args,
+    ACTIVE_TARGET, BROWSER_MODE, LOG_DIR, PAGE_TARGET, new_id, primitive_specs, record_step,
+    redact_tool_args,
 };
 use serde_json::json;
 use std::{
@@ -16,6 +17,18 @@ const ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().skip(1).collect();
+    if args
+        .first()
+        .is_some_and(|arg| matches!(arg.as_str(), "-h" | "--help"))
+    {
+        println!(
+            "Run a Jelly browser tool.\n\nUsage: agent-run <tool> [args...]\n       agent-run <tool> --help\n\nBrowser primitives:"
+        );
+        for spec in primitive_specs {
+            println!("  {:<22} {}", spec.name, spec.description);
+        }
+        return Ok(());
+    }
     let tool = args.first().ok_or("usage: agent-run <tool> [args...]")?;
     let tool = tool.strip_prefix("agent-").unwrap_or(tool);
     if tool == "run" {
