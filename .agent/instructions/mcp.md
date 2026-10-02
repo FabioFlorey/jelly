@@ -9,7 +9,7 @@ Jelly is a browser instrumentation layer for a persistent Chromium session. Trea
 - **Large surface:** if individual browser primitives are published instead, use those advertised tools and their `inputSchema` directly. Do not invent small-surface facade tools that are not listed.
 - System tools such as browser lifecycle, artifacts, routines, network inspection, and HITL remain top-level in both rollout surfaces. Use only tools actually advertised by `tools/list`.
 
-## Compact browser policy
+## Small-surface browser policy
 
 Use one selection rule:
 

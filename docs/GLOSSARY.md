@@ -7,7 +7,7 @@
 
 `Select a letter below to browse entries alphabetically`
 
-### [A](#a)　[B](#b)　[C](#c)　[D](#d)　[E](#e)　[H](#h)　[I](#i)　[J](#j)　[M](#m)　[N](#n)　[O](#o)　[P](#p)　[R](#r)　[S](#s)　[T](#t)　[U](#u)　[V](#v)　[W](#w)
+### [A](#a)　[B](#b)　[C](#c)　[D](#d)　[E](#e)　[H](#h)　[I](#i)　[J](#j)　[L](#l)　[M](#m)　[N](#n)　[O](#o)　[P](#p)　[R](#r)　[S](#s)　[T](#t)　[U](#u)　[V](#v)　[W](#w)
 
 </sub>
 
@@ -189,13 +189,23 @@
 
 <div align="right"><sub><a href="#top">⭐ Go to the top of the document</a></sub></div>
 
+## L
+
++ **Large Surface**
+  Jelly's expanded MCP publication mode, selected with `JELLY_MCP_SURFACE=large-surface`. It publishes individual semantic browser primitives as top-level MCP tools together with the current system-tool set. When raw CDP is enabled, it also publishes the dedicated `cdp-call` tool. Large surface is useful for compatibility, diagnostics, and clients that prefer individually published browser operations.
+  **Acronyms**: ∅
+  **Synonyms**: large-surface, expanded MCP surface
+  **References**: [MCP Server](./MCP.md), [Tool Discovery](./DISCOVERY.md)
+
+<div align="right"><sub><a href="#top">⭐ Go to the top of the document</a></sub></div>
+
 ## M
 
-+ **MCP**  
-  A protocol for exposing tools, resources, and related capabilities to AI clients. jelly's registry and discovery layers are structured so they can later be adapted to MCP without duplicating primitive metadata.  
-  **Acronyms**: Model Context Protocol  
-  **Synonyms**: ∅  
-  **References**: [Tool Discovery](./DISCOVERY.md)
++ **MCP**
+  The Model Context Protocol used by Jelly to publish authenticated browser and system capabilities to remote AI clients. Jelly exposes a validated Agent Tool Catalog through `tools/list`; the selected MCP surface controls which browser-facing tools are published and executable.
+  **Acronyms**: Model Context Protocol
+  **Synonyms**: ∅
+  **References**: [MCP Server](./MCP.md), [Tool Discovery](./DISCOVERY.md)
 
 <div align="right"><sub><a href="#top">⭐ Go to the top of the document</a></sub></div>
 
@@ -294,6 +304,12 @@
   **Acronyms**: SSOT  
   **Synonyms**: canonical source  
   **References**: [Architecture](./ARCHITECTURE.md)
+
++ **Small Surface**
+  Jelly's default MCP publication mode, selected automatically when `JELLY_MCP_SURFACE` is unset or explicitly with `small-surface`. Instead of publishing every browser primitive individually, it exposes the browser facade tools `browser-schema`, `browser-call`, and `browser-events`, while retaining the same current system-tool set as large surface. Raw CDP remains separately opt-in and, when enabled, is exposed through `browser-call`.
+  **Acronyms**: ∅
+  **Synonyms**: small-surface, browser facade
+  **References**: [MCP Server](./MCP.md), [Tool Discovery](./DISCOVERY.md)
 
 + **Span**  
   One timed operation inside a larger trace. Primitive executions become spans so nested work can be related to the routine or tool invocation that caused it.  
