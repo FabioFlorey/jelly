@@ -11,7 +11,10 @@ use std::{
 };
 
 const ROUTINES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/.agent/routines");
-const STATE: &str = ROUTINE_STATE_DIR;
+
+fn routine_state() -> &'static str {
+    ROUTINE_STATE_DIR.as_str()
+}
 
 #[derive(Debug)]
 struct RoutineFailure {
@@ -171,7 +174,7 @@ fn legacy_run(
     mut vars: HashMap<String, String>,
     id: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    fs::create_dir_all(STATE)?;
+    fs::create_dir_all(routine_state())?;
     let mut browser: Option<BrowserSession> = None;
     for (i, raw) in lines.iter().enumerate().skip(start) {
         let line = render_legacy(raw.trim().to_owned(), &vars);
@@ -197,7 +200,10 @@ fn legacy_run(
                 let sid = id.clone().unwrap_or_else(state_id);
                 let message = parts[1..].join(" ");
                 let body = json!({"kind":"legacy","next":i+1,"lines":lines,"vars":vars});
-                fs::write(format!("{STATE}/{sid}.state"), serde_json::to_vec(&body)?)?;
+                fs::write(
+                    format!("{}/{sid}.state", routine_state()),
+                    serde_json::to_vec(&body)?,
+                )?;
                 println!("handoff {sid} {message}");
                 return Ok(());
             }
@@ -210,7 +216,10 @@ fn legacy_run(
                     .map_err(|e| format!("{}: {}", e.kind, e.message))?;
                 let sid = id.clone().unwrap_or_else(state_id);
                 let body = json!({"kind":"legacy","next":i+1,"lines":lines,"vars":vars});
-                fs::write(format!("{STATE}/{sid}.state"), serde_json::to_vec(&body)?)?;
+                fs::write(
+                    format!("{}/{sid}.state", routine_state()),
+                    serde_json::to_vec(&body)?,
+                )?;
                 println!("hitl {sid} {message}");
                 return Ok(());
             }
@@ -235,7 +244,7 @@ fn legacy_run(
 }
 
 fn remove_state_file(id: &str) -> Result<(), std::io::Error> {
-    let path = format!("{STATE}/{id}.state");
+    let path = format!("{}/{id}.state", routine_state());
     match fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -456,7 +465,7 @@ fn save_graph_state(
     visits: &HashMap<String, u64>,
     browser_owned: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    fs::create_dir_all(STATE)?;
+    fs::create_dir_all(routine_state())?;
     let body = json!({
         "kind":"graph",
         "graph":graph,
@@ -467,7 +476,7 @@ fn save_graph_state(
         "browser_owned":browser_owned
     });
     fs::write(
-        format!("{STATE}/{id}.state"),
+        format!("{}/{id}.state", routine_state()),
         serde_json::to_vec_pretty(&body)?,
     )?;
     Ok(())
@@ -482,7 +491,7 @@ fn graph_run(
     browser_owned: bool,
     state: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    fs::create_dir_all(STATE)?;
+    fs::create_dir_all(routine_state())?;
     let max_steps = graph
         .get("max_steps")
         .and_then(Value::as_u64)
@@ -712,7 +721,8 @@ fn start_graph(
 }
 
 fn resume(id: &str, extra: HashMap<String, String>) -> Result<(), Box<dyn std::error::Error>> {
-    let value: Value = serde_json::from_slice(&fs::read(format!("{STATE}/{id}.state"))?)?;
+    let value: Value =
+        serde_json::from_slice(&fs::read(format!("{}/{id}.state", routine_state()))?)?;
     if value["kind"] == "graph" {
         let graph = value["graph"].clone();
         validate_graph(&graph)?;

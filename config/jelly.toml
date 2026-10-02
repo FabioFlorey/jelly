@@ -1,0 +1,27 @@
+[paths]
+runtime_root = "/data/jelly-runtime"
+
+[browser]
+startup_timeout_secs = 30
+cdp_timeout_secs = 60
+
+[mcp]
+surface = "small-surface"
+persistent_session = true
+raw_cdp = false
+allow_cargo_fallback = false
+
+[page]
+runtime = true
+snapshot_limit = 0
+
+[diagnostics]
+perf_log = false
+
+[tests]
+default_batch = "deterministic"
+
+[ui]
+animation = true
+icons = true
+logo = "assets/quickstart-full-logo.txt"

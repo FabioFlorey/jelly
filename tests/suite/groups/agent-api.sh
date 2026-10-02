@@ -8,7 +8,7 @@ agent_api_probe_build() {
 agent_api_probe() {
   local mode="$1"
   agent_api_probe_build
-  "$JELLY_BIN_DIR/jelly-agent-api-probe" "$mode"
+  "$BIN_DIR/jelly-agent-api-probe" "$mode"
 }
 
 agent_api_browser_probe() {
@@ -16,7 +16,7 @@ agent_api_browser_probe() {
   trap jt_close_browser EXIT
   agent_api_probe_build
   jt_open_fixture browser-perf.html
-  "$JELLY_BIN_DIR/jelly-agent-api-probe" "$mode"
+  "$BIN_DIR/jelly-agent-api-probe" "$mode"
 }
 
 api_001() { agent_api_probe small-surface-catalog; }
@@ -62,5 +62,5 @@ jt_register "API-017" "agent-api" "Raw browser execution" "Verify enabled browse
 jt_register "API-018" "agent-api" "Mixed semantic and raw ordering" "Verify one browser-call batch preserves ordering across semantic and raw CDP operations." "Headless browser-perf fixture is loaded; raw CDP is enabled for the probe." "Set a page variable semantically, increment it through raw target CDP, then read it semantically." "Batch kind is mixed, all three calls succeed in order, and final value is 15." "browser" api_018
 jt_register "API-019" "agent-api" "Event subscription lifecycle" "Verify browser-events subscribe/poll/unsubscribe integrates with small-surface semantic execution and logical target attribution." "Headless browser-perf fixture is loaded; Runtime events can be enabled on main." "Subscribe to main Runtime.consoleAPICalled, emit an event through semantic browser-call, poll, then unsubscribe." "Poll contains the expected main event and unsubscribe completes successfully." "browser" api_019
 jt_register "API-020" "agent-api" "Stale event subscription failure" "Verify removed browser-events subscription IDs fail deterministically with the dedicated typed error." "Headless browser-perf fixture is loaded." "Subscribe, unsubscribe, then poll the same subscription ID." "Poll fails nonretryably with subscription_not_found." "browser" api_020
-jt_register "API-021" "agent-api" "Small-surface is the process default" "Verify an MCP process with no surface selector publishes the small-surface browser facade and not large-surface individual primitives." "Agent API probe can spawn a fresh subprocess with JELLY_MCP_SURFACE and JELLY_MCP_RAW_CDP removed." "Run active tools/list selection in the fresh process without either environment variable." "browser-schema, browser-call, and browser-events are published; click is not published." "quality" api_021
-jt_register "API-022" "agent-api" "Explicit large-surface process with raw CDP" "Verify JELLY_MCP_SURFACE=large-surface still publishes individual primitives and can additionally expose raw CDP through cdp-call when JELLY_MCP_RAW_CDP=1." "Agent API probe can spawn a fresh subprocess." "Run active tools/list with JELLY_MCP_SURFACE=large-surface and JELLY_MCP_RAW_CDP=1." "The subprocess succeeds, publishes click plus cdp-call, and excludes browser-schema/browser-call/browser-events." "quality" api_022
+jt_register "API-021" "agent-api" "Small-surface configured default" "Verify the active config publishes the small-surface browser facade and not large-surface individual primitives." "config/jelly.toml selects small-surface with raw CDP disabled." "Read the active tools/list projection from the configured catalog." "browser-schema, browser-call, and browser-events are published; click is not published." "quality" api_021
+jt_register "API-022" "agent-api" "Explicit large-surface catalog with raw CDP" "Verify large-surface configuration publishes individual primitives and can additionally expose raw CDP through cdp-call." "Agent API probe can construct a catalog from explicit configuration values." "Project tools/list for large-surface with raw CDP enabled." "The projection publishes click plus cdp-call and excludes browser-schema/browser-call/browser-events." "quality" api_022

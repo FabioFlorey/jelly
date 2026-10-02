@@ -9,6 +9,7 @@ mod artifacts;
 mod browser;
 /// Browser process launcher used by the `agent-open-browser` binary.
 pub mod browser_launcher;
+pub mod config;
 mod error;
 mod execution;
 /// MCP HTTP/JSON-RPC server integration.

@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     AgentBuiltinExecution, AgentToolBinding, AgentToolCatalog, ErrorKind, active_agent_catalog,
-    classify_error, error_details, execute_named_browser_primitive,
+    agent_catalog_from_config, classify_error, error_details, execute_named_browser_primitive,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Map, Value, json};
@@ -15,6 +15,15 @@ use std::fs;
 /// Return the validated active MCP `tools/list` projection.
 pub fn mcp_tools() -> Result<Vec<Value>, String> {
     Ok(mcp_tools_from_catalog(active_agent_catalog()?))
+}
+
+pub fn mcp_tools_for_config(
+    surface: Option<&str>,
+    raw_cdp: Option<&str>,
+) -> Result<Vec<Value>, String> {
+    Ok(mcp_tools_from_catalog(agent_catalog_from_config(
+        surface, raw_cdp,
+    )?))
 }
 
 pub(super) fn mcp_tools_from_catalog(catalog: &AgentToolCatalog) -> Vec<Value> {
@@ -188,7 +197,7 @@ pub(super) fn execute_tool_from_catalog(
             {
                 return Err(ToolFailure::new(
                     ErrorKind::Unsupported,
-                    "browser-events requires persistent MCP browser sessions; JELLY_MCP_PERSISTENT_SESSION=0 is incompatible with runtime-scoped subscriptions",
+                    "browser-events requires config/jelly.toml [mcp].persistent_session = true",
                     false,
                 ));
             }

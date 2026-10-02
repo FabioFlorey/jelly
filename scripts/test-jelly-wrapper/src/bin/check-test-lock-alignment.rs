@@ -1,6 +1,6 @@
 use std::{
     collections::BTreeSet,
-    env, fs,
+    fs,
     path::{Path, PathBuf},
     process::ExitCode,
 };
@@ -8,15 +8,11 @@ use std::{
 type Package = (String, String, String, String);
 
 fn repo_root() -> PathBuf {
-    env::var_os("JELLY_REPO_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .and_then(Path::parent)
-                .expect("test-jelly wrapper must live under <repo>/scripts/test-jelly-wrapper")
-                .to_path_buf()
-        })
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("test-jelly wrapper must live under <repo>/scripts/test-jelly-wrapper")
+        .to_path_buf()
 }
 
 fn unquote(value: &str) -> String {

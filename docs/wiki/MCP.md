@@ -41,7 +41,7 @@ Check only the core prerequisites:
 
 Dry-run mode performs the dependency audit, asks the normal configuration questions, validates mode-specific requirements, and prints a redacted summary. It does not write `.env`, create backups, build binaries, or touch systemd. Normal mode preserves existing values when rerun, generates strong local secrets when requested, backs up an existing `.env`, writes the resulting file with mode `0600`, and can immediately build/install the user services.
 
-The configurator uses a honey/yellow ANSI palette with compact Unicode symbols chosen for predictable terminal rendering. Green and red are reserved for success/failure states. Set `NO_COLOR=1` to disable ANSI color or `JELLY_NO_ICONS=true` to use ASCII fallback markers. The full header artwork is loaded from `assets/quickstart-full-logo.txt` and rendered in the honey accent color. Keep each line at 100 characters or fewer. Set `JELLY_LOGO_FILE=/path/to/logo.txt` to use a different file without editing the script.
+The configurator uses a honey/yellow ANSI palette with compact Unicode symbols chosen for predictable terminal rendering. Green and red are reserved for success/failure states. Set `NO_COLOR=1` to disable ANSI color or `[ui].icons = false` to use ASCII fallback markers. The full header artwork is loaded from `assets/quickstart-full-logo.txt` and rendered in the honey accent color. Keep each line at 100 characters or fewer. Set `[ui].logo = "path/to/logo.txt"` to use a different file without editing the script.
 
 For manual setup instead, create the local secrets:
 
@@ -75,23 +75,21 @@ Quick Tunnel mode discovers this value automatically. The public origin is the O
 
 The MCP adapter publishes a validated **Agent Tool Catalog**. The catalog is a projection layer: bindings still point to Jelly's canonical browser-primitive/system-tool definitions or to native Agent API builtins, but publication and execution use the same catalog allowlist rather than iterating internal registries directly. Remote clients discover this published surface through `tools/list`; the generated `.agent/tools/index.md` and `agent-discover` describe internal capabilities instead and are not substitutes for MCP discovery.
 
-The MCP surface is selected with `JELLY_MCP_SURFACE=large-surface|small-surface`. If the variable is absent, Jelly defaults to `small-surface`. Empty or unknown values are configuration errors and MCP startup fails rather than silently choosing a surface.
+The MCP surface is selected by `config/jelly.toml` at `[mcp].surface`. Accepted values are `large-surface` and `small-surface`; unknown values are configuration errors and MCP startup fails.
 
 `large-surface` publishes the existing individual browser primitives plus all current system tools. `small-surface` publishes `browser-schema`, `browser-call`, and `browser-events` instead of individual browser primitives, while preserving the same system-tool set until the separate system-tool compaction step. Ordinary small-surface mode never publishes both browser surfaces at once. The selected catalog is used for both `tools/list` and `tools/call`, so an internal primitive omitted from small-surface mode cannot be executed by guessing its individually published name. Measured large/small surface schema footprint and local runtime results are recorded in [`MCP_SURFACE_BENCHMARKS.md`](./MCP_SURFACE_BENCHMARKS.md).
 
-```text
-# default: small browser facade
-# JELLY_MCP_SURFACE=small-surface
+```toml
+[mcp]
+# browser facade
+surface = "small-surface"
 
-# expanded individual-tool surface
-JELLY_MCP_SURFACE=large-surface
-
-# optional raw CDP escape hatch for either surface
-JELLY_MCP_RAW_CDP=0
+# optional privileged raw CDP escape hatch
+raw_cdp = false
 ```
 
-`JELLY_MCP_RAW_CDP` applies to both browser surfaces. In large-surface mode, enabling it publishes a dedicated raw-only `cdp-call` tool alongside the individual semantic primitives. In small-surface mode, enabling it adds raw CDP method forms to `browser-call`. Invalid values fail startup in either mode.
-The setting is process-wide and takes effect at MCP startup: the active Agent Tool Catalog is frozen for the process lifetime, so changing `JELLY_MCP_RAW_CDP` requires an MCP restart. Jelly currently publishes one OAuth scope, `jelly`; therefore raw-CDP enablement is not per-client—every authenticated client with that scope sees the same raw capability when it is enabled.
+`[mcp].raw_cdp` applies to both browser surfaces. In large-surface mode, enabling it publishes a dedicated raw-only `cdp-call` tool alongside the individual semantic primitives. In small-surface mode, enabling it adds raw CDP method forms to `browser-call`. Invalid values fail startup in either mode.
+The setting is process-wide and takes effect at MCP startup: the active Agent Tool Catalog is frozen for the process lifetime, so changing `[mcp].raw_cdp` requires an MCP restart. Jelly currently publishes one OAuth scope, `jelly`; therefore raw-CDP enablement is not per-client—every authenticated client with that scope sees the same raw capability when it is enabled.
 
 ### Raw CDP trust boundary
 
@@ -113,9 +111,9 @@ raw CDP scope=browser
   direct privileged DevTools command to Chromium's browser connection
 ```
 
-Depending on the protocol method, target-scoped raw calls can access runtime, DOM, input, network, storage, page, debugging, and related capabilities beyond Jelly's semantic API. Browser-scoped calls can additionally affect browser-wide targets, contexts, permissions, persisted browser state, downloads, networking, and other Chromium state. Raw calls therefore can bypass Jelly-level interaction conventions, verification abstractions, ref handling, and future policy guards. MCP authentication still applies, and raw CDP remains operator-controlled by `JELLY_MCP_RAW_CDP`.
+Depending on the protocol method, target-scoped raw calls can access runtime, DOM, input, network, storage, page, debugging, and related capabilities beyond Jelly's semantic API. Browser-scoped calls can additionally affect browser-wide targets, contexts, permissions, persisted browser state, downloads, networking, and other Chromium state. Raw calls therefore can bypass Jelly-level interaction conventions, verification abstractions, ref handling, and future policy guards. MCP authentication still applies, and raw CDP remains operator-controlled by `[mcp].raw_cdp`.
 
-Jelly currently validates raw call structure, explicit scope, logical-target routing, parameter object shape, and `Domain.command` syntax. It deliberately does **not** maintain a broad speculative CDP method allowlist in this rollout step. Enabling raw CDP therefore means trusting the authenticated client with the Chromium protocol authority exposed by the selected target/browser scope. See [`SECURITY.md`](../SECURITY.md) for the security boundary.
+Jelly currently validates raw call structure, explicit scope, logical-target routing, parameter object shape, and `Domain.command` syntax. It deliberately does **not** maintain a broad speculative CDP method allowlist in this rollout step. Enabling raw CDP therefore means trusting the authenticated client with the Chromium protocol authority exposed by the selected target/browser scope. See [`SECURITY.md`](../../SECURITY.md) for the security boundary.
 
 ```mermaid
 flowchart LR
@@ -133,7 +131,7 @@ flowchart LR
 
 Browser primitive bindings get named MCP arguments from their existing `ArgSpec` definitions through the canonical named-argument adapter. System tools keep their registry metadata and map structured MCP arguments onto their CLI forms. A capability omitted from the selected Agent Tool Catalog is neither advertised nor executable by guessing its internal name.
 
-System-tool execution normally requires the matching `agent-<tool>` binary beside the running `jelly-mcp` executable. Jelly does not silently fall back to compiling/running the checkout, because that could make a release server execute source-tree code different from the installed build. For explicit development workflows only, `JELLY_MCP_ALLOW_CARGO_FALLBACK=1` enables the old `cargo run` fallback.
+System-tool execution normally requires the matching `agent-<tool>` binary beside the running `jelly-mcp` executable. Jelly does not silently fall back to compiling/running the checkout, because that could make a release server execute source-tree code different from the installed build. For explicit development workflows only, `[mcp].allow_cargo_fallback = true` enables the old `cargo run` fallback.
 
 The current system-tool mappings are intentionally unchanged in both large-surface and small-surface browser modes:
 
@@ -186,7 +184,7 @@ tools/call
 notifications such as notifications/initialized
 ```
 
-The HTTP MCP transport is stateless. Browser continuity comes from jelly's persistent Chromium process and shared runtime state, while the MCP server also caches one process-wide `BrowserSession` for browser-bound catalog entries by default to avoid repeated CDP connect/attach work. That session, including its retained event ring and `browser-events` subscriptions, is shared across authenticated MCP clients in the current single-owner deployment model; it is not isolated per OAuth client. The session maintains page-only flattened auto-attach mappings internally, so Agent API calls and `browser-events` use logical targets (`main`, `tab-N`) rather than CDP `sessionId` values. Set `JELLY_MCP_PERSISTENT_SESSION=0` to disable that cache for rollback diagnostics. Runtime-scoped `browser-events` subscriptions require the cached persistent BrowserSession; when persistent sessions are disabled, that builtin returns `unsupported` rather than creating an ID that could not survive to the next poll.
+The HTTP MCP transport is stateless. Browser continuity comes from jelly's persistent Chromium process and shared runtime state, while the MCP server also caches one process-wide `BrowserSession` for browser-bound catalog entries by default to avoid repeated CDP connect/attach work. That session, including its retained event ring and `browser-events` subscriptions, is shared across authenticated MCP clients in the current single-owner deployment model; it is not isolated per OAuth client. The session maintains page-only flattened auto-attach mappings internally, so Agent API calls and `browser-events` use logical targets (`main`, `tab-N`) rather than CDP `sessionId` values. Set `[mcp].persistent_session = false` to disable that cache for rollback diagnostics. Runtime-scoped `browser-events` subscriptions require the cached persistent BrowserSession; when persistent sessions are disabled, that builtin returns `unsupported` rather than creating an ID that could not survive to the next poll.
 
 ## Authentication
 

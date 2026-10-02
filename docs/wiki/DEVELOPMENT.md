@@ -13,7 +13,7 @@
 
 ## Tests
 
-The test-system entry point is [`tests/INDEX.md`](../tests/INDEX.md). The canonical behavioral suite lives in `tests/suite/`. Every test has a stable ID plus name, description, preconditions, input, expected output, and execution status. Every run receives a unique run ID and writes an auditable report under `/data/jelly-runtime/test-runs/<RUN_ID>/`.
+The test-system entry point is [`tests/INDEX.md`](../../tests/INDEX.md). The canonical behavioral suite lives in `tests/suite/`. Every test has a stable ID plus name, description, preconditions, input, expected output, and execution status. Every run receives a unique run ID and writes an auditable report under `/data/jelly-runtime/test-runs/<RUN_ID>/`.
 
 Run the deterministic suite:
 
@@ -66,11 +66,11 @@ CI performs the same freshness check.
 
 Browser performance changes are independently reversible while they are being evaluated:
 
-- `JELLY_PERF_LOG=1` writes opt-in CDP/connect timing events to the runtime log directory.
-- `JELLY_MCP_SURFACE=large-surface` selects the expanded MCP browser surface with individual browser primitives. When the selector is absent, MCP defaults to `small-surface`, which replaces individual browser primitives with `browser-schema`, `browser-call`, and `browser-events` while retaining the exact same ordered system-tool set and bindings. System-tool aggregation/exposure changes are intentionally a separate migration.
-- `JELLY_MCP_PERSISTENT_SESSION=0` restores one CDP connection/attach per MCP browser primitive/builtin.
-- `JELLY_PAGE_RUNTIME=0` restores the legacy `snapshot-interactive` DOM scan and DOM-backed `data-jelly-ref` references.
-- `JELLY_SNAPSHOT_LIMIT=<n>` bounds interactive snapshots by default in both runtime and legacy rollback paths. `0` keeps the compatibility behavior of returning all visible interactive elements.
+- `[diagnostics].perf_log = true` writes opt-in CDP/connect timing events to the runtime log directory.
+- `[mcp].surface = "large-surface"` selects the expanded MCP browser surface with individual browser primitives. When the selector is absent, MCP defaults to `small-surface`, which replaces individual browser primitives with `browser-schema`, `browser-call`, and `browser-events` while retaining the exact same ordered system-tool set and bindings. System-tool aggregation/exposure changes are intentionally a separate migration.
+- `[mcp].persistent_session = false` restores one CDP connection/attach per MCP browser primitive/builtin.
+- `[page].runtime = false` restores the legacy `snapshot-interactive` DOM scan and DOM-backed `data-jelly-ref` references.
+- `[page].snapshot_limit = <n>` bounds interactive snapshots by default in both runtime and legacy rollback paths. `0` keeps the compatibility behavior of returning all visible interactive elements.
 
 These switches are diagnostic rollback paths, not separate supported execution modes. `large-surface` and `small-surface` are the only supported MCP surface names. Other legacy page-runtime/performance rollback paths remain behaviorally tested until their own removal criteria are established.
 
@@ -103,7 +103,7 @@ When the page runtime is enabled, interactive elements receive document-scoped i
 
 Semantic naming includes associated labels, a conservative immediate-sibling label heuristic for otherwise unlabeled form controls, live value-derived names, and text projected through `<slot>` elements in open Shadow DOM. `find-interactive` and exact interactive text targeting use deterministic priorities: semantic match quality, enabled before disabled, in-viewport before offscreen, then document order. If no interactive target matches, Jelly retains a generic non-interactive text fallback for compatibility. That fallback normalizes whitespace and uses a cheap text prefilter before the slower exact visibility/layout pass.
 
-The runtime traverses normal DOM plus open Shadow DOM roots, including open roots attached after runtime installation. Nested slotted controls are resolved through their actual inner interactive element, while closed shadow roots remain opaque to normal Jelly DOM traversal. `JELLY_PAGE_RUNTIME=0` disposes the page runtime when the legacy snapshot/search path is used and restores DOM-backed refs. Re-enabling the runtime removes legacy refs and creates a fresh runtime namespace.
+The runtime traverses normal DOM plus open Shadow DOM roots, including open roots attached after runtime installation. Nested slotted controls are resolved through their actual inner interactive element, while closed shadow roots remain opaque to normal Jelly DOM traversal. `[page].runtime = false` disposes the page runtime when the legacy snapshot/search path is used and restores DOM-backed refs. Re-enabling the runtime removes legacy refs and creates a fresh runtime namespace.
 
 Limit/offset pagination is positional rather than snapshot-isolated. If structural mutations occur between page requests, offsets can shift; restart at offset 0 after such changes. Stable pagination across mutations would require a future cursor/snapshot token. Invalid or negative limits/offsets are rejected rather than silently expanding the result set.
 

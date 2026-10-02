@@ -19,12 +19,12 @@ mod system_tools;
 #[cfg(test)]
 use crate::{AgentToolCatalog, ErrorKind};
 use dispatch::call_tool;
-pub use dispatch::mcp_tools;
 #[cfg(test)]
 use dispatch::{
     ToolFailure, builtin_requires_persistent_mcp_session, execute_tool_from_catalog,
     failure_envelope, mcp_tools_from_catalog, success_envelope,
 };
+pub use dispatch::{mcp_tools, mcp_tools_for_config};
 #[cfg(test)]
 use protocol::DEFAULT_PROTOCOL_VERSION;
 use protocol::{McpRequest, SERVER_NAME, error_response, initialize, success_response};

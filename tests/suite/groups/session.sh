@@ -15,12 +15,12 @@ session_start_mcp() {
   local port="$1" perf="${2:-0}"
   SESSION_MCP_PORT="$port"
   SESSION_MCP_LOG="/tmp/jelly-suite-session-${port}.log"
+  jt_config_set mcp surface large-surface
+  jt_config_set mcp persistent_session true
+  jt_config_set diagnostics perf_log "$([[ "$perf" == 1 ]] && echo true || echo false)"
   JELLY_MCP_ADDR="127.0.0.1:${port}" \
   JELLY_PUBLIC_URL="http://127.0.0.1:${port}" \
-  JELLY_MCP_SURFACE="large-surface" \
-  JELLY_MCP_PERSISTENT_SESSION=1 \
-  JELLY_PERF_LOG="$perf" \
-    "$JELLY_BIN_DIR/jelly-mcp" >"$SESSION_MCP_LOG" 2>&1 &
+    "$BIN_DIR/jelly-mcp" >"$SESSION_MCP_LOG" 2>&1 &
   SESSION_MCP_PID=$!
   for _ in {1..80}; do
     curl -fsS "http://127.0.0.1:${port}/health" >/dev/null 2>&1 && return 0
@@ -65,10 +65,10 @@ session_prepare() {
 
 session_reuse() {
   session_prepare
-  local perf_log="/data/jelly-runtime/logs/perf.jsonl"
+  local perf_log="$CONFIG_RUNTIME_ROOT/logs/perf.jsonl"
   rm -f "$perf_log"
   session_start_mcp 18789 1
-  local fixture="file://${JELLY_REPO_ROOT}/tests/fixtures/browser-perf.html"
+  local fixture="file://${REPO_ROOT}/tests/fixtures/browser-perf.html"
   local r
   r="$(session_call 1 snapshot-interactive '{"limit":5}')"; session_expect_ok "$r" "initial snapshot failed"
   r="$(session_call 2 navigate "$(jq -cn --arg url "$fixture" '{url:$url}')")"; session_expect_ok "$r" "navigate failed"
@@ -89,7 +89,7 @@ session_external_target() {
   r="$(session_call 1 snapshot-interactive '{"limit":5}')"; session_expect_ok "$r" "initial snapshot failed"
   r="$(session_call 2 open-in-new-tab '{"target":"css:a"}')"; session_expect_ok "$r" "open-in-new-tab failed"
   r="$(session_call 3 evaluate-js '{"expression":"document.title = \"MCP secondary tab\""}')"; session_expect_ok "$r" "marking second tab failed"
-  "$JELLY_BIN_DIR/agent-switch-tab" "Jelly browser performance fixture" >/dev/null
+  "$BIN_DIR/agent-switch-tab" "Jelly browser performance fixture" >/dev/null
   r="$(session_call 4 evaluate-js '{"expression":"document.title"}')"; session_expect_ok "$r" "evaluate after external switch failed"
   jt_assert_eq "$(jq -r '.result.structuredContent.data' <<<"$r")" "Jelly browser performance fixture" "persistent session must follow externally selected target"
 }
@@ -100,27 +100,27 @@ session_stale_target() {
   local r stale repaired
   r="$(session_call 1 snapshot-interactive '{"limit":5}')"; session_expect_ok "$r" "initial snapshot failed"
   r="$(session_call 2 open-in-new-tab '{"target":"css:a"}')"; session_expect_ok "$r" "open-in-new-tab failed"
-  stale="$(cat /data/jelly-runtime/state/active_target_id)"
-  "$JELLY_BIN_DIR/agent-close-tab" >/dev/null
-  printf '%s' "$stale" > /data/jelly-runtime/state/active_target_id
+  stale="$(cat $CONFIG_RUNTIME_ROOT/state/active_target_id)"
+  "$BIN_DIR/agent-close-tab" >/dev/null
+  printf '%s' "$stale" > $CONFIG_RUNTIME_ROOT/state/active_target_id
   r="$(session_call 3 snapshot-interactive '{"limit":5}')"
   session_expect_browser_unavailable "$r" "stale target must fail once as retryable browser_unavailable"
   r="$(session_call 4 snapshot-interactive '{"limit":5}')"; session_expect_ok "$r" "second call must reconnect through fallback"
-  repaired="$(cat /data/jelly-runtime/state/active_target_id)"
+  repaired="$(cat $CONFIG_RUNTIME_ROOT/state/active_target_id)"
   jt_assert_ne "$repaired" "$stale" "reconnect must repair shared active target state"
 }
 
 session_dead_browser() {
   session_prepare
   session_start_mcp 18792 0
-  local r fixture="file://${JELLY_REPO_ROOT}/tests/fixtures/browser-perf.html"
+  local r fixture="file://${REPO_ROOT}/tests/fixtures/browser-perf.html"
   r="$(session_call 1 snapshot-interactive '{"limit":5}')"; session_expect_ok "$r" "initial snapshot failed"
-  "$JELLY_BIN_DIR/agent-close-browser" >/dev/null
+  "$BIN_DIR/agent-close-browser" >/dev/null
   r="$(session_call 2 snapshot-interactive '{"limit":5}')"
   session_expect_browser_unavailable "$r" "dead browser must invalidate cached MCP session"
   local opened=false
   for _ in {1..8}; do
-    if "$JELLY_BIN_DIR/agent-open-browser" --headless "$fixture" >/dev/null 2>&1 && "$JELLY_BIN_DIR/agent-evaluate-js" 'document.readyState' >/dev/null 2>&1; then
+    if "$BIN_DIR/agent-open-browser" --headless "$fixture" >/dev/null 2>&1 && "$BIN_DIR/agent-evaluate-js" 'document.readyState' >/dev/null 2>&1; then
       opened=true
       break
     fi

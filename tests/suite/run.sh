@@ -3,6 +3,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
+# shellcheck source=scripts/config.sh
+source scripts/config.sh
+RUNTIME_ROOT="$CONFIG_RUNTIME_ROOT"
+DEFAULT_BATCH="$CONFIG_TEST_DEFAULT_BATCH"
+
 # shellcheck source=tests/suite/lib.sh
 source tests/suite/lib.sh
 
@@ -28,13 +33,13 @@ Options:
   --batch NAME         Run groups defined in config/batches.tsv. Repeatable.
   --all                Run every enabled test.
   --include-disabled   Ignore disabled-tests.txt / disabled-groups.txt.
-  --results-dir DIR    Override /data/jelly-runtime/test-runs.
+  --results-dir DIR    Override the configured runtime test-runs directory.
   --list               Show IDs, groups, kinds, names and enabled state.
   --catalog            Print the complete test catalog.
   --json               Use JSON for --catalog.
   --help               Show this help.
 
-With no selector, the "deterministic" batch is run.
+With no selector, the configured default batch is run.
 USAGE
 }
 
@@ -46,7 +51,7 @@ INCLUDE_DISABLED=false
 MODE_LIST=false
 MODE_CATALOG=false
 CATALOG_JSON=false
-RESULTS_ROOT="${JELLY_TEST_RESULTS_ROOT:-/data/jelly-runtime/test-runs}"
+RESULTS_ROOT="$RUNTIME_ROOT/test-runs"
 
 while (($#)); do
   case "$1" in
@@ -144,13 +149,21 @@ fi
 
 # Jelly owns one shared browser/service state. Concurrent suite runs would close or
 # retarget the browser underneath each other, so serialize executable runs.
-mkdir -p /data/jelly-runtime
-TEST_LOCK_FILE="${JELLY_TEST_LOCK_FILE:-/data/jelly-runtime/test-suite.lock}"
+mkdir -p "$RUNTIME_ROOT"
+TEST_LOCK_FILE="$RUNTIME_ROOT/test-suite.lock"
 exec 9>"$TEST_LOCK_FILE"
 if ! flock -n 9; then
   echo "another Jelly test-suite run is already active (lock: $TEST_LOCK_FILE)" >&2
   exit 75
 fi
+
+CONFIG_BASELINE="$(mktemp)"
+cp "$CONFIG_FILE" "$CONFIG_BASELINE"
+restore_test_config() {
+  cp "$CONFIG_BASELINE" "$CONFIG_FILE"
+  rm -f "$CONFIG_BASELINE"
+}
+trap restore_test_config EXIT
 
 if ((${#WANT_BATCHES[@]})); then
   for batch in "${WANT_BATCHES[@]}"; do
@@ -162,7 +175,8 @@ if ((${#WANT_BATCHES[@]})); then
 fi
 
 if ! $RUN_ALL && ((${#WANT_TESTS[@]} == 0)) && ((${#WANT_GROUPS[@]} == 0)); then
-  groups="$(awk -F '\t' '$1=="deterministic"{print $2}' tests/suite/config/batches.tsv)"
+  groups="$(awk -F '\t' -v b="$DEFAULT_BATCH" '$1==b{print $2}' tests/suite/config/batches.tsv)"
+  [[ -n "$groups" ]] || { echo "unknown configured default batch: $DEFAULT_BATCH" >&2; exit 2; }
   IFS=',' read -r -a WANT_GROUPS <<<"$groups"
 fi
 
@@ -232,6 +246,8 @@ for id in "${SELECTED[@]}"; do
   log="$RUN_DIR/logs/$id.log"
   : > "$log"
 
+  cp "$CONFIG_BASELINE" "$CONFIG_FILE"
+
   if ! test_enabled "$id"; then
     status="DISABLED"
     ((disabled+=1))
@@ -241,8 +257,8 @@ for id in "${SELECTED[@]}"; do
     set +e
     (
       set -euo pipefail
-      export JELLY_REPO_ROOT="$ROOT"
-      export JELLY_BIN_DIR
+      export REPO_ROOT="$ROOT"
+      export BIN_DIR
       export CARGO_TARGET_DIR
       cd "$ROOT"
       "${JT_FUNC[$id]}"

@@ -31,38 +31,39 @@ semantic_ranking() {
   local duplicate viewport priority save ids
   duplicate="$(jt_find 'Duplicate action' 5 0)"
   jt_assert_false "$(jq -r '.[0].disabled' <<<"$duplicate")" "enabled duplicate must rank before disabled duplicate"
-  jt_assert_eq "$(JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-get-element" "$(jq -r '.[0].ref' <<<"$duplicate")" html | grep -c 'id="duplicate-enabled"')" "1" "enabled duplicate must be selected"
+  jt_assert_eq "$("$BIN_DIR/agent-get-element" "$(jq -r '.[0].ref' <<<"$duplicate")" html | grep -c 'id="duplicate-enabled"')" "1" "enabled duplicate must be selected"
   viewport="$(jt_find 'Viewport action' 5 0)"
   jt_assert_true "$(jq -r '.[0].in_viewport' <<<"$viewport")" "onscreen duplicate must rank before offscreen equal-actionability duplicate"
   priority="$(jt_find 'Priority action' 5 0)"
-  JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-get-element" "$(jq -r '.[0].ref' <<<"$priority")" html | grep -q 'priority-enabled-offscreen' || jt_fail "enabled offscreen duplicate must outrank disabled onscreen duplicate"
+  "$BIN_DIR/agent-get-element" "$(jq -r '.[0].ref' <<<"$priority")" html | grep -q 'priority-enabled-offscreen' || jt_fail "enabled offscreen duplicate must outrank disabled onscreen duplicate"
   save="$(jt_find 'Save' 10 0)"
-  ids="$(for ref in $(jq -r '.[0:3][].ref' <<<"$save"); do JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-get-element" "$ref" html | sed -n 's/.*id="\([^"]*\)".*/\1/p'; done | paste -sd, -)"
+  ids="$(for ref in $(jq -r '.[0:3][].ref' <<<"$save"); do "$BIN_DIR/agent-get-element" "$ref" html | sed -n 's/.*id="\([^"]*\)".*/\1/p'; done | paste -sd, -)"
   jt_assert_eq "$ids" "rank-exact,rank-prefix,rank-contains" "match quality must order exact before prefix before contains"
-  JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-get-element" 'text:Duplicate action' html | grep -q 'duplicate-enabled' || jt_fail "direct text target must use enabled-first interactive ranking"
+  "$BIN_DIR/agent-get-element" 'text:Duplicate action' html | grep -q 'duplicate-enabled' || jt_fail "direct text target must use enabled-first interactive ranking"
 }
 
 semantic_generic_fallback() {
   semantic_prepare
   local before indexed after_indexed after_generic missing_after generic whitespace choice legacy
   before="$(jt_runtime_eval 'globalThis.__jellyRuntimeV1.metrics')"
-  JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-element-info" 'text:Visible action' >/dev/null
+  "$BIN_DIR/agent-element-info" 'text:Visible action' >/dev/null
   indexed="$(jt_runtime_eval 'globalThis.__jellyRuntimeV1.metrics')"
   jt_assert_eq "$(jq -r '.genericTextFallbacks' <<<"$indexed")" "$(jq -r '.genericTextFallbacks' <<<"$before")" "indexed interactive text must not trigger generic fallback"
-  generic="$(JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-get-element" 'text:Generic status text' html)"
+  generic="$("$BIN_DIR/agent-get-element" 'text:Generic status text' html)"
   grep -q 'id="generic-visible"' <<<"$generic" || jt_fail "generic fallback must resolve visible generic text"
-  whitespace="$(JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-get-element" 'text:Whitespace generic target' html)"
+  whitespace="$("$BIN_DIR/agent-get-element" 'text:Whitespace generic target' html)"
   grep -q 'id="generic-whitespace"' <<<"$whitespace" || jt_fail "generic fallback must normalize rendered whitespace"
   after_generic="$(jt_runtime_eval 'globalThis.__jellyRuntimeV1.metrics')"
   jt_assert_eq "$(( $(jq -r '.genericTextFallbacks' <<<"$after_generic") - $(jq -r '.genericTextFallbacks' <<<"$indexed") ))" "2" "two generic resolutions must record two fallbacks"
   jt_assert_eq "$(( $(jq -r '.genericTextPrefilterHits' <<<"$after_generic") - $(jq -r '.genericTextPrefilterHits' <<<"$indexed") ))" "2" "visible generic cases must hit cheap prefilter"
-  choice="$(JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-get-element" 'text:Container choice' html)"
+  choice="$("$BIN_DIR/agent-get-element" 'text:Container choice' html)"
   grep -q 'id="interactive-container-choice"' <<<"$choice" || jt_fail "interactive exact match must outrank generic container"
-  jt_expect_failure "missing generic target must fail" env JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-element-info" 'text:Definitely missing target'
+  jt_expect_failure "missing generic target must fail" env "$BIN_DIR/agent-element-info" 'text:Definitely missing target'
   missing_after="$(jt_runtime_eval 'globalThis.__jellyRuntimeV1.metrics')"
   jt_assert_eq "$(( $(jq -r '.genericTextSlowFallbacks' <<<"$missing_after") - $(jq -r '.genericTextSlowFallbacks' <<<"$after_generic") ))" "1" "missing target must reach slow fallback"
   jt_assert_eq "$(( $(jq -r '.genericTextFallbackMisses' <<<"$missing_after") - $(jq -r '.genericTextFallbackMisses' <<<"$after_generic") ))" "1" "missing target must record fallback miss"
-  legacy="$(JELLY_PAGE_RUNTIME=0 "$JELLY_BIN_DIR/agent-get-element" 'text:Generic status text' html)"
+  jt_config_set page runtime false
+  legacy="$("$BIN_DIR/agent-get-element" 'text:Generic status text' html)"
   grep -q 'id="generic-visible"' <<<"$legacy" || jt_fail "legacy mode must preserve generic text targeting"
 }
 
@@ -71,10 +72,11 @@ semantic_visibility() {
   local mode label
   for mode in 1 0; do
     label="$([[ "$mode" == 1 ]] && echo runtime || echo legacy)"
-    jt_assert_eq "$(JELLY_PAGE_RUNTIME="$mode" "$JELLY_BIN_DIR/agent-find-interactive" 'Hidden generic text' 10 | jq 'length')" "0" "$label display:none generic text must not be interactive"
-    jt_expect_failure "$label display:none generic text target must not resolve" env JELLY_PAGE_RUNTIME="$mode" "$JELLY_BIN_DIR/agent-element-info" 'text:Hidden generic text'
-    jt_assert_eq "$(JELLY_PAGE_RUNTIME="$mode" "$JELLY_BIN_DIR/agent-find-interactive" 'Opacity hidden action' 10 | jq 'length')" "0" "$label opacity:0 interactive control must not be returned by semantic search"
-    jt_expect_failure "$label opacity:0 text target must not resolve as visible" env JELLY_PAGE_RUNTIME="$mode" "$JELLY_BIN_DIR/agent-assert-visible" 'text:Opacity hidden action'
+    jt_config_set page runtime "$([[ "$mode" == 1 ]] && echo true || echo false)"
+    jt_assert_eq "$("$BIN_DIR/agent-find-interactive" 'Hidden generic text' 10 | jq 'length')" "0" "$label display:none generic text must not be interactive"
+    jt_expect_failure "$label display:none generic text target must not resolve" "$BIN_DIR/agent-element-info" 'text:Hidden generic text'
+    jt_assert_eq "$("$BIN_DIR/agent-find-interactive" 'Opacity hidden action' 10 | jq 'length')" "0" "$label opacity:0 interactive control must not be returned by semantic search"
+    jt_expect_failure "$label opacity:0 text target must not resolve as visible" "$BIN_DIR/agent-assert-visible" 'text:Opacity hidden action'
   done
 }
 
@@ -83,7 +85,7 @@ semantic_scroll_duplicate_text() {
   local before after target_top vh
   before="$(jt_runtime_eval "({summary:document.querySelector('#references-summary').getBoundingClientRect().top,target:document.querySelector('#references-section').getBoundingClientRect().top,scrollY})")"
   jt_assert_gt "$(jq -r '.target' <<<"$before")" "1000" "references section must begin offscreen"
-  JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-scroll" 'text:References' >/dev/null
+  "$BIN_DIR/agent-scroll" 'text:References' >/dev/null
   after="$(jt_runtime_eval "({summary:document.querySelector('#references-summary').getBoundingClientRect().top,target:document.querySelector('#references-section').getBoundingClientRect().top,scrollY,innerHeight})")"
   target_top="$(jq -r '.target' <<<"$after")"
   vh="$(jq -r '.innerHeight' <<<"$after")"

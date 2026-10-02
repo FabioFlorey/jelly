@@ -9,8 +9,13 @@ use std::{
 };
 use tungstenite::{Message, WebSocket, connect};
 
-const PID: &str = "/data/jelly-runtime/network/capture.pid";
-const LOG: &str = "/data/jelly-runtime/network/requests.jsonl";
+fn pid_path() -> std::path::PathBuf {
+    std::path::PathBuf::from(NETWORK_DIR.as_str()).join("capture.pid")
+}
+
+fn log_path() -> std::path::PathBuf {
+    std::path::PathBuf::from(NETWORK_DIR.as_str()).join("requests.jsonl")
+}
 
 fn recv_id<S: std::io::Read + std::io::Write>(
     ws: &mut WebSocket<S>,
@@ -63,7 +68,10 @@ fn capture() -> Result<(), Box<dyn std::error::Error>> {
         next_id += 1;
     }
 
-    let mut out = OpenOptions::new().create(true).append(true).open(LOG)?;
+    let mut out = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path())?;
     let mut requests = HashMap::<(String, String), (String, String, String)>::new();
     loop {
         let Message::Text(text) = ws.read()? else {
@@ -118,7 +126,7 @@ fn capture() -> Result<(), Box<dyn std::error::Error>> {
 
 fn start() -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(NETWORK_DIR)?;
-    if let Ok(pid) = fs::read_to_string(PID)
+    if let Ok(pid) = fs::read_to_string(pid_path())
         && Command::new("kill")
             .args(["-0", pid.trim()])
             .status()?
@@ -127,18 +135,18 @@ fn start() -> Result<(), Box<dyn std::error::Error>> {
         println!("Network inspection already running.");
         return Ok(());
     }
-    fs::write(LOG, "")?;
+    fs::write(log_path(), "")?;
     let exe = env::current_exe()?;
     let child = Command::new(exe).arg("__capture").spawn()?;
-    fs::write(PID, child.id().to_string())?;
+    fs::write(pid_path(), child.id().to_string())?;
     println!("Network inspection started.");
     Ok(())
 }
 
 fn stop() -> Result<(), Box<dyn std::error::Error>> {
-    let pid = fs::read_to_string(PID)?;
+    let pid = fs::read_to_string(pid_path())?;
     let _ = Command::new("kill").arg(pid.trim()).status();
-    let _ = fs::remove_file(PID);
+    let _ = fs::remove_file(pid_path());
     println!("Network inspection stopped.");
     Ok(())
 }
@@ -154,7 +162,7 @@ fn show(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let method = value("--method").map(str::to_uppercase);
     let status = value("--status").and_then(|x| x.parse::<u64>().ok());
     let url = value("--url").unwrap_or("");
-    for line in BufReader::new(fs::File::open(LOG)?).lines() {
+    for line in BufReader::new(fs::File::open(log_path())?).lines() {
         let v: Value = serde_json::from_str(&line?)?;
         let t = v["type"].as_str().unwrap_or("");
         let mime = v["mime"].as_str().unwrap_or("");

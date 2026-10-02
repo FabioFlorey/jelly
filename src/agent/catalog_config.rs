@@ -17,10 +17,10 @@ impl AgentCatalogConfig {
         })
     }
 
-    pub(crate) fn from_env() -> Result<Self, String> {
+    pub(crate) fn from_config() -> Result<Self, String> {
         Ok(Self {
-            surface: McpSurface::from_env()?,
-            raw_cdp: RawCdpAccess::from_env()?,
+            surface: McpSurface::from_config()?,
+            raw_cdp: RawCdpAccess::from_config(),
         })
     }
 }

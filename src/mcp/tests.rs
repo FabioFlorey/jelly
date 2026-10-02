@@ -10,7 +10,7 @@ fn initialize_includes_operating_instructions() {
     assert!(instructions.contains("through Telegram"));
     assert!(instructions.contains("exhaust legitimate automatable paths"));
     assert!(instructions.contains(".agent/tools/index.md"));
-    assert!(instructions.contains("docs/DISCOVERY.md"));
+    assert!(instructions.contains("docs/wiki/DISCOVERY.md"));
     assert!(instructions.contains("agent-discover schema <tool>"));
     assert!(instructions.contains("Detect the active surface from `tools/list`"));
     assert!(instructions.contains("Prefer a **semantic Jelly operation**"));

@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
 
-: "${JELLY_REPO_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-: "${JELLY_BIN_DIR:=/data/.jelly-build/debug}"
-: "${CARGO_TARGET_DIR:=/data/.jelly-build}"
+: "${REPO_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+if [[ -z "${CONFIG_BUILD_ROOT:-}" ]]; then
+  # shellcheck source=scripts/config.sh
+  source "$REPO_ROOT/scripts/config.sh"
+fi
+BIN_DIR="$CONFIG_BUILD_ROOT/debug"
+: "${CARGO_TARGET_DIR:=$CONFIG_BUILD_ROOT}"
+
+jt_config_set() {
+  jelly_config_set "$@"
+}
 
 declare -ag JT_IDS=()
 declare -Ag JT_GROUP=()
@@ -122,7 +130,7 @@ jt_wait_browser_service_gone() {
 }
 
 jt_close_browser() {
-  "${JELLY_BIN_DIR}/agent-close-browser" >/dev/null 2>&1 || true
+  "${BIN_DIR}/agent-close-browser" >/dev/null 2>&1 || true
   jt_wait_browser_service_gone
 }
 
@@ -130,9 +138,9 @@ jt_open_url() {
   local url="$1" opened=false current
   jt_close_browser
   for _ in {1..6}; do
-    if "${JELLY_BIN_DIR}/agent-open-browser" --headless "$url" >/dev/null 2>&1; then
+    if "${BIN_DIR}/agent-open-browser" --headless "$url" >/dev/null 2>&1; then
       for _ in {1..40}; do
-        current="$("${JELLY_BIN_DIR}/agent-evaluate-js" '({ready:document.readyState,url:location.href})' 2>/dev/null || true)"
+        current="$("${BIN_DIR}/agent-evaluate-js" '({ready:document.readyState,url:location.href})' 2>/dev/null || true)"
         if jq -e '.ready == "complete" and (.url|length>0)' >/dev/null 2>&1 <<<"$current"; then
           opened=true
           break
@@ -141,7 +149,7 @@ jt_open_url() {
       done
     fi
     $opened && break
-    "${JELLY_BIN_DIR}/agent-close-browser" >/dev/null 2>&1 || true
+    "${BIN_DIR}/agent-close-browser" >/dev/null 2>&1 || true
     jt_wait_browser_service_gone || true
     sleep 0.2
   done
@@ -150,15 +158,15 @@ jt_open_url() {
 
 jt_open_fixture() {
   local fixture="$1" expected actual
-  expected="file://${JELLY_REPO_ROOT}/tests/fixtures/${fixture}"
+  expected="file://${REPO_ROOT}/tests/fixtures/${fixture}"
   jt_open_url "$expected"
-  actual="$("${JELLY_BIN_DIR}/agent-evaluate-js" 'location.href' | jq -r '.')"
+  actual="$("${BIN_DIR}/agent-evaluate-js" 'location.href' | jq -r '.')"
   jt_assert_eq "$actual" "$expected" "browser must load requested fixture"
 }
 
 jt_snapshot() {
   local limit="${1:-200}" offset="${2:-0}"
-  JELLY_PAGE_RUNTIME=1 "${JELLY_BIN_DIR}/agent-snapshot-interactive" "$limit" "$offset"
+  "${BIN_DIR}/agent-snapshot-interactive" "$limit" "$offset"
 }
 
 jt_ref_for_name() {
@@ -168,11 +176,11 @@ jt_ref_for_name() {
 
 jt_find() {
   local query="$1" limit="${2:-20}" offset="${3:-0}"
-  JELLY_PAGE_RUNTIME=1 "${JELLY_BIN_DIR}/agent-find-interactive" "$query" "$limit" "$offset"
+  "${BIN_DIR}/agent-find-interactive" "$query" "$limit" "$offset"
 }
 
 jt_runtime_eval() {
-  "${JELLY_BIN_DIR}/agent-evaluate-js" "$1"
+  "${BIN_DIR}/agent-evaluate-js" "$1"
 }
 
 jt_with_browser_cleanup() {

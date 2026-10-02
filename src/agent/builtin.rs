@@ -30,8 +30,8 @@ impl AgentBuiltin {
         Self::BrowserCall { raw_cdp }
     }
 
-    pub fn browser_call_from_env() -> Result<Self, String> {
-        Ok(Self::browser_call(RawCdpAccess::from_env()?))
+    pub fn browser_call_from_config() -> Self {
+        Self::browser_call(RawCdpAccess::from_config())
     }
 
     pub const fn name(self) -> &'static str {

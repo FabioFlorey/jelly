@@ -34,7 +34,7 @@ The generated `report.tsv` joins those run fields with the complete test metadat
 - `config/disabled-groups.txt` — persistently disabled groups.
 - `../fixtures/` — deterministic local browser fixtures.
 
-Generated run artifacts are intentionally outside the repository at `/data/jelly-runtime/test-runs/<RUN_ID>/` by default.
+Generated run artifacts are intentionally outside the repository at `<runtime_root>/test-runs/<RUN_ID>/` (`/data/jelly-runtime` by default).
 
 ## Groups and stable IDs
 
@@ -123,7 +123,7 @@ cargo test-jelly -h
 cargo test-jelly --help
 ```
 
-The terminal presentation follows Jelly's Quickstart theme: the shared full logo, honey `#ffc107` brand accents, green success state, red failure state, dim secondary text, and the same ordinary Unicode icon family. Colors are emitted only on an interactive terminal and honor `NO_COLOR`; `JELLY_NO_ICONS=true` replaces decorative Unicode icons with ASCII equivalents.
+The terminal presentation follows Jelly's Quickstart theme: the shared full logo, honey `#ffc107` brand accents, green success state, red failure state, dim secondary text, and the same ordinary Unicode icon family. Colors are emitted only on an interactive terminal and honor `NO_COLOR`; `[ui].icons = false` replaces decorative Unicode icons with ASCII equivalents.
 
 The same command exposes the canonical behavioral-test metadata without executing scenarios:
 
@@ -134,7 +134,7 @@ cargo test-jelly --catalog --id QLT-003 --full
 cargo test-jelly --catalog --json
 ```
 
-The default catalog table includes ID, group, kind, enabled state, name, description, and preconditions. `--full` also includes input and expected output. Catalog rows come directly from the same `jt_register` records consumed by `tests/suite/run.sh`; `test-jelly` does not maintain a second metadata source. `--json` is intentionally undecorated: no logo, ANSI color, or prose is emitted, so it remains safe for scripts and `jq`.
+The default catalog table includes ID, group, kind, enabled state, name, and description. `--full` also includes input and expected output. Preconditions remain part of the canonical metadata and JSON output but are intentionally omitted from the terminal table to keep it readable. Catalog rows come directly from the same `jt_register` records consumed by `tests/suite/run.sh`; `test-jelly` does not maintain a second metadata source. `--json` is intentionally undecorated: no logo, ANSI color, or prose is emitted, so it remains safe for scripts and `jq`.
 
 ## Listing and catalog metadata
 

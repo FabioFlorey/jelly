@@ -1,16 +1,11 @@
 use super::dispatch::ToolFailure;
 use crate::{BrowserSession, ErrorKind};
-use std::{
-    env,
-    sync::{Mutex, OnceLock},
-};
+use std::sync::{Mutex, OnceLock};
 
 static MCP_BROWSER_SESSION: OnceLock<Mutex<Option<BrowserSession>>> = OnceLock::new();
 
 pub(super) fn persistent_mcp_session_enabled() -> bool {
-    !env::var("JELLY_MCP_PERSISTENT_SESSION")
-        .ok()
-        .is_some_and(|value| matches!(value.trim(), "0" | "false" | "off"))
+    crate::config::config().mcp.persistent_session
 }
 
 pub(super) fn reset_mcp_browser_session() {

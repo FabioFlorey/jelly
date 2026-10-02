@@ -7,7 +7,7 @@ framework_prepare() {
   local opened=false
   jt_close_browser
   for _ in {1..4}; do
-    if "$JELLY_BIN_DIR/agent-open-browser" --headless "$FRAMEWORK_URL" >/dev/null 2>&1; then
+    if "$BIN_DIR/agent-open-browser" --headless "$FRAMEWORK_URL" >/dev/null 2>&1; then
       opened=true
       break
     fi
@@ -20,7 +20,7 @@ framework_prepare() {
   jt_assert_eq "$(jq -r '.title' <<<"$identity")" "TodoMVC: React" "framework page title must identify React TodoMVC"
   jt_assert_true "$(jq -r '.reactBundle' <<<"$identity")" "real React bundle must be loaded"
   jt_runtime_eval 'localStorage.clear(); true' >/dev/null
-  "$JELLY_BIN_DIR/agent-navigate" "$FRAMEWORK_URL" >/dev/null
+  "$BIN_DIR/agent-navigate" "$FRAMEWORK_URL" >/dev/null
 }
 
 framework_wait_dirty() {
@@ -52,13 +52,13 @@ framework_create() {
   input_ref="$(jq -r '.[]|select(.name=="New Todo Input")|.ref' <<<"$initial")"
   jt_assert_nonempty "$input_ref" "React Todo input ref missing"
   before="$(jt_runtime_eval 'globalThis.__jellyRuntimeV1.epoch')"
-  JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-fill" "$item" "$input_ref" >/dev/null
+  "$BIN_DIR/agent-fill" "$item" "$input_ref" >/dev/null
   framework_wait_dirty
   after_fill="$(jt_runtime_eval '({epoch:globalThis.__jellyRuntimeV1.epoch,dirty:globalThis.__jellyRuntimeV1.dirty})')"
   jt_assert_true "$(jq -r '.dirty' <<<"$after_fill")" "React controlled fill must dirty runtime"
   epoch_after_fill="$(jq -r '.epoch' <<<"$after_fill")"
   jt_assert_gt "$epoch_after_fill" "$before" "fill must advance invalidation epoch"
-  JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-press-key" Enter >/dev/null
+  "$BIN_DIR/agent-press-key" Enter >/dev/null
   elapsed=0
   while (( elapsed <= 3000 )); do
     [[ "$(jt_runtime_eval "document.body.innerText.includes($(jq -Rn --arg x "$item" '$x'))")" == "true" ]] && break
@@ -90,7 +90,7 @@ framework_toggle_case() {
   # TodoMVC currently hides the native checkbox with opacity:0 and styles its
   # sibling label, so it is intentionally absent from Jelly's visible snapshot.
   # Address the real React control explicitly while testing reconciliation.
-  JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-check" 'css:[data-testid=todo-item-toggle]' >/dev/null
+  "$BIN_DIR/agent-check" 'css:[data-testid=todo-item-toggle]' >/dev/null
   framework_wait_dirty
   state="$(jt_runtime_eval '({epoch:globalThis.__jellyRuntimeV1.epoch,dirty:globalThis.__jellyRuntimeV1.dirty})')"
   jt_assert_gt "$(jq -r '.epoch' <<<"$state")" "$before" "React toggle must advance epoch"
@@ -112,13 +112,13 @@ framework_remove_case() {
   delete_ref="$(jq -r '.[]|select(.name=="Delete todo regression")|.ref' <<<"$exposed")"
   jt_assert_nonempty "$delete_ref" "exposed React delete control missing"
   before="$(jt_runtime_eval 'globalThis.__jellyRuntimeV1.epoch')"
-  JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-click" "$delete_ref" >/dev/null
+  "$BIN_DIR/agent-click" "$delete_ref" >/dev/null
   framework_wait_dirty
   jt_assert_gt "$(jt_runtime_eval 'globalThis.__jellyRuntimeV1.epoch')" "$before" "React removal must advance epoch"
   cleared="$(jt_snapshot 100 0)"
   jt_assert_false "$(jt_runtime_eval "document.body.innerText.includes('Jelly framework removal probe')")" "removed React item must disappear"
   jt_assert_eq "$(jq -r --arg ref "$input_ref" '.[]|select(.name=="New Todo Input")|.ref==$ref' <<<"$cleared")" "true" "stable input ref must survive removal"
-  jt_expect_failure "removed React delete ref must be stale" env JELLY_PAGE_RUNTIME=1 "$JELLY_BIN_DIR/agent-element-info" "$delete_ref"
+  jt_expect_failure "removed React delete ref must be stale" env "$BIN_DIR/agent-element-info" "$delete_ref"
   metrics="$(jt_runtime_eval 'globalThis.__jellyRuntimeV1.lastRebuildTimings')"
   jq -e '.total_ms >= 0 and .candidates > 0 and .selected > 0 and .roots >= 1' >/dev/null <<<"$metrics" || jt_fail "rebuild metrics must be populated after reconciliation"
 }
