@@ -89,7 +89,7 @@ These tools are executable capabilities that intentionally do not require a shar
 | `wait-download` | `artifacts` | `wait-download <after-ms> [seconds] [name-contains]` | Wait for a completed download newer than a supplied timestamp baseline and register it as an artifact. |
 | `inspect-network` | `network` | `inspect-network <start\|stop\|show> [filters]` | Start, stop, or query persistent browser network capture with optional filters. |
 | `call-routine` | `routines` | `call-routine <name> [key=value] \| call-routine resume <id> [key=value]` | Execute or resume a routine. JSON graph routines support guarded branches, loops, jumps, budgets, HITL suspension, and owned-browser cleanup. |
-| `hitl` | `hitl` | `hitl <message> [--screenshot-target target] [--no-screenshot]` | Request human intervention through Telegram with a browser-content screenshot by default. A specific page element can be attached without capturing the desktop. |
+| `hitl` | `hitl` | `hitl <message> [--video path \| --screenshot-target target \| --no-screenshot]` | Request human intervention through Telegram with a browser-content screenshot by default, or attach a local MP4 video. A specific page element can be attached without capturing the desktop. |
 
 ## Internal discovery CLI
 

@@ -37,6 +37,7 @@ pub struct AuthState {
     pub(super) public_url: Arc<str>,
     pub(super) store: Arc<Mutex<AuthStore>>,
     pub(super) owner_sessions: Arc<Mutex<HashMap<String, u64>>>,
+    pub(super) pair_codes: Arc<Mutex<HashMap<String, u64>>>,
 }
 
 impl AuthState {
@@ -85,6 +86,7 @@ impl AuthState {
             public_url: Arc::from(public_url),
             store: Arc::new(Mutex::new(store)),
             owner_sessions: Arc::new(Mutex::new(HashMap::new())),
+            pair_codes: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -100,12 +102,43 @@ impl AuthState {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
+    pub(super) fn pair_codes_guard(&self) -> MutexGuard<'_, HashMap<String, u64>> {
+        self.pair_codes
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     pub fn public_url(&self) -> &str {
         &self.public_url
     }
 
     pub fn resource_url(&self) -> String {
         format!("{}/mcp", self.public_url)
+    }
+
+    pub fn consent_mode_name(&self) -> &'static str {
+        match self.consent_mode {
+            ConsentMode::Browser => "browser",
+            ConsentMode::Paired => "paired",
+        }
+    }
+
+    pub fn public_chatgpt_dcr(&self) -> bool {
+        self.public_chatgpt_dcr
+    }
+
+    pub fn owner_session_count(&self) -> usize {
+        let now = now();
+        let mut sessions = self.owner_sessions_guard();
+        sessions.retain(|_, expiry| *expiry > now);
+        sessions.len()
+    }
+
+    pub fn oauth_counts(&self) -> (usize, usize) {
+        let now = now();
+        let mut store = self.store_guard();
+        store.tokens.retain(|_, grant| grant.expires_at > now);
+        (store.clients.len(), store.tokens.len())
     }
 
     pub fn authorized(&self, headers: &HeaderMap) -> bool {
@@ -148,7 +181,7 @@ impl AuthState {
         })
     }
 
-    pub(super) fn has_owner_session(&self, headers: &HeaderMap) -> bool {
+    pub(crate) fn has_owner_session(&self, headers: &HeaderMap) -> bool {
         let Some(cookie) = headers.get(header::COOKIE).and_then(|v| v.to_str().ok()) else {
             return false;
         };

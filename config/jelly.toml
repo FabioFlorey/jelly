@@ -46,3 +46,10 @@ default_batch = "deterministic"
 animation = true
 icons = true
 logo = "assets/quickstart-full-logo.txt"
+
+[hitl.formats.telegram]
+title = "Jelly"
+subtitle = "Browser instrumentation for agents"
+prefix = ""
+suffix = ""
+signature = "⏺️ Recorded with <b>Jelly</b>"

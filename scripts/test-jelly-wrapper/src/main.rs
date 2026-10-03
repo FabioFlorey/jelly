@@ -221,6 +221,7 @@ fn logo_animation_enabled(theme: Theme) -> bool {
         && env::var("TERM").map(|term| term != "dumb").unwrap_or(true)
 }
 
+#[allow(clippy::needless_range_loop)] // Column-major animation intentionally indexes the row-major canvas.
 fn drip_frame(logo: &str, frame: usize, frames: usize) -> String {
     let rows = logo
         .lines()
@@ -256,7 +257,11 @@ fn drip_frame(logo: &str, frame: usize, frames: usize) -> String {
         if has_more {
             let drip_row = lowest_revealed.map(|row| row + 1).unwrap_or(0);
             if drip_row < height && canvas[drip_row][col] == ' ' {
-                canvas[drip_row][col] = if (col + frame) % 3 == 0 { '▒' } else { '░' };
+                canvas[drip_row][col] = if (col + frame).is_multiple_of(3) {
+                    '▒'
+                } else {
+                    '░'
+                };
             }
         }
     }
@@ -287,7 +292,7 @@ fn animate_logo(root: &Path, theme: Theme) {
     let height = logo.lines().count();
     let frames = 12;
     let mut stdout = io::stdout();
-    let _ = write!(stdout, "\x1b[?25l\n");
+    let _ = writeln!(stdout, "\x1b[?25l");
 
     for frame in 0..frames {
         if frame > 0 {

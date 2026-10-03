@@ -82,6 +82,8 @@ elif find \
   "$ROOT/scripts/build_tool_index.rs" \
   "$ROOT/assets/full-logo.png" \
   "$ROOT/assets/favicon.png" \
+  "$ROOT/assets/jelly.css" \
+  "$ROOT/assets/fonts" \
   -type f -newer "$BUILD_STAMP" -print -quit 2>/dev/null | grep -q .; then
   needs_build=true
 else
@@ -172,12 +174,35 @@ fi
 
 if [[ "$consent_mode" == "paired" ]]; then
   printf '\n%b◇  Owner pairing%b\n' "$C_HONEY$C_BOLD" "$C_RESET"
-  if [[ -n "$public_url" ]]; then
-    printf '  Pairing page    %b%s/pair%b\n' "$C_HONEY$C_BOLD" "$public_url" "$C_RESET"
+  pair_json="$(curl -fsS -X POST -H "Authorization: Bearer $bootstrap_secret" "$local_url/pair/code" 2>/dev/null || true)"
+  pair_url="$(printf '%s' "$pair_json" | sed -n 's/.*"pair_url":"\([^"]*\)".*/\1/p')"
+  if [[ -z "$pair_url" ]]; then
+    if [[ -n "$public_url" ]]; then
+      pair_url="$public_url/pair"
+    else
+      pair_url="$local_url/pair"
+    fi
+    printf '  Pairing page    %b%s%b\n' "$C_HONEY$C_BOLD" "$pair_url" "$C_RESET"
+    printf '  Pairing secret  JELLY_BOOTSTRAP_SECRET in %s\n' "$ENV_FILE"
   else
-    printf '  Pairing page    %s/pair\n' "$local_url"
+    printf '  One-time link   %b%s%b\n' "$C_HONEY$C_BOLD" "$pair_url" "$C_RESET"
+    opened=false
+    if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v xdg-open >/dev/null 2>&1; then
+      xdg-open "$pair_url" >/dev/null 2>&1 &
+      opened=true
+    elif [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v gio >/dev/null 2>&1; then
+      gio open "$pair_url" >/dev/null 2>&1 &
+      opened=true
+    elif command -v open >/dev/null 2>&1; then
+      open "$pair_url" >/dev/null 2>&1 &
+      opened=true
+    fi
+    if [[ "$opened" == "true" ]]; then
+      printf '  Browser         opened automatically (link expires in 5 minutes)\n'
+    else
+      printf '  Browser         open the one-time link above (expires in 5 minutes)\n'
+    fi
   fi
-  printf '  Pairing secret  JELLY_BOOTSTRAP_SECRET in %s\n' "$ENV_FILE"
   paired=false
   spinner='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
   for i in $(seq 1 600); do

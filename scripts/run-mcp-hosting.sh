@@ -2,7 +2,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD_DIR="$(cd "$ROOT/.." && pwd)/.jelly-build"
+# shellcheck source=./config.sh
+source "$ROOT/scripts/config.sh"
+BUILD_DIR="$CONFIG_BUILD_ROOT"
 MODE="${JELLY_HOSTING_MODE:-local}"
 ADDR="${JELLY_MCP_ADDR:-127.0.0.1:8787}"
 MCP_BIN="${JELLY_MCP_BIN:-$BUILD_DIR/release/jelly-mcp}"

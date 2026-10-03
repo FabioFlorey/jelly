@@ -45,7 +45,7 @@ web_selenium_form() {
 web_selenium_artifacts() {
   trap 'if [[ -f $CONFIG_RUNTIME_ROOT/artifacts/recordings/active.json ]]; then "$BIN_DIR/agent-record-browser" stop >/dev/null 2>&1 || true; fi; jt_close_browser' EXIT
   web_open_ready "$WEB_SELENIUM_URL"
-  local snapshot submit_ref link_ref shot tabs_before tabs_open tabs_closed recording record_path manifest_path
+  local snapshot submit_ref link_ref shot tabs_before tabs_open tabs_closed recording record_path manifest_path new_target manifest_final_target manifest_final_title
   snapshot="$(jt_snapshot 100 0)"
   submit_ref="$(jt_ref_for_name 'Submit' <<<"$snapshot")"
   link_ref="$(jt_ref_for_name 'Return to index' <<<"$snapshot")"
@@ -57,23 +57,30 @@ web_selenium_artifacts() {
   [[ -s "$shot" ]] || jt_fail "element screenshot artifact must exist and be non-empty: $shot"
   "$BIN_DIR/agent-clear-highlight" >/dev/null
   tabs_before="$("$BIN_DIR/agent-tabs" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')"
+  "$BIN_DIR/agent-record-browser" start --mode continuous --interval-ms 200 >/dev/null
+  "$BIN_DIR/agent-highlight" "$submit_ref" 'Submit regression' >/dev/null
+  sleep 0.3
+  "$BIN_DIR/agent-clear-highlight" >/dev/null
   "$BIN_DIR/agent-open-in-new-tab" "$link_ref" >/dev/null
   tabs_open="$("$BIN_DIR/agent-tabs" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')"
   jt_assert_eq "$tabs_open" "$((tabs_before+1))" "open-in-new-tab must add one tab"
-  "$BIN_DIR/agent-close-tab" >/dev/null
-  tabs_closed="$("$BIN_DIR/agent-tabs" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')"
-  jt_assert_eq "$tabs_closed" "$tabs_before" "close-tab must restore tab count"
-  jt_assert_eq "$(jt_runtime_eval 'document.title' | jq -r '.')" "Web form" "closing tab must return to original page"
-  "$BIN_DIR/agent-record-browser" start --mode continuous --interval-ms 200 >/dev/null
-  "$BIN_DIR/agent-highlight" "$submit_ref" 'Submit regression' >/dev/null
+  new_target="$(cat "$CONFIG_RUNTIME_ROOT/state/active_target_id")"
+  jt_assert_eq "$(jt_runtime_eval 'document.title = "Jelly recording target"; document.title' | jq -r '.')" "Jelly recording target" "secondary tab title marker must be applied"
   sleep 0.6
-  "$BIN_DIR/agent-clear-highlight" >/dev/null
   recording="$("$BIN_DIR/agent-record-browser" stop)"
   record_path="$(jq -r '.path' <<<"$recording")"
   manifest_path="$(jq -r '.manifest_path' <<<"$recording")"
   [[ -s "$record_path" && -s "$manifest_path" ]] || jt_fail "recording and manifest must exist"
   jt_assert_true "$(jq -r '.verification.integrity_verified' <<<"$recording")" "recording integrity must verify"
   jt_assert_ge "$(jq -r '.properties.frame_count' <<<"$recording")" "2" "recording must capture multiple frames"
+  manifest_final_target="$(jq -r '.final_target_id // empty' "$manifest_path")"
+  manifest_final_title="$(jq -r '.final_title // empty' "$manifest_path")"
+  jt_assert_eq "$manifest_final_target" "$new_target" "continuous recording must follow Jelly's externally selected active target"
+  jt_assert_eq "$manifest_final_title" "Jelly recording target" "continuous recording final context must match the followed target"
+  "$BIN_DIR/agent-close-tab" >/dev/null
+  tabs_closed="$("$BIN_DIR/agent-tabs" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')"
+  jt_assert_eq "$tabs_closed" "$tabs_before" "close-tab must restore tab count"
+  jt_assert_eq "$(jt_runtime_eval 'document.title' | jq -r '.')" "Web form" "closing tab must return to original page"
   jt_assert_eq "$(jt_runtime_eval 'document.visibilityState' | jq -r '.')" "visible" "page must remain usable after artifacts/tabs"
 }
 
@@ -109,5 +116,5 @@ web_porsche_consent() {
 }
 
 jt_register "WEB-001" "real-world" "Selenium form interactions" "Exercise real public form discovery, fill/select/check state changes, and disabled/readonly rejection." "Network access to selenium.dev; fresh headless browser." "Interact with Text input, Dropdown, Default checkbox, Disabled input and Readonly input." "Mutable controls change real DOM state; disabled/readonly fills fail." "network" web_selenium_form
-jt_register "WEB-002" "real-world" "Selenium artifacts, tabs and handoff" "Exercise real-page highlight, element screenshot, tab lifecycle and continuous recording while preserving browser usability." "Network access to selenium.dev; runtime refs for Submit and Return to index." "Highlight/screenshot Submit, open/close link tab, record highlight activity." "Artifacts are valid, tab count restores, recording verifies with >=2 frames, original page remains visible." "network" web_selenium_artifacts
+jt_register "WEB-002" "real-world" "Selenium artifacts, tabs and handoff" "Exercise real-page highlight, element screenshot, tab lifecycle and continuous recording while preserving browser usability and following Jelly's shared active target." "Network access to selenium.dev; runtime refs for Submit and Return to index." "Highlight/screenshot Submit, start continuous recording, record highlight activity, switch to a new active tab, then stop and close it." "Artifacts are valid, recording captures >=2 frames and ends on the externally selected active target, tab count restores, and the original page remains visible." "network" web_selenium_artifacts
 jt_register "WEB-003" "real-world" "Porsche consent Shadow DOM" "Exercise live nested/open Shadow DOM discovery and click against Porsche/Usercentrics using a fresh browser profile." "Network access to porsche.com; profile directory can be temporarily moved." "Discover and click 'Solo cookie necessari'." "Control resolves as shadow button and disappears after click." "network" web_porsche_consent

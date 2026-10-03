@@ -14,6 +14,7 @@ pub struct JellyConfig {
     pub diagnostics: DiagnosticsConfig,
     pub tests: TestsConfig,
     pub ui: UiConfig,
+    pub hitl: HitlConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -56,6 +57,25 @@ pub struct UiConfig {
     pub animation: bool,
     pub icons: bool,
     pub logo: PathBuf,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct HitlConfig {
+    pub formats: HitlFormatsConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct HitlFormatsConfig {
+    pub telegram: TelegramHitlFormatConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct TelegramHitlFormatConfig {
+    pub title: String,
+    pub subtitle: String,
+    pub prefix: String,
+    pub suffix: String,
+    pub signature: String,
 }
 
 #[derive(Debug)]
@@ -266,5 +286,13 @@ mod tests {
             paths.logical_targets,
             PathBuf::from("/tmp/jelly-runtime/state/logical_targets.json")
         );
+    }
+
+    #[test]
+    fn telegram_hitl_format_is_required_configuration() {
+        let format = &config().hitl.formats.telegram;
+        assert_eq!(format.title, "Jelly");
+        assert_eq!(format.subtitle, "Browser instrumentation for agents");
+        assert_eq!(format.signature, "⏺️ Recorded with <b>Jelly</b>");
     }
 }

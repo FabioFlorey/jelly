@@ -16,6 +16,7 @@ const OWNER_COOKIE: &str = "jelly_owner";
 mod dcr;
 mod oauth;
 mod pages;
+pub(crate) use pages::{html_escape, oauth_page};
 mod state;
 mod storage;
 
@@ -24,7 +25,7 @@ use dcr::{authorization_server_metadata, protected_resource_metadata, register_c
 use dcr::{is_chatgpt_redirect, valid_redirect_uri};
 #[cfg(test)]
 use oauth::{authorize_action, pkce_challenge, validate_authorize_request};
-use oauth::{authorize_get, authorize_post, pair_get, pair_post, pair_status, token};
+use oauth::{authorize_get, authorize_post, pair_code, pair_get, pair_post, pair_status, token};
 pub use state::{AuthState, ConsentMode};
 #[cfg(test)]
 use storage::Client;
@@ -45,9 +46,15 @@ pub fn routes() -> Router<AuthState> {
         )
         .route("/brand/full-logo.png", get(brand_logo))
         .route("/brand/favicon.png", get(brand_favicon))
+        .route("/brand/jelly.css", get(brand_css))
+        .route("/brand/dynapuff.ttf", get(brand_dynapuff))
+        .route("/brand/roboto-400.ttf", get(brand_roboto_400))
+        .route("/brand/roboto-500.ttf", get(brand_roboto_500))
+        .route("/brand/roboto-700.ttf", get(brand_roboto_700))
         .route("/register", post(register_client))
         .route("/authorize", get(authorize_get).post(authorize_post))
         .route("/pair", get(pair_get).post(pair_post))
+        .route("/pair/code", post(pair_code))
         .route("/pair/status", get(pair_status))
         .route("/token", post(token))
 }
@@ -68,6 +75,44 @@ async fn brand_favicon() -> Response {
         .header(header::CACHE_CONTROL, "public, max-age=86400")
         .body(Body::from(&include_bytes!("../../assets/favicon.png")[..]))
         .unwrap()
+}
+
+async fn brand_css() -> Response {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
+        .header(header::CACHE_CONTROL, "public, max-age=3600")
+        .body(Body::from(include_str!("../../assets/jelly.css")))
+        .unwrap()
+}
+
+async fn brand_dynapuff() -> Response {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "font/ttf")
+        .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
+        .body(Body::from(
+            &include_bytes!("../../assets/fonts/DynaPuff-700.ttf")[..],
+        ))
+        .unwrap()
+}
+
+fn font_response(bytes: &'static [u8]) -> Response {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "font/ttf")
+        .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
+        .body(Body::from(bytes))
+        .unwrap()
+}
+
+async fn brand_roboto_400() -> Response {
+    font_response(&include_bytes!("../../assets/fonts/Roboto-400.ttf")[..])
+}
+
+async fn brand_roboto_500() -> Response {
+    font_response(&include_bytes!("../../assets/fonts/Roboto-500.ttf")[..])
+}
+
+async fn brand_roboto_700() -> Response {
+    font_response(&include_bytes!("../../assets/fonts/Roboto-700.ttf")[..])
 }
 
 #[cfg(test)]

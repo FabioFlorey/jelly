@@ -21,11 +21,60 @@ use url::Url;
 const CODE_TTL_SECS: u64 = 300;
 const TOKEN_TTL_SECS: u64 = 24 * 60 * 60;
 const OWNER_SESSION_TTL_SECS: u64 = 24 * 60 * 60;
+const PAIR_CODE_TTL_SECS: u64 = 5 * 60;
 
-pub(super) async fn pair_get(State(state): State<AuthState>) -> Response {
+pub(super) async fn pair_code(State(state): State<AuthState>, headers: HeaderMap) -> Response {
     if state.consent_mode != ConsentMode::Paired {
         return StatusCode::NOT_FOUND.into_response();
     }
+    if !state.has_bootstrap_access(&headers) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    let code = random_token(32);
+    let expires_at = now() + PAIR_CODE_TTL_SECS;
+    {
+        let mut codes = state.pair_codes_guard();
+        let current = now();
+        codes.retain(|_, expiry| *expiry > current);
+        codes.insert(code.clone(), expires_at);
+    }
+
+    Json(json!({
+        "pair_url": format!("{}/pair?code={}", state.public_url(), code),
+        "expires_in": PAIR_CODE_TTL_SECS
+    }))
+    .into_response()
+}
+
+pub(super) async fn pair_get(
+    State(state): State<AuthState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Response {
+    if state.consent_mode != ConsentMode::Paired {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
+    if let Some(code) = params.get("code") {
+        let valid = {
+            let mut codes = state.pair_codes_guard();
+            let current = now();
+            codes.retain(|_, expiry| *expiry > current);
+            codes.remove(code).is_some_and(|expiry| expiry > current)
+        };
+        if !valid {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Html(oauth_page(
+                    "Pairing link expired",
+                    "<h1>Pairing link invalid or expired</h1><p>Generate a new pairing link from the Jelly installer.</p>",
+                )),
+            )
+                .into_response();
+        }
+        return paired_response(&state);
+    }
+
     Html(oauth_page(
         "Pair Jelly",
         "<h1>Pair this browser</h1><p>Establish this browser as the owner for OAuth approvals.</p><form method=\"post\" action=\"/pair\"><label>Bootstrap secret<input type=\"password\" name=\"secret\" autocomplete=\"current-password\" required autofocus></label><button type=\"submit\">Pair browser</button></form>",
@@ -58,11 +107,13 @@ pub(super) async fn pair_post(
         return (StatusCode::UNAUTHORIZED, "invalid bootstrap secret").into_response();
     }
 
+    paired_response(&state)
+}
+
+fn paired_response(state: &AuthState) -> Response {
     let token = random_token(32);
     state
-        .owner_sessions
-        .lock()
-        .unwrap()
+        .owner_sessions_guard()
         .insert(token.clone(), now() + OWNER_SESSION_TTL_SECS);
     let secure = if state.public_url.starts_with("https://") {
         "; Secure"

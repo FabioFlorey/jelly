@@ -22,6 +22,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Opt-in browser/CDP timing diagnostics via `config/jelly.toml` `[diagnostics].perf_log = true` and deterministic browser performance/regression fixtures.
 - Canonical stable-ID scenario test suite with selectable groups/batches, per-run reports, concurrency locking, and a repository-level test index.
 - Small-surface MCP Agent API with `browser-schema`, ordered semantic/raw `browser-call`, retained `browser-events`, logical target routing, and dedicated Agent API regression/benchmark coverage.
+- Branded MCP operational index/dashboard/status surfaces with browser, recording, process, and OAuth state plus owner-gated inactive-process cleanup.
+- Telegram HITL can attach a local MP4 instead of a screenshot and uses configurable title/subtitle/body/signature formatting with HTML-safe dynamic content.
+- Paired OAuth setup can mint a one-time, five-minute owner-pairing link so installers can establish the owner browser without exposing the bootstrap secret to the browser.
 
 ### Changed
 
@@ -37,3 +40,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - DOM-backed `@imgN` references returned by `inspect-images` now resolve through the normal target abstraction and can be reused by target-taking tools.
 - MCP defaults to the `small-surface` browser mode through `config/jelly.toml`; `large-surface` exposes the expanded individual-tool surface. Raw CDP remains disabled unless `[mcp].raw_cdp` is enabled; when enabled, small-surface exposes it through `browser-call` and large-surface through a dedicated raw-only `cdp-call` tool.
 - High-, mid-, and low-risk lifecycle boundaries were hardened after a function-level code review: profile replacement now stages and rolls back safely, recording start is serialized and publishes state atomically, OAuth consent/state handling fails explicitly, release MCP system tools no longer silently execute checkout code, navigation injection failures propagate, artifact metadata updates are atomic, auth mutex poisoning is recoverable, runtime cleanup failures are observable, stale browser PID reuse is rejected, and MCP initialization advertises Jelly's implemented protocol revision instead of echoing an arbitrary client value.
+- Continuous recordings now follow Jelly's shared active browser target between frames and retain initial/final target provenance; routine graph system-tool failures now use the same typed classifications as MCP for profile import and browser recording.
+- MCP service installation rebuild freshness now includes the compile-time embedded dashboard stylesheet and font assets.
+- MCP hosting now resolves the release build directory from the shared Cargo configuration, and an empty `JELLY_PUBLIC_URL` falls back to the local bind origin instead of becoming an empty OAuth issuer.

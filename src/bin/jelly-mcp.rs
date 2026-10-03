@@ -18,7 +18,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let address = env::var("JELLY_MCP_ADDR").unwrap_or_else(|_| "127.0.0.1:8787".into());
     let address: SocketAddr = address.parse()?;
-    let public_url = env::var("JELLY_PUBLIC_URL").unwrap_or_else(|_| format!("http://{address}"));
+    let public_url = env::var("JELLY_PUBLIC_URL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| format!("http://{address}"));
 
     let listener = tokio::net::TcpListener::bind(address).await?;
     println!("jelly MCP listening on http://{address}/mcp");

@@ -473,7 +473,8 @@ fn probe_dimensions(path: &Path) -> Result<(u32, u32), Box<dyn std::error::Error
 
 fn continuous_worker(dir: &Path, interval_ms: u64) -> Result<(), Box<dyn std::error::Error>> {
     let mut browser = BrowserSession::connect()?;
-    let target_id = browser.target_id().to_owned();
+    let initial_target_id = browser.target_id().to_owned();
+    let mut last_captured_target_id = initial_target_id.clone();
     let started_at_ms = now_ms();
     let mut frame_count = 0_u64;
     let fps = 1000.0 / interval_ms as f64;
@@ -516,6 +517,10 @@ fn continuous_worker(dir: &Path, interval_ms: u64) -> Result<(), Box<dyn std::er
     let mut ffmpeg_stdin = ffmpeg.stdin.take().ok_or("ffmpeg stdin unavailable")?;
 
     while !dir.join("stop").exists() {
+        // Follow Jelly's shared active-target coordination state without making a
+        // transient/stale external selection fatal to an otherwise healthy recording.
+        let _ = browser.sync_active_target();
+        let capture_target_id = browser.target_id().to_owned();
         let value = browser.call(
             "Page.captureScreenshot",
             json!({
@@ -530,6 +535,7 @@ fn continuous_worker(dir: &Path, interval_ms: u64) -> Result<(), Box<dyn std::er
             && let Ok(bytes) = STANDARD.decode(data)
         {
             ffmpeg_stdin.write_all(&bytes)?;
+            last_captured_target_id = capture_target_id;
             frame_count += 1;
         }
         thread::sleep(Duration::from_millis(interval_ms));
@@ -551,7 +557,9 @@ fn continuous_worker(dir: &Path, interval_ms: u64) -> Result<(), Box<dyn std::er
         "version": 1,
         "kind": "browser_recording",
         "mode": "continuous",
-        "target_id": target_id,
+        "target_id": initial_target_id,
+        "initial_target_id": initial_target_id,
+        "final_target_id": last_captured_target_id,
         "started_at_ms": started_at_ms,
         "ended_at_ms": now_ms(),
         "interval_ms": interval_ms,

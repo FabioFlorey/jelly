@@ -8,16 +8,30 @@ jelly exposes its browser primitives and system tools through a Streamable HTTP 
 http://127.0.0.1:8787/mcp
 ```
 
-Health and OAuth discovery endpoints are also exposed:
+Service, operational, and OAuth endpoints are also exposed:
 
 ```text
+/
+/index
+/dashboard
 /health
+/ready
+/status
+/status.json
+/admin/cleanup-inactive
 /.well-known/oauth-protected-resource
 /.well-known/oauth-authorization-server
 /register
 /authorize
+/pair
+/pair/code
+/pair/status
 /token
 ```
+
+`/` and `/index` serve the branded Jelly index, and unknown routes use the same branded shell for a 404 page. `/health` and `/ready` are lightweight public service probes. `/dashboard`, `/status`, and `/status.json` are also currently public: the dashboard refreshes from the status JSON every two seconds, and the status payload reports the runtime root, browser/recording state, Jelly process counts, OAuth client/token/session counts, consent/DCR mode, and endpoint paths. These operational surfaces report counts and configuration state, not bearer tokens, bootstrap secrets, OAuth passwords, or registered client details.
+
+`POST /admin/cleanup-inactive` is the destructive operational exception and requires a valid paired-owner session cookie, so it is actionable only when `JELLY_OAUTH_CONSENT_MODE=paired`. On Linux it revalidates candidate PIDs against the running Jelly MCP executable and sends `SIGTERM` only to same-executable Jelly MCP processes that have no listening socket; non-Linux process discovery yields no cleanup candidates.
 
 ## Quickstart
 
@@ -198,7 +212,7 @@ JELLY_BOOTSTRAP_SECRET=<secret>
 
 `browser` consent renders an authorization page and requires `JELLY_OAUTH_PASSWORD` for each approval.
 
-`paired` consent first requires the owner to pair a browser at `/pair` using `JELLY_BOOTSTRAP_SECRET`. The resulting owner session is an HttpOnly, SameSite=Lax cookie with a 24-hour lifetime. OAuth approvals are rejected unless they come from that paired browser. `JELLY_OAUTH_PASSWORD` is not required in paired mode.
+`paired` consent requires an owner browser before OAuth approval. The installer now uses `JELLY_BOOTSTRAP_SECRET` locally to mint a one-time pairing link via `POST /pair/code`; the link expires after five minutes and is consumed once, so the bootstrap secret never needs to be typed into or exposed to the browser. If automatic opening is unavailable, the installer prints the one-time link. The manual `/pair` form remains as a fallback. The resulting owner session is an HttpOnly, SameSite=Lax cookie with a 24-hour lifetime. OAuth approvals are rejected unless they come from that paired browser. `JELLY_OAUTH_PASSWORD` is not required in paired mode.
 
 Dynamic Client Registration is policy-gated. When `JELLY_OAUTH_PUBLIC_CHATGPT_DCR=true`, unauthenticated registration is accepted only for ChatGPT's HTTPS callback on `chatgpt.com`, including the current `/connector_platform_oauth_redirect` path and the legacy `/connector/oauth/...` form. Other registrations require `Authorization: Bearer <JELLY_BOOTSTRAP_SECRET>`. When public ChatGPT DCR is disabled, the authorization-server metadata omits the registration endpoint.
 

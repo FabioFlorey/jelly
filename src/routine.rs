@@ -96,7 +96,8 @@ fn state_id() -> String {
 fn system_failure_kind(name: &str) -> &'static str {
     match name {
         "open-browser" | "close-browser" | "browser-task" => "browser_unavailable",
-        "screenshot" | "verify-artifact" => "artifact_failed",
+        "profile-import" => "interaction_failed",
+        "screenshot" | "record-browser" | "verify-artifact" => "artifact_failed",
         "downloads" | "wait-download" => "download_failed",
         "hitl" => "delivery_failed",
         _ => "internal",
@@ -805,6 +806,14 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn system_tool_failure_kinds_match_mcp_classification() {
+        assert_eq!(system_failure_kind("open-browser"), "browser_unavailable");
+        assert_eq!(system_failure_kind("profile-import"), "interaction_failed");
+        assert_eq!(system_failure_kind("record-browser"), "artifact_failed");
+        assert_eq!(system_failure_kind("inspect-network"), "internal");
+    }
 
     #[test]
     fn graph_validation_allows_cycles_and_jumps() {

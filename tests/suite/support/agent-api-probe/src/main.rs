@@ -5,7 +5,7 @@ use jelly::{
     primitive_specs, tool_specs, validate_browser_call,
 };
 use serde_json::{Value, json};
-use std::{collections::HashSet, env, error::Error, process::Command, time::Instant};
+use std::{collections::HashSet, env, error::Error, time::Instant};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mode = env::args()

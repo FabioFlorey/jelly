@@ -118,8 +118,8 @@ pub static TOOLS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "hitl",
-        description: "Request human intervention through Telegram with a browser-content screenshot by default. A specific page element can be attached without capturing the desktop.",
-        usage: "hitl <message> [--screenshot-target target] [--no-screenshot]",
+        description: "Request human intervention through Telegram with a browser-content screenshot by default, or attach a local MP4 video. A specific page element can be attached without capturing the desktop.",
+        usage: "hitl <message> [--video path | --screenshot-target target | --no-screenshot]",
         category: "hitl",
     },
 ];

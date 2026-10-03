@@ -34,9 +34,18 @@ default_batch = "deterministic"
 animation = true
 icons = true
 logo = "assets/quickstart-full-logo.txt"
+
+[hitl.formats.telegram]
+title = "Jelly"
+subtitle = "Browser instrumentation for agents"
+prefix = ""
+suffix = ""
+signature = "⏺️ Recorded with <b>Jelly</b>"
 ```
 
 There is no environment-variable compatibility layer for these settings. `config/jelly.toml` is required and all schema fields are required; an incomplete or invalid file fails fast.
+
+`[hitl.formats.telegram]` controls presentation only. The runtime HITL message remains dynamic. Telegram renders the configured title in bold, escapes the dynamic message and non-HTML configured regions as HTML-safe content, and preserves trusted Telegram HTML in `signature`. Non-empty title/subtitle, body prefix/message/suffix, and signature are placed into separate message regions. Telegram credentials remain secrets in `.env`.
 
 `runtime_root` is canonical. Jelly derives state, browser profiles, artifacts, downloads, network captures, logs, routines, injections, browser coordination files, and test-run state from that one root.
 

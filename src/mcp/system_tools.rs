@@ -187,6 +187,9 @@ pub(super) fn system_cli_args(
         }
         "hitl" => {
             let mut args = vec![string("message")?.ok_or("hitl requires message")?];
+            if let Some(video) = string("video")? {
+                args.extend(["--video".into(), video]);
+            }
             if let Some(target) = string("screenshot_target")? {
                 args.extend(["--screenshot-target".into(), target]);
             }

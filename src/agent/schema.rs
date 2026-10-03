@@ -127,6 +127,7 @@ pub(crate) fn system_input_schema(name: &str) -> Option<Value> {
             "type":"object",
             "properties":{
                 "message":{"type":"string"},
+                "video":{"type":"string","description":"Optional local MP4 path to attach as a Telegram video instead of a screenshot."},
                 "screenshot_target":{"type":"string","description":"Optional browser element to attach instead of the viewport."},
                 "no_screenshot":{"type":"boolean"}
             },
