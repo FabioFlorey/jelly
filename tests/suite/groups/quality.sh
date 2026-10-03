@@ -41,6 +41,16 @@ quality_cleanup_architecture() {
   python3 scripts/check-cleanup-architecture.py
 }
 
+quality_mcp_build_root() {
+  local script
+  for script in scripts/install-mcp-services.sh scripts/run-mcp-hosting.sh scripts/run-nip-io.sh scripts/clean-runtime.sh; do
+    grep -Fq 'BUILD_DIR="$CONFIG_BUILD_ROOT"' "$script" \
+      || jt_fail "$script must resolve BUILD_DIR from CONFIG_BUILD_ROOT"
+  done
+  ! grep -Eq 'BUILD_DIR=.*\.jelly-build' scripts/install-mcp-services.sh \
+    || jt_fail "install-mcp-services.sh must not derive a separate .jelly-build path"
+}
+
 quality_suite_catalog() {
   local catalog count unique
   catalog="$(tests/suite/run.sh --catalog --json)"
@@ -252,3 +262,4 @@ jt_register "QLT-013" "quality" "Raw CDP authorization documentation boundary" "
 jt_register "QLT-014" "quality" "Auxiliary Rust lockfile alignment" "Verify Rust test probes that depend on Jelly resolve the exact same registry package versions/checksums as the root build." "Cargo.lock and the event/Agent API probe lockfiles are readable; the Rust tooling wrapper builds." "Compare the complete registry package tuple set (name, version, source, checksum) in each probe lock against Cargo.lock." "Both probe lockfiles have exactly the same registry dependency resolution as the root lock; probe Cargo commands run with --locked." "quality" quality_aux_lock_alignment
 jt_register "QLT-015" "quality" "Small-surface MCP budget" "Verify the small-surface MCP Agent API remains materially smaller than large-surface using the real tools/list projection." "Agent API probe builds with the root-aligned lockfile; jq is available." "Measure large-surface, small-surface raw-off, and small-surface raw-on tools/list JSON using jelly::mcp::mcp_tools in isolated subprocesses." "Small-surface preserves the intended binding distribution and system-tool count while keeping total tools/list, input/output schemas, and descriptions materially smaller than large-surface." "quality" quality_mcp_surface_budget
 jt_register "QLT-016" "quality" "Cleanup architecture guardrails" "Verify cleanup-established architecture conventions cannot silently regress." "Python 3 and repository sources are available." "Run scripts/check-cleanup-architecture.py against primitive errors, MCP surface naming, and lib.rs module visibility." "Primitive failures remain explicitly typed, only canonical MCP surface names appear in production surface code, and implementation modules remain private." "quality" quality_cleanup_architecture
+jt_register "QLT-017" "quality" "Canonical MCP build root" "Verify MCP install/hosting/runtime scripts consume the shared Cargo build root instead of deriving a second target directory." "scripts/config.sh exposes CONFIG_BUILD_ROOT and MCP service scripts are readable." "Inspect install, hosting, nip.io, and cleanup scripts for BUILD_DIR resolution." "All MCP service scripts resolve BUILD_DIR from CONFIG_BUILD_ROOT and the installer contains no separate .jelly-build derivation." "quality" quality_mcp_build_root

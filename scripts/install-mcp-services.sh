@@ -67,7 +67,7 @@ else
 fi
 
 cd "$ROOT"
-BUILD_DIR="$(cd "$ROOT/.." && pwd)/.jelly-build"
+BUILD_DIR="$CONFIG_BUILD_ROOT"
 MCP_BIN="$BUILD_DIR/release/jelly-mcp"
 BUILD_STAMP="$BUILD_DIR/release/.jelly-build-stamp"
 needs_build=false
