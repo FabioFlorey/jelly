@@ -148,6 +148,8 @@
       background: var(--honey);
     }
 
+    .eyebrow-mobile { display: none; }
+
     h1 {
       max-width: 780px;
       margin: 0;
@@ -415,9 +417,26 @@
     }
 
     @media (max-width: 860px) {
-      .hero-inner { grid-template-columns: 1fr; }
-      .hero { min-height: auto; }
-      .hero-mark { min-height: 300px; }
+      .hero-inner { grid-template-columns: 1fr; gap: 20px; }
+      .hero { min-height: auto; padding: 42px 0 62px; }
+      .hero-mark { min-height: 0; padding: 0; }
+      .hero-mark img { width: min(100%, 340px); }
+      .eyebrow-desktop { display: none; }
+      .eyebrow-mobile { display: inline; }
+      .hero-inner .eyebrow { margin-bottom: 14px; letter-spacing: .04em; }
+      .hero-inner h1 {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      .hero .hero-subtitle { margin: 0 0 10px; font-size: clamp(1.05rem, 2.8vw, 1.35rem); }
+      .hero .lede { margin-top: 12px; }
+      .hero .cta-row { margin-top: 24px; }
       .grid { grid-template-columns: 1fr; }
       .section-head { grid-template-columns: 1fr; gap: 10px; }
       .section-copy { margin-left: 0; }
@@ -450,8 +469,13 @@
         min-height: 44px;
         white-space: nowrap;
       }
-      .hero { padding-top: 64px; }
-      .hero-mark { padding: 28px; }
+      .hero { padding: 28px 0 52px; }
+      .hero-inner { gap: 14px; }
+      .hero-mark img { width: min(100%, 290px); }
+      .hero-inner .eyebrow { margin-bottom: 10px; font-size: .76rem; }
+      .hero-inner .eyebrow::before { width: 22px; flex: 0 0 22px; }
+      .hero .hero-subtitle { font-size: clamp(1.05rem, 4.5vw, 1.25rem); }
+      .hero .lede { font-size: .95rem; line-height: 1.7; }
       .quickstart-stage { --chan-peek: 58px; }
       .quickstart-chan { height: 94%; max-width: 48%; }
       section { padding: 66px 0; }
@@ -504,8 +528,6 @@ html { scroll-padding-top: 86px; }
   .doc-page section { padding: 26px 0; }
   .tool-fields { display: block; }
   .tool-fields dd { padding-left: 0; }
-  .hero-mark { min-height: 190px; }
-  .hero-mark img { max-height: 250px; object-fit: contain; }
   .doc-page pre, .docs-terminal pre { font-size: .76rem; padding: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
