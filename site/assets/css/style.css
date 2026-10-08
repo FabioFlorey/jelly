@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "Gocake";
+  src: url("../fonts/gocake.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
     :root {
       --bg: #0d0d0b;
       --panel: #151511;
@@ -157,6 +165,13 @@
       line-height: .94;
       letter-spacing: -.065em;
       font-weight: 800;
+    }
+
+    .hero-inner h1 {
+      font-family: "Gocake", ui-monospace, monospace;
+      font-weight: 400;
+      letter-spacing: 0;
+      line-height: 1.1;
     }
 
     h1 em {
@@ -536,6 +551,9 @@ html { scroll-padding-top: 86px; }
 
 /* Product subtitle follows the official Jelly naming convention. */
 .hero-subtitle {
+  font-family: "Gocake", ui-monospace, monospace;
+  font-weight: 400;
+  letter-spacing: 0;
   margin: 22px 0 12px;
   color: var(--honey);
   font-size: clamp(1.1rem, 2vw, 1.45rem);

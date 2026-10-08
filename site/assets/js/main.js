@@ -28,7 +28,9 @@
       `;
 
       const fragmentSource = `
-        precision mediump float;
+        // Pixel-coordinate noise needs high precision: mediump can quantize
+        // large fragment coordinates into visible vertical bands.
+        precision highp float;
 
         uniform vec2 uResolution;
         uniform float uTime;
