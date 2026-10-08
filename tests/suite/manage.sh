@@ -22,12 +22,18 @@ clean_values() {
 }
 
 write_values() {
-  local file="$1" header="$2"
+  local file="$1" header="$2" temporary
   shift 2
-  {
-    echo "# $header"
+  temporary="$(mktemp "$file.XXXXXX")"
+  if {
+    printf '# %s\n' "$header"
     printf '%s\n' "$@" | sed '/^$/d' | sort -u
-  } > "$file"
+  } > "$temporary"; then
+    mv -f -- "$temporary" "$file"
+  else
+    rm -f -- "$temporary"
+    return 1
+  fi
 }
 
 valid_test() {

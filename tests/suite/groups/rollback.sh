@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 
 rollback_load_env() {
-  if [[ -f .env ]]; then
-    set -a
-    # shellcheck disable=SC1091
-    source .env
-    set +a
-  fi
+  # The suite runner loads .env as inert data via scripts/config.sh.
   : "${JELLY_MCP_TOKEN:?JELLY_MCP_TOKEN is required for rollback tests}"
   : "${JELLY_BOOTSTRAP_SECRET:?JELLY_BOOTSTRAP_SECRET is required for rollback tests}"
 }

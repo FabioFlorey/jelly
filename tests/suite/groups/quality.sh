@@ -62,11 +62,14 @@ quality_suite_catalog() {
 }
 
 quality_suite_shell_syntax() {
-  local f
-  bash -n tests/suite/run.sh tests/suite/lib.sh tests/suite/manage.sh
-  for f in tests/suite/groups/*.sh scripts/check-test-suite.sh scripts/check-browser-session-lifecycle.sh scripts/check-page-runtime.sh scripts/check-framework-mutations.sh scripts/check-ref-semantics.sh scripts/check-semantic-targets.sh scripts/check-shadow-dom.sh scripts/check-filtering-ranking.sh scripts/check-highlight-modes.sh scripts/check-rollback-matrix.sh scripts/check-real-world-regressions.sh scripts/benchmark-mcp-surface.sh scripts/check-web-ui.sh; do
-    bash -n "$f"
-  done
+  local file
+  while IFS= read -r file; do
+    bash -n "$file" || return
+  done < <(git ls-files '*.sh')
+}
+
+quality_shell_safety() {
+  python3 scripts/check-shell-safety.py
 }
 
 quality_suite_lock() {
@@ -273,3 +276,5 @@ jt_register "QLT-016" "quality" "Cleanup architecture guardrails" "Verify cleanu
 jt_register "QLT-017" "quality" "Canonical MCP build root" "Verify MCP install/hosting/runtime scripts consume the shared Cargo build root instead of deriving a second target directory." "scripts/config.sh exposes CONFIG_BUILD_ROOT and MCP service scripts are readable." "Inspect install, hosting, nip.io, and cleanup scripts for BUILD_DIR resolution." "All MCP service scripts resolve BUILD_DIR from CONFIG_BUILD_ROOT and the installer contains no separate .jelly-build derivation." "quality" quality_mcp_build_root
 
 jt_register "QLT-018" "quality" "Agent routing guidance evaluation" "Validate the compact MCP decision table, final-outcome gate, and routing/slot/verification scoring harness with negative controls."   ".agent/instructions/mcp.md and agent-guidance fixtures are readable; Python 3 available."   "Check bootstrap rules and run scripts/eval-agent-guidance.py --self-test."   "All deterministic reference cases and mutation negatives behave correctly without model or browser calls." "quality" quality_agent_guidance
+
+jt_register "QLT-019" "quality" "Shell environment and cleanup safety" "Verify untrusted dotenv values stay inert, environment files are private, and unsafe deletion targets are rejected." "Python 3, Bash and coreutils available." "Run isolated dotenv and cleanup-guard regression fixtures without modifying runtime state." "Hostile values round-trip as data and broad or non-Jelly deletion paths fail closed." "quality" quality_shell_safety

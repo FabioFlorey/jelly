@@ -16,10 +16,14 @@ while IFS= read -r _jelly_name; do
 done < <(compgen -A variable JELLY_)
 
 if [[ -f "$REPO_ROOT/.env" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "$REPO_ROOT/.env"
-  set +a
+  _jelly_rows="$(python3 "$REPO_ROOT/scripts/env-data.py" read "$REPO_ROOT/.env")" || return 2 2>/dev/null || exit 2
+  while IFS=$'\t' read -r _jelly_name _jelly_encoded; do
+    [[ -n "$_jelly_name" ]] || continue
+    _jelly_value="$(printf '%s' "$_jelly_encoded" | base64 --decode)" || return 2 2>/dev/null || exit 2
+    printf -v "$_jelly_name" '%s' "$_jelly_value"
+    export "$_jelly_name"
+  done <<< "$_jelly_rows"
+  unset _jelly_rows _jelly_encoded _jelly_value
 fi
 
 for _jelly_name in "${!_JELLY_ENV_OVERRIDES[@]}"; do

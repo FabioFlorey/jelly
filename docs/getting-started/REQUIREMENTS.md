@@ -27,7 +27,7 @@ Jelly has a small core dependency set plus a few optional tools used by specific
 | **cloudflared** | Quick or fixed public MCP tunnel | Required for `quick-tunnel` and `cloudflare-fixed`; the service wrapper can reuse PiLink's private binary when present |
 | **Caddy** | Direct nip.io HTTPS | Required only for `JELLY_HOSTING_MODE=nip-io` |
 | **iproute2 (`ip`)** | nip.io LAN route discovery | Required only for `nip-io` |
-| **upnpc / natpmpc** | Automatic nip.io router mappings | Required only for automatic nip.io router mapping; manual port forwarding avoids these helpers |
+| **upnpc** | Automatic nip.io router mappings | Required for guarded automatic port mappings; use manual forwarding when UPnP is unavailable |
 | **ffmpeg / ffprobe** | Browser recording export | Required only when exporting browser recordings; encodes frames into MP4 and probes step-frame dimensions |
 | **Wayland / X11 session** | Headed Chromium | Not required for headless mode |
 

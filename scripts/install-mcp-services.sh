@@ -109,10 +109,22 @@ else
 fi
 
 mkdir -p "$USER_UNITS"
+[[ "$ROOT" != *'|'* && "$ROOT" != *$'\n'* ]] || {
+  echo "repository path contains unsupported characters for service templates" >&2
+  exit 2
+}
 root_escaped="${ROOT//\\/\\\\}"
 root_escaped="${root_escaped//&/\\&}"
-sed "s|/data/jelly|$root_escaped|g" "$ROOT/systemd/jelly-mcp.service" > "$USER_UNITS/jelly-mcp.service"
-sed "s|/data/jelly|$root_escaped|g" "$ROOT/systemd/jelly-cloudflared.service" > "$USER_UNITS/jelly-cloudflared.service"
+mcp_unit_tmp="$(mktemp "$USER_UNITS/.jelly-mcp.XXXXXX")"
+tunnel_unit_tmp="$(mktemp "$USER_UNITS/.jelly-cloudflared.XXXXXX")"
+cleanup_unit_temps() { rm -f -- "$mcp_unit_tmp" "$tunnel_unit_tmp"; }
+trap cleanup_unit_temps EXIT
+sed "s|/data/jelly|$root_escaped|g" "$ROOT/systemd/jelly-mcp.service" > "$mcp_unit_tmp"
+sed "s|/data/jelly|$root_escaped|g" "$ROOT/systemd/jelly-cloudflared.service" > "$tunnel_unit_tmp"
+chmod 600 "$mcp_unit_tmp" "$tunnel_unit_tmp"
+mv -f -- "$mcp_unit_tmp" "$USER_UNITS/jelly-mcp.service"
+mv -f -- "$tunnel_unit_tmp" "$USER_UNITS/jelly-cloudflared.service"
+trap - EXIT
 systemctl --user daemon-reload
 
 started_at="$(date +%s)"

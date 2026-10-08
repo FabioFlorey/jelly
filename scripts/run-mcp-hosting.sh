@@ -46,11 +46,19 @@ case "$MODE" in
     mcp_pid=""
 
     cleanup() {
-      [[ -n "$mcp_pid" ]] && kill "$mcp_pid" >/dev/null 2>&1 || true
-      [[ -n "$tunnel_pid" ]] && kill "$tunnel_pid" >/dev/null 2>&1 || true
+      if [[ -n "$mcp_pid" ]]; then
+        kill "$mcp_pid" >/dev/null 2>&1 || true
+        wait "$mcp_pid" >/dev/null 2>&1 || true
+      fi
+      if [[ -n "$tunnel_pid" ]]; then
+        kill "$tunnel_pid" >/dev/null 2>&1 || true
+        wait "$tunnel_pid" >/dev/null 2>&1 || true
+      fi
       rm -f "$log"
     }
-    trap cleanup EXIT INT TERM
+    trap cleanup EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
 
     "$cloudflared" tunnel --url "http://$ADDR" > >(tee -a "$log") 2> >(tee -a "$log" >&2) &
     tunnel_pid=$!

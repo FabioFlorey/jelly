@@ -60,9 +60,8 @@ The service status should show the managed MCP service running. `/health` return
 To verify the authenticated MCP tool list, load the local secret in a shell (without echoing it), then request `tools/list`:
 
 ```bash
-set -a
-source ./.env
-set +a
+# Load environment values without evaluating the .env file as shell code.
+source ./scripts/config.sh
 curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
   -H "Authorization: Bearer $JELLY_MCP_TOKEN" \
   -H 'Content-Type: application/json' \

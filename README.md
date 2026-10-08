@@ -136,9 +136,8 @@ Use `browser-schema` to discover the named semantic operations available through
 With the server running and the local token available in the current shell, discover implemented browser capabilities **without opening Chromium**:
 
 ```bash
-set -a
-source ./.env
-set +a
+# Load environment values without evaluating the .env file as shell code.
+source ./scripts/config.sh
 
 curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
   -H "Authorization: Bearer $JELLY_MCP_TOKEN" \

@@ -69,6 +69,16 @@ release_mappings() {
 open_mappings() {
   local lan_ip="$1"
   if command -v upnpc >/dev/null 2>&1; then
+    # Fail closed: never overwrite router mappings that may belong to another application.
+    local mappings
+    mappings="$(upnpc -l)" || {
+      echo "cannot inspect existing router mappings; refusing automatic changes" >&2
+      return 1
+    }
+    if grep -Eq '(^|[^0-9])(80|443)->' <<<"$mappings"; then
+      echo "existing router port mapping detected; use manual mode" >&2
+      return 1
+    fi
     upnpc -a "$lan_ip" "$HTTP_PORT" 80 TCP >/dev/null
     if ! upnpc -a "$lan_ip" "$HTTPS_PORT" 443 TCP >/dev/null; then
       upnpc -d 80 TCP >/dev/null 2>&1 || true
@@ -78,17 +88,29 @@ open_mappings() {
     return 0
   fi
   if command -v natpmpc >/dev/null 2>&1; then
-    natpmpc -a "$HTTP_PORT" 80 tcp 3600 >/dev/null
-    if ! natpmpc -a "$HTTPS_PORT" 443 tcp 3600 >/dev/null; then
-      natpmpc -a 0 80 tcp 0 >/dev/null 2>&1 || true
-      return 1
-    fi
-    mapping_backend="natpmpc"
-    return 0
+    echo "automatic NAT-PMP mapping ownership cannot be verified; use manual mode" >&2
+    return 1
   fi
   echo "automatic nip.io networking requires upnpc or natpmpc" >&2
   return 1
 }
+
+mcp_pid=""
+caddy_pid=""
+cleanup() {
+  if [[ -n "$caddy_pid" ]]; then
+    kill "$caddy_pid" >/dev/null 2>&1 || true
+    wait "$caddy_pid" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$mcp_pid" ]]; then
+    kill "$mcp_pid" >/dev/null 2>&1 || true
+    wait "$mcp_pid" >/dev/null 2>&1 || true
+  fi
+  release_mappings
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 case "$NETWORK_MODE" in
   auto|manual) ;;
@@ -139,14 +161,6 @@ export JELLY_PUBLIC_URL="https://$hostname"
 export JELLY_OAUTH_PUBLIC_CHATGPT_DCR="${JELLY_OAUTH_PUBLIC_CHATGPT_DCR:-true}"
 export XDG_DATA_HOME="$RUNTIME/caddy-data"
 
-mcp_pid=""
-caddy_pid=""
-cleanup() {
-  [[ -n "$caddy_pid" ]] && kill "$caddy_pid" >/dev/null 2>&1 || true
-  [[ -n "$mcp_pid" ]] && kill "$mcp_pid" >/dev/null 2>&1 || true
-  release_mappings
-}
-trap cleanup EXIT INT TERM
 
 "$MCP_BIN" &
 mcp_pid=$!

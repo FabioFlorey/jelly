@@ -99,7 +99,7 @@ OAuth consent mode, ChatGPT DCR, public URL, and host-specific credentials.
 
 `.env` is local and must not be committed. It contains secrets and deployment-specific environment values such as credentials, OAuth secrets, public origins, listen addresses, hosting/tunnel settings, and HITL credentials.
 
-`.env.example` documents that interface without containing secrets.
+`.env.example` documents that interface without containing secrets. Jelly's shell tooling reads `.env` as **data**, never with `source .env`; the setup wizard writes safely quoted entries using `scripts/env-data.py`. When loading values into an interactive shell, use `source ./scripts/config.sh`, which validates and exports them without executing contents of `.env`.
 
 Environment variables used internally to propagate per-execution context, such as trace/span identity, are runtime data rather than technical configuration.
 

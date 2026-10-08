@@ -85,15 +85,15 @@ web_selenium_artifacts() {
 }
 
 web_porsche_consent() {
-  local profile="$CONFIG_RUNTIME_ROOT/profiles/headless" backup="/tmp/jelly-suite-porsche-profile-$$" moved=false
-  rm -rf "$backup"
+  # Never move or overwrite a pre-existing browser profile just to test consent.
+  # Use the dedicated fresh headless-profile location only when it is absent.
+  local profile="$CONFIG_RUNTIME_ROOT/profiles/headless"
   jt_close_browser
-  if [[ -d "$profile" ]]; then mv "$profile" "$backup"; moved=true; fi
-  if [[ "$moved" == true ]]; then
-    trap "jt_close_browser; rm -rf '$profile'; mv '$backup' '$profile'" EXIT
-  else
-    trap jt_close_browser EXIT
+  if [[ -e "$profile" || -L "$profile" ]]; then
+    echo "Porsche fresh-profile test requires an unused headless profile; refusing to move existing state" >&2
+    return 2
   fi
+  trap 'jt_close_browser || true; rm -rf -- "$CONFIG_RUNTIME_ROOT/profiles/headless"' EXIT
   web_open_ready "$WEB_PORSCHE_URL"
   local snapshot='' found=false ref info after
   for _ in $(seq 1 30); do
@@ -117,4 +117,4 @@ web_porsche_consent() {
 
 jt_register "WEB-001" "real-world" "Selenium form interactions" "Exercise real public form discovery, fill/select/check state changes, and disabled/readonly rejection." "Network access to selenium.dev; fresh headless browser." "Interact with Text input, Dropdown, Default checkbox, Disabled input and Readonly input." "Mutable controls change real DOM state; disabled/readonly fills fail." "network" web_selenium_form
 jt_register "WEB-002" "real-world" "Selenium artifacts, tabs and handoff" "Exercise real-page highlight, element screenshot, tab lifecycle and continuous recording while preserving browser usability and following Jelly's shared active target." "Network access to selenium.dev; runtime refs for Submit and Return to index." "Highlight/screenshot Submit, start continuous recording, record highlight activity, switch to a new active tab, then stop and close it." "Artifacts are valid, recording captures >=2 frames and ends on the externally selected active target, tab count restores, and the original page remains visible." "network" web_selenium_artifacts
-jt_register "WEB-003" "real-world" "Porsche consent Shadow DOM" "Exercise live nested/open Shadow DOM discovery and click against Porsche/Usercentrics using a fresh browser profile." "Network access to porsche.com; profile directory can be temporarily moved." "Discover and click 'Solo cookie necessari'." "Control resolves as shadow button and disappears after click." "network" web_porsche_consent
+jt_register "WEB-003" "real-world" "Porsche consent Shadow DOM" "Exercise live nested/open Shadow DOM discovery and click against Porsche/Usercentrics using a fresh browser profile." "Network access to porsche.com; dedicated headless profile must be unused." "Discover and click 'Solo cookie necessari'." "Control resolves as shadow button and disappears after click." "network" web_porsche_consent

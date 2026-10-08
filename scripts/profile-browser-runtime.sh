@@ -9,6 +9,14 @@ source "$ROOT/scripts/config.sh"
 BIN_DIR="$CONFIG_BUILD_ROOT/debug"
 FIXTURE="file://$(pwd)/tests/fixtures/browser-perf.html"
 RUNS="${JELLY_PROFILE_RUNS:-15}"
+# Do not interrupt or close a user's existing browser session.
+if [[ -f "$CONFIG_RUNTIME_ROOT/state/browser.pid" ]]; then
+  browser_pid="$(cat "$CONFIG_RUNTIME_ROOT/state/browser.pid")"
+  if [[ "$browser_pid" =~ ^[0-9]+$ ]] && kill -0 "$browser_pid" 2>/dev/null; then
+    echo "profiling requires an idle Jelly browser; close it explicitly before running" >&2
+    exit 2
+  fi
+fi
 CONFIG_BACKUP="$(mktemp)"
 cp "$CONFIG_FILE" "$CONFIG_BACKUP"
 

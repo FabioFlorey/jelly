@@ -278,7 +278,7 @@ JELLY_HOSTING_MODE=cloudflare-fixed
 
 `nip-io` exposes the machine directly over HTTPS using Caddy and a hostname derived from the public IPv4 address, for example `https://jelly-203-0-113-10.nip.io`. Caddy listens on local TCP 8080/8443 and reverse-proxies the loopback MCP server. The router must expose public TCP 80 to local 8080 and public TCP 443 to local 8443.
 
-`JELLY_NIP_IO_NETWORK=manual` assumes those forwards already exist. `JELLY_NIP_IO_NETWORK=auto` attempts temporary mappings using `upnpc` first, then `natpmpc`; if neither helper exists or mapping fails, the launcher stops with manual-forwarding instructions. Direct nip.io hosting requires a reachable public IPv4 address and will not work behind CGNAT. `JELLY_PUBLIC_IPV4` and `JELLY_NIP_IO_HOSTNAME` can override discovery/derivation. Caddy is resolved from `JELLY_CADDY_BIN`, `caddy` on PATH, or PiLink's private Caddy binary if present.
+`JELLY_NIP_IO_NETWORK=manual` assumes those forwards already exist. `JELLY_NIP_IO_NETWORK=auto` attempts temporary mappings through `upnpc` after inspecting existing router mappings; it refuses to overwrite known mappings. NAT-PMP automatic mapping is disabled because mapping ownership cannot be verified safely; use manual forwarding when only `natpmpc` is available. If inspection or mapping fails, the launcher stops with manual-forwarding instructions. Direct nip.io hosting requires a reachable public IPv4 address and will not work behind CGNAT. `JELLY_PUBLIC_IPV4` and `JELLY_NIP_IO_HOSTNAME` can override discovery/derivation. Caddy is resolved from `JELLY_CADDY_BIN`, `caddy` on PATH, or PiLink's private Caddy binary if present.
 
 `cloudflare-fixed` is the persistent path. Configure:
 

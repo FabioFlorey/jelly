@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 
 session_load_env() {
-  if [[ -f .env ]]; then
-    set -a
-    # shellcheck disable=SC1091
-    source .env
-    set +a
-  fi
+  # Shared config.sh already loads the data-only .env and preserves overrides.
   : "${JELLY_MCP_TOKEN:?JELLY_MCP_TOKEN is required for MCP session tests}"
   : "${JELLY_BOOTSTRAP_SECRET:?JELLY_BOOTSTRAP_SECRET is required for MCP session tests}"
 }
@@ -100,13 +95,13 @@ session_stale_target() {
   local r stale repaired
   r="$(session_call 1 snapshot-interactive '{"limit":5}')"; session_expect_ok "$r" "initial snapshot failed"
   r="$(session_call 2 open-in-new-tab '{"target":"css:a"}')"; session_expect_ok "$r" "open-in-new-tab failed"
-  stale="$(cat $CONFIG_RUNTIME_ROOT/state/active_target_id)"
+  stale="$(cat "$CONFIG_RUNTIME_ROOT/state/active_target_id")"
   "$BIN_DIR/agent-close-tab" >/dev/null
-  printf '%s' "$stale" > $CONFIG_RUNTIME_ROOT/state/active_target_id
+  printf '%s' "$stale" > "$CONFIG_RUNTIME_ROOT/state/active_target_id"
   r="$(session_call 3 snapshot-interactive '{"limit":5}')"
   session_expect_browser_unavailable "$r" "stale target must fail once as retryable browser_unavailable"
   r="$(session_call 4 snapshot-interactive '{"limit":5}')"; session_expect_ok "$r" "second call must reconnect through fallback"
-  repaired="$(cat $CONFIG_RUNTIME_ROOT/state/active_target_id)"
+  repaired="$(cat "$CONFIG_RUNTIME_ROOT/state/active_target_id")"
   jt_assert_ne "$repaired" "$stale" "reconnect must repair shared active target state"
 }
 

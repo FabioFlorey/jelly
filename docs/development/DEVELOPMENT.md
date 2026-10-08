@@ -74,6 +74,19 @@ The MCP `initialize` response includes [`.agent/instructions/mcp.md`](../../.age
 
 The [agent evaluation guide](./AGENT_EVALUATION.md) describes the offline routing/slot-filling scenarios and the separate browser-execution evidence needed for a valid overall success rate. Run `python3 scripts/eval-agent-guidance.py --self-test` as a deterministic harness check; it does not call an LLM or measure real agent success.
 
+## Shell maintenance conventions
+
+Jelly's shell entry points use Bash with `set -euo pipefail`; shared test functions are sourced by the strict suite runner. Keep paths and command arguments quoted, avoid executing `.env` as Bash, validate deletion targets **before** stopping services, and only terminate processes owned by the current invocation. Preserve active browser profiles and only remove router mappings created by the current launcher. Prefer temporary files and atomic replacement for persistent configuration or service files. The compatibility `check-*.sh` scripts remain thin wrappers around the canonical test suite.
+
+After shell changes, run the offline safety checks and Bash parser across all tracked scripts:
+
+```bash
+python3 scripts/check-shell-safety.py
+git ls-files '*.sh' | while IFS= read -r script; do bash -n "$script" || exit 1; done
+```
+
+The executable `QLT-019` test covers the data-only environment parser and deletion guards. ShellCheck and shfmt may be used separately when installed; they are not required by the Pages deployment.
+
 ## Project website and GitHub Pages
 
 The static website is maintained in the top-level [`site/`](../../site) directory, separate from the Markdown documentation under `docs/` and the application's runtime branding assets under `assets/`. Website CSS and JavaScript live in `site/assets/css/style.css` and `site/assets/js/main.js`; media and favicon are under `site/assets/images/` and `site/favicon.svg`. The public site also serves standalone pages for Getting Started, Clients, MCP Tools, Examples, and Troubleshooting. Security details are maintained in `SECURITY.md`. The runtime server's `/connections`, `/dashboard` and OAuth approval interface is separate from the static GitHub Pages site.
