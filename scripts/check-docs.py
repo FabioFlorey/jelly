@@ -61,7 +61,7 @@ def check() -> None:
         failures.append("README.md: missing centered hero or demo")
     if '[**Quickstart**](#3-quickstart)' not in readme or '[**Documentation**](#8-documentation-and-support)' not in readme:
         failures.append("README.md: missing original-style navigation")
-    if '[documentation index](./docs/INDEX.md)' not in readme or 'assets/jelly-demo.gif' not in readme:
+    if '[documentation index](./docs/INDEX.md)' not in readme or 'assets/porsche-718-spyder-rs-demo-20261008.gif' not in readme:
         failures.append("README.md: missing documentation index or centered demo")
     if "Model Context Protocol (MCP)" not in readme:
         failures.append("README.md: MCP acronym not expanded")

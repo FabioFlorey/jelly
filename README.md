@@ -159,10 +159,10 @@ The [examples page](https://fabioflorey.github.io/jelly/examples.html) explains 
 <div align="center">
 
 <a href="https://fabioflorey.github.io/jelly/">
-  <img src="./assets/jelly-demo.gif" alt="Looping demo of Jelly configuring a yellow Porsche 718 Spyder RS" width="880">
+  <img src="./assets/porsche-718-spyder-rs-demo-20261008.gif" alt="Looping demo of Jelly configuring a yellow Porsche 718 Spyder RS" width="880">
 </a>
 
-<sub><strong>Work around the click!</strong> Watch Jelly configure a Racing Yellow Porsche 718 Spyder RS with black-and-yellow wheels and the Weissach Package, then highlight the final price. Each browser step is captioned. This animated preview plays on repeat; <a href="https://fabioflorey.github.io/jelly/assets/images/jelly-demo.mp4">watch the MP4</a>.</sub>
+<sub><strong>Work around the click!</strong> Watch Jelly configure a Racing Yellow Porsche 718 Spyder RS with black-and-yellow wheels and the Weissach Package, then highlight the final price. Each browser step is captioned. This animated preview plays on repeat; <a href="https://github.com/FabioFlorey/jelly/blob/main/site/assets/images/porsche-718-spyder-rs-demo-20261008.mp4">watch the MP4</a>.</sub>
 
 </div>
 

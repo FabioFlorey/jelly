@@ -196,8 +196,8 @@ def main() -> None:
     assert 'Work around the click!' in recording, "Demo chapter heading missing"
     assert 'Every step is captioned in the video.' in recording, "Recording needs a plain-language explanation"
     assert 'autoplay' in recording and 'loop' in recording and 'muted' in recording, "Demo must autoplay muted and loop"
-    assert 'src="./assets/images/jelly-demo.mp4"' in recording, "Demo MP4 missing"
-    assert 'poster="./assets/images/jelly-demo-poster.png"' in recording, "Demo poster missing"
+    assert 'src="./assets/images/porsche-718-spyder-rs-demo-20261008.mp4"' in recording, "Demo MP4 missing"
+    assert 'poster="./assets/images/porsche-718-spyder-rs-demo-20261008-poster.png"' in recording, "Demo poster missing"
 
     # Full cross-page anchor check after parsing all pages.
     for name, doc in pages.items():
