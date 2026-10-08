@@ -90,4 +90,4 @@ browser-schema
 
 Do not use the generated internal capability index as a substitute for `tools/list`, and do not assume an internal primitive name is remotely callable.
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a> · <a href="../INDEX.md">Documentation index</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

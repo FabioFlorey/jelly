@@ -183,4 +183,4 @@ Primitive traces record the same typed error kinds used by MCP and graph transit
 
 Artifact records keep the trace ID when available, linking a captured file to the execution that produced it.
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a> · <a href="../INDEX.md">Documentation index</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

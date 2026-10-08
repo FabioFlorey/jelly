@@ -93,4 +93,4 @@ The first command starts/attaches Chromium; the second returns page content; the
 
 For detailed transport, OAuth and operational behavior, see [MCP Server](../reference/MCP.md). For destructive cleanup consequences, read [Runtime Layout](../reference/RUNTIME.md#destructive-cleanup) before executing cleanup scripts.
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a> · <a href="../INDEX.md">Documentation index</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

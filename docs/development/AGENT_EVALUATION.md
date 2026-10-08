@@ -53,4 +53,4 @@ A recommended cycle:
 
 Source-of-truth rules: `tools/list` and `inputSchema` are authoritative. `browser-schema` discovers semantic operations only when advertised; local `agent-discover` is a separate CLI plane. Check the [MCP surface benchmarks](./MCP_SURFACE_BENCHMARKS.md) for payload-cost tradeoffs; those figures measure tool-surface overhead, **not** agent routing accuracy.
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a> · <a href="../INDEX.md">Documentation index</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

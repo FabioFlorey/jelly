@@ -26,7 +26,7 @@ Jelly starts or attaches to Chromium and exposes browser capabilities through a 
 - **Capture:** Record screenshots, downloads, browser recordings, and network evidence with metadata.
 - **Recover:** Execute guarded routines and request human intervention through Telegram.
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## 2. Use cases
 
@@ -60,7 +60,7 @@ Automate workflows across CRM systems, customer portals, reporting tools, and ba
 
 Connect Jelly through MCP to let AI agents navigate websites, interact with applications, verify outcomes, and execute multi-step browser workflows.
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## 3. Quickstart
 
@@ -101,7 +101,7 @@ cargo run --quiet --bin agent-run -- close-browser
 
 See the [step-by-step setup guide](./docs/getting-started/QUICKSTART.md) for client credentials, browser verification, and troubleshooting.
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## 4. Connect your agent
 
@@ -115,7 +115,7 @@ Jelly exposes the browser through **Streamable HTTP MCP** and includes a CLI for
 
 See the [client setup guide](https://fabioflorey.github.io/jelly/clients.html) for URLs, credentials, and connection steps.
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## 5. MCP tools
 
@@ -129,7 +129,7 @@ For exact parameters, side effects, and output contracts, see the [MCP tool refe
 
 Use `browser-schema` to discover the named semantic operations available through `browser-call`.
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## 6. MCP usage example
 
@@ -152,7 +152,7 @@ This request discovers browser capabilities before opening Chromium.
 
 The [examples page](https://fabioflorey.github.io/jelly/examples.html) explains the next tool call and expected result.
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## 7. Work around the click!
 
@@ -166,7 +166,7 @@ The [examples page](https://fabioflorey.github.io/jelly/examples.html) explains 
 
 </div>
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## 8. Documentation and support
 
@@ -179,7 +179,7 @@ Start with the [documentation index](./docs/INDEX.md), or go directly to the gui
 
 The [project website](https://fabioflorey.github.io/jelly/) includes setup instructions, connection examples, and browser-tool documentation.
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## 9. Project information
 
@@ -191,4 +191,4 @@ Jelly is under active development. For updates, see the [changelog](./CHANGELOG.
 
 **Project contact:** [jelly@fabioflorey.com](mailto:jelly@fabioflorey.com?subject=Jelly%20project%20inquiry).
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>

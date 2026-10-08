@@ -68,4 +68,4 @@ Before reporting success: **requested outcome → observed evidence → artifact
 
 For repeatable routing and verification-plan evaluation, see [Agent Guidance Evaluation](../development/AGENT_EVALUATION.md).
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a> · <a href="../INDEX.md">Documentation index</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

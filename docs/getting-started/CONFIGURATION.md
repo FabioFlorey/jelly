@@ -123,4 +123,4 @@ config/cargo.toml    Cargo/build technical configuration
 <runtime_root>/      generated state and artifacts
 ```
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a> · <a href="../INDEX.md">Documentation index</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

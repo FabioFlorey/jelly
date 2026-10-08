@@ -426,9 +426,30 @@
 
     @media (max-width: 620px) {
       .shell { width: min(100% - 24px, var(--max)); }
-      nav { height: auto; padding: 12px 0; flex-wrap: wrap; align-items: flex-start; }
-      .nav-links { width: 100%; flex-wrap: wrap; column-gap: 16px; row-gap: 6px; font-size: .80rem; }
-      .nav-links a { padding: 5px 0; }
+      nav { height: 60px; flex-wrap: nowrap; gap: 14px; }
+      .wordmark { flex: 0 0 auto; }
+      .wordmark img { width: 36px; }
+      .nav-links {
+        flex: 1 1 auto;
+        min-width: 0;
+        width: auto;
+        flex-wrap: nowrap;
+        gap: 16px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        font-size: .80rem;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+      }
+      .nav-links::-webkit-scrollbar { display: none; }
+      .nav-links a {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        min-height: 44px;
+        white-space: nowrap;
+      }
       .hero { padding-top: 64px; }
       .hero-mark { padding: 28px; }
       .quickstart-stage { --chan-peek: 58px; }
@@ -486,7 +507,6 @@ html { scroll-padding-top: 86px; }
   .hero-mark { min-height: 190px; }
   .hero-mark img { max-height: 250px; object-fit: contain; }
   .doc-page pre, .docs-terminal pre { font-size: .76rem; padding: 12px; }
-  html { scroll-padding-top: 150px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .hero-liquid { display: none; }

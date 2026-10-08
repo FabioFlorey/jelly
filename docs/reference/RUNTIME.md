@@ -80,4 +80,4 @@ scripts/clean-runtime.sh --build
 
 The `--build` variant additionally invokes `cargo clean` **after** deleting the build directory. It is **not** the only command that removes build output. Both commands print a completion message when the script exits successfully. The script does not delete repository source files or `.env`. Verify that any backed-up files are usable before proceeding.
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a> · <a href="../INDEX.md">Documentation index</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

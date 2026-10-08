@@ -164,4 +164,4 @@ scripts/clean-runtime.sh --build
 
 See the full [destructive cleanup contract](../reference/RUNTIME.md#destructive-cleanup).
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a> · <a href="../INDEX.md">Documentation index</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

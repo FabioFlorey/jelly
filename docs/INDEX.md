@@ -46,4 +46,4 @@
     - **decisions/**
       > Reserved for architectural decision records (ADRs).
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>

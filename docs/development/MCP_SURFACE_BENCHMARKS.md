@@ -97,4 +97,4 @@ scripts/benchmark-mcp-surface.sh
 
 The deterministic quality suite checks surface-budget properties rather than latency: binding distribution, published tool count, total `tools/list` bytes, aggregate input/output-schema bytes, and description bytes. The raw-off and raw-on small-surface variants must retain material headroom versus large-surface, so schema or prose growth cannot hide behind an unchanged tool count. Runtime numbers are reported for engineering decisions but are not treated as hard CI thresholds.
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a> · <a href="../INDEX.md">Documentation index</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

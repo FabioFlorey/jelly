@@ -33,7 +33,7 @@
   **Synonyms**: AI agent, autonomous agent
   **References**: [Architecture](../architecture/ARCHITECTURE.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## B
 
@@ -49,7 +49,7 @@
   **Synonyms**: browser session
   **References**: [Architecture](../architecture/ARCHITECTURE.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## C
 
@@ -89,7 +89,7 @@
   **Synonyms**: command-line interface
   **References**: [README](../../README.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## D
 
@@ -111,7 +111,7 @@
   **Synonyms**: document tree
   **References**: [Architecture](../architecture/ARCHITECTURE.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## E
 
@@ -127,19 +127,19 @@
   **Synonyms**: JavaScript execution context
   **References**: [Architecture](../architecture/ARCHITECTURE.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## F
 
 <div align="center"> <sub> ∅ <i> This entry is empty </i> </sub> </div>
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## G
 
 <div align="center"> <sub> ∅ <i> This entry is empty </i> </sub> </div>
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## H
 
@@ -167,7 +167,7 @@
   **Synonyms**: human approval, human handoff
   **References**: [Routines](../guides/ROUTINES.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## I
 
@@ -183,7 +183,7 @@
   **Synonyms**: browser instrumentation
   **References**: [Architecture](../architecture/ARCHITECTURE.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## J
 
@@ -199,13 +199,13 @@
   **Synonyms**: tool schema
   **References**: [Tool Discovery](./DISCOVERY.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## K
 
 <div align="center"> <sub> ∅ <i> This entry is empty </i> </sub> </div>
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## L
 
@@ -215,7 +215,7 @@
   **Synonyms**: large-surface, expanded MCP surface
   **References**: [MCP Server](./MCP.md), [Tool Discovery](./DISCOVERY.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## M
 
@@ -225,7 +225,7 @@
   **Synonyms**: ∅
   **References**: [MCP Server](./MCP.md), [Tool Discovery](./DISCOVERY.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## N
 
@@ -235,7 +235,7 @@
   **Synonyms**: network inspection, traffic capture
   **References**: [Runtime Layout](./RUNTIME.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## O
 
@@ -245,7 +245,7 @@
   **Synonyms**: observe-act-verify, inspect-act-check loop
   **References**: [Architecture](../architecture/ARCHITECTURE.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## P
 
@@ -267,13 +267,13 @@
   **Synonyms**: registry, tool registry
   **References**: [Architecture](../architecture/ARCHITECTURE.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## Q
 
 <div align="center"> <sub> ∅ <i> This entry is empty </i> </sub> </div>
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## R
 
@@ -295,7 +295,7 @@
   **Synonyms**: runtime state
   **References**: [Runtime Layout](./RUNTIME.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## S
 
@@ -347,7 +347,7 @@
   **Synonyms**: element reference, Jelly ref
   **References**: [Tool Index](../../.agent/tools/index.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## T
 
@@ -387,7 +387,7 @@
   **Synonyms**: execution trace
   **References**: [Development](../development/DEVELOPMENT.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## U
 
@@ -397,7 +397,7 @@
   **Synonyms**: browser profile directory, Chromium profile
   **References**: [Runtime Layout](./RUNTIME.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## V
 
@@ -407,7 +407,7 @@
   **Synonyms**: visible page area
   **References**: [Tool Index](../../.agent/tools/index.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## W
 
@@ -417,36 +417,36 @@
   **Synonyms**: WebSocket connection
   **References**: [Architecture](../architecture/ARCHITECTURE.md)
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 ## X
 
 <div align="center"> <sub> ∅ <i> This entry is empty </i> </sub> </div>
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## Y
 
 <div align="center"> <sub> ∅ <i> This entry is empty </i> </sub> </div>
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## Z
 
 <div align="center"> <sub> ∅ <i> This entry is empty </i> </sub> </div>
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## Numbers
 
 <div align="center"> <sub> ∅ <i> This entry is empty </i> </sub> </div>
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 ## Special Characters
 
 <div align="center"> <sub> ∅ <i> This entry is empty </i> </sub> </div>
 
-<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
 
 <div align="center">
