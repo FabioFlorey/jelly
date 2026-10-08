@@ -1,22 +1,124 @@
-JELLY PROPRIETARY LICENSE
+JELLY PERSONAL USE LICENSE (SOURCE-AVAILABLE, NON-COMMERCIAL)
 
 Copyright (c) 2026 Fabio Craig Wimmer Florey. All rights reserved.
 
 Author, owner, and proprietary rights holder: Fabio Craig Wimmer Florey.
+Contact for commercial licensing: jelly@fabioflorey.com
+
+1. Scope
 
 The source code, documentation, and other materials in this repository
-(collectively, the "Software") are proprietary.
+(collectively, the "Software") remain proprietary. This license allows
+certain personal, non-commercial activities only. It is not an open-source
+license, and ownership of the Software is not transferred.
 
-You may access and view the Software for personal evaluation and reference.
-Except for the limited access required to view the repository through its
-hosting service, no permission is granted to use, copy, modify, merge,
-publish, distribute, sublicense, sell, create derivative works from, or
-otherwise exploit the Software, in whole or in part, without prior written
-permission from the copyright holder.
+2. Free Personal Use
 
-No patent, trademark, trade name, or other intellectual property rights are
-granted by this license except the limited right to access and view the
-Software stated above.
+An individual acting solely in a personal, non-commercial capacity may,
+without paying a fee:
+
+- Access, download, install, and run the Software for their own use.
+- Make and use private copies, backups, and modifications of the Software
+  for that same personal, non-commercial use.
+- Use the Software for private learning, research, hobbies, and personal
+  browser automation, provided these activities are not Commercial Use
+  as defined below.
+
+This is a limited, non-exclusive, non-transferable permission. Preserve
+copyright and license notices on any copies or private modifications.
+
+3. Commercial Use Requires a Separate Paid Agreement
+
+"Commercial Use" means use of the Software, directly or indirectly, for or
+in connection with a business, employer, client, paid work, commercial
+product or service, or activity intended to produce revenue or other
+commercial advantage. Commercial Use includes, without limitation:
+
+- Using the Software as part of paid employment, consulting, freelancing,
+  client deliverables, or internal business operations.
+- Offering services, software, hosted access, or automations that use the
+  Software, whether the Software is sold separately or bundled.
+- Using the Software to create, demonstrate, or support paid courses,
+  training, tutorials, subscriptions, sponsored or otherwise monetized
+  content, or other revenue-generating educational products.
+- Incorporating the Software, in whole or in part, into a commercial product,
+  platform, service, or distribution, including a repackaged, rebranded,
+  white-labeled, or otherwise modified or derivative version.
+
+No Commercial Use is licensed under this document, even if no revenue has
+yet been received. BEFORE any Commercial Use, you MUST contact the copyright
+holder at jelly@fabioflorey.com and obtain a separate, signed written
+commercial license.
+
+Commercial licenses are paid. Their terms must specify the applicable
+license fees and revenue-sharing royalties (the copyright holder's cut),
+including the calculation basis, payment schedule, and any reporting
+obligations. Rates and amounts are negotiated in the separate agreement;
+this personal-use license does not set a fee, royalty percentage, or
+automatic permission to use the Software commercially. No payment alone,
+without a written agreement, grants commercial rights.
+
+4. Restrictions and Rights Reserved
+
+Except for the private Personal Use expressly permitted in Section 2,
+NO permission is granted to engage in any of the following activities,
+whether for payment, without charge, or in exchange for another benefit,
+without a separate, prior, written authorization from the copyright
+holder:
+
+(a) Redistributing, publishing, sharing, transferring, selling, reselling,
+    sublicensing, renting, leasing, or otherwise making the Software, any
+    substantial part of it, or any modified or derivative version available
+    to a third party. This includes distribution in source-code, binary,
+    container-image, application, package, plugin, template, or other form.
+
+(b) Repackaging, rebundling, or incorporating the Software, in whole or in
+    part, into another software product, distribution, platform, service,
+    or offering for third-party use, whether separately or as a component
+    of a larger product.
+
+(c) Rebranding, white-labeling, private-labeling, or presenting the Software,
+    or a modified or derivative version of it, under another product name,
+    trademark, logo, trade dress, author attribution, or claimed origin for
+    distribution or third-party use. Preserving existing notices does not
+    independently authorize any such activity.
+
+(d) Selling, licensing, distributing, or commercially exploiting any fork,
+    port, adaptation, modification, or derivative work based on the
+    Software, including through paid services, subscriptions, managed
+    offerings, or Software-as-a-Service (SaaS) access.
+
+(e) Removing, altering, concealing, or misrepresenting any copyright,
+    license, attribution, proprietary-rights, or ownership notice included
+    with the Software or its permitted copies.
+
+For clarity, private modifications made and used only by an individual
+for the personal, non-commercial purposes specified in Section 2 remain
+permitted. Such permission does not include distributing those modifications
+or offering third parties access to them. A public fork, a published modified
+repository, a rebranded release, or third-party hosted access is not licensed
+by Section 2.
+
+Any authorization for Commercial Use, including commercialization of
+repackaged, rebranded, white-labeled, or derivative versions, must be
+contained in the separate signed commercial agreement required by Section 3,
+including the negotiated license fees and revenue-sharing terms. Permission
+to inspect, copy, or privately modify the Software does not imply permission
+to commercialize or redistribute it.
+
+All rights not expressly granted are reserved. No patent, trademark,
+trade-name, or other intellectual property rights are granted by this
+license beyond those expressly stated.
+
+5. Termination
+
+The permission granted by Section 2 ends automatically if you violate
+this license. Upon termination, stop using the Software and delete copies
+and modifications in your possession or control, except as otherwise
+required by applicable law. Any new permission requires written
+authorization from the copyright holder.
+
+6. No Warranty or Liability
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,

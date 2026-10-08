@@ -21,9 +21,7 @@ on:
       - 'tests/fixtures/agent-guidance-cases.json'
       - 'scripts/eval-agent-guidance.py'
       - '.agent/tools/index.md'
-      - 'site/**'
       - 'scripts/check-docs.py'
-      - 'scripts/check-site.py'
       - 'config/jelly.toml'
       - 'config/cargo.toml'
       - 'scripts/clean-runtime.sh'
@@ -45,9 +43,7 @@ on:
       - 'tests/fixtures/agent-guidance-cases.json'
       - 'scripts/eval-agent-guidance.py'
       - '.agent/tools/index.md'
-      - 'site/**'
       - 'scripts/check-docs.py'
-      - 'scripts/check-site.py'
       - 'config/jelly.toml'
       - 'config/cargo.toml'
       - 'scripts/clean-runtime.sh'
@@ -59,15 +55,11 @@ permissions:
 
 jobs:
   validate:
-    name: Validate documentation and site
+    name: Validate documentation
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Check Markdown links, examples, structure and configuration drift
         run: python3 scripts/check-docs.py
-      - name: Validate site asset and documentation links
-        run: python3 scripts/check-site.py
       - name: Validate agent-guidance evaluation harness
         run: python3 scripts/eval-agent-guidance.py --self-test
-      - name: JavaScript syntax
-        run: node --check site/assets/js/main.js

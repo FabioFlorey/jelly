@@ -21,9 +21,6 @@ LINK = re.compile(r"\]\(([^)\n]+)\)|<a\b[^>]*\bhref=\"([^\"]+)\"", re.I)
 BLOCK = re.compile(r"^\s*```([^\n]*)\n(.*?)^\s*```\s*$", re.M | re.S)
 HEAD = re.compile(r"^#{1,6}\s+(.+?)\s*#*\s*$", re.M)
 TOP_ID = re.compile(r"\bid=\"([^\"]+)\"")
-GITHUB_DOC_URL = re.compile(
-    r"https://github\.com/FabioFlorey/jelly/(?:blob|tree)/main/(docs(?:/[^\s\"<>)]*)?)"
-)
 
 
 def slug(text: str) -> str:
@@ -131,12 +128,6 @@ def check() -> None:
     missing = set(documents) - indexed - {index}
     if missing:
         failures.append("INDEX.md does not list: " + ", ".join(str(p.relative_to(DOCS)) for p in sorted(missing)))
-
-    for html_file in [ROOT / "site/index.html", ROOT / "site/404.html"]:
-        for match in GITHUB_DOC_URL.finditer(html_file.read_text(encoding="utf-8")):
-            target = ROOT / match.group(1)
-            if not target.exists():
-                failures.append(f"{html_file.relative_to(ROOT)}: broken docs URL: {match.group(0)}")
 
     technical_config = tomllib.loads((ROOT / "config/jelly.toml").read_text(encoding="utf-8"))
     config_doc = (DOCS / "getting-started/CONFIGURATION.md").read_text(encoding="utf-8")

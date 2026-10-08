@@ -162,7 +162,7 @@ The [examples page](https://fabioflorey.github.io/jelly/examples.html) explains 
   <img src="./assets/porsche-718-spyder-rs-demo-20261008.gif" alt="Looping demo of Jelly configuring a yellow Porsche 718 Spyder RS" width="880">
 </a>
 
-<sub><strong>Work around the click!</strong> Watch Jelly configure a Racing Yellow Porsche 718 Spyder RS with black-and-yellow wheels and the Weissach Package, then highlight the final price. Each browser step is captioned. This animated preview plays on repeat; <a href="https://github.com/FabioFlorey/jelly/blob/main/site/assets/images/porsche-718-spyder-rs-demo-20261008.mp4">watch the MP4</a>.</sub>
+<sub><strong>Every move, on the record.</strong> Jelly doesn't just automate the browser. It shows its work, capturing and captioning its own actions as they happen. <a href="https://github.com/FabioFlorey/jelly/blob/main/site/assets/images/porsche-718-spyder-rs-demo-20261008.mp4">Watch the full recording</a>.</sub>
 
 </div>
 
@@ -184,6 +184,8 @@ The [project website](https://fabioflorey.github.io/jelly/) includes setup instr
 ## 9. Project information
 
 Jelly is under active development. For updates, see the [changelog](./CHANGELOG.md) and [releases](https://github.com/FabioFlorey/jelly/releases).
+
+**Licensing:** Free for individual, personal, non-commercial use, including private modifications. Repackaging, rebranding, white-labeling, resale, redistribution, and publishing modified versions are not permitted under the personal-use license. Business use, paid courses, monetized content, and other commercial activities require a separately signed agreement with negotiated license fees and revenue-sharing royalties. For commercial licensing, contact [jelly@fabioflorey.com](mailto:jelly@fabioflorey.com). See the [full license](./LICENSE).
 
 [Contributing](./CONTRIBUTING.md) · [Issue tracker](https://github.com/FabioFlorey/jelly/issues) · [Security policy](./SECURITY.md) · [License](./LICENSE)
 

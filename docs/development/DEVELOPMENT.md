@@ -78,14 +78,7 @@ The [agent evaluation guide](./AGENT_EVALUATION.md) describes the offline routin
 
 The static website is maintained in the top-level [`site/`](../../site) directory, separate from the Markdown documentation under `docs/` and the application's runtime branding assets under `assets/`. Website CSS and JavaScript live in `site/assets/css/style.css` and `site/assets/js/main.js`; media and favicon are under `site/assets/images/` and `site/favicon.svg`. The public site also serves standalone pages for Getting Started, Clients, MCP Tools, Examples, and Troubleshooting. Security details are maintained in `SECURITY.md`. The runtime server's `/connections`, `/dashboard` and OAuth approval interface is separate from the static GitHub Pages site.
 
-Run the self-contained site link/metadata validation before publishing:
-
-```bash
-python3 scripts/check-site.py
-node --check site/assets/js/main.js
-```
-
-[`.github/workflows/pages.yml`](../../.github/workflows/pages.yml) publishes the contents of `site/` using GitHub Actions on pushes to `main` affecting the site, documentation-checking script, or workflow, or via manual dispatch. The static validator checks every page's links, internal anchors, unique titles/descriptions, canonical URLs, sitemap, publication surface inventory and relevant security settings against the Rust registry. The [documentation workflow](../../.github/workflows/docs.yml) checks the documentation and website on relevant pull requests as well. To enable deployment, set **Settings → Pages → Build and deployment → Source → GitHub Actions** in the GitHub repository. The public project URL remains `https://fabioflorey.github.io/jelly/`. A `CNAME` file is deliberately absent because there is no configured custom domain; GitHub Pages ignores `CNAME` files when using the custom Actions deployment workflow. If adopting a custom domain, configure it in the repository's Pages settings and update the site URLs and `/jelly/`-based 404 assets accordingly.
+[`.github/workflows/pages.yml`](../../.github/workflows/pages.yml) publishes the contents of `site/` directly using GitHub Actions on pushes to `main` affecting the site or publishing workflow, or via manual dispatch. The Pages workflow checks out the repository, packages the static site, and deploys it without website-validation steps. The separate [documentation workflow](../../.github/workflows/docs.yml) validates project Markdown and agent guidance, not the static website. To enable deployment, set **Settings → Pages → Build and deployment → Source → GitHub Actions** in the GitHub repository. The public project URL remains `https://fabioflorey.github.io/jelly/`. A `CNAME` file is deliberately absent because there is no configured custom domain; GitHub Pages ignores `CNAME` files when using the custom Actions deployment workflow. If adopting a custom domain, configure it in the repository's Pages settings and update the site URLs and `/jelly/`-based 404 assets accordingly.
 
 ## Documentation validation
 
@@ -93,8 +86,6 @@ Before submitting documentation changes, run:
 
 ```bash
 python3 scripts/check-docs.py
-python3 scripts/check-site.py
-node --check site/assets/js/main.js
 ```
 
 The documentation checker verifies local links and anchors, the documentation index, fenced JSON/TOML examples, and basic Mermaid structure. The dedicated `.github/workflows/docs.yml` runs this check on documentation changes in CI. These checks validate syntax and navigation; they do **not** replace reviewing technical claims against the Rust implementation. Mermaid rendering in a browser is not part of this automated check.

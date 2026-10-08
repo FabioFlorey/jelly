@@ -53,8 +53,7 @@ Some repository regression and performance scripts use additional command-line t
 | **jq** | Regression and browser verification scripts | Used to inspect and assert JSON output |
 | **curl** | MCP lifecycle and verification scripts | Used to call local MCP/health endpoints |
 | **util-linux (`flock`)** | Scenario test suite | Serializes executable suite runs that share Jelly browser/service state |
-| **Python 3.11+** | Documentation checks and shell configuration helpers | Runs `scripts/check-docs.py` (uses `tomllib`), `scripts/check-site.py`, and setup helpers |
-| **Node.js** | Static website JavaScript syntax checks | Runs `node --check site/assets/js/main.js` |
+| **Python 3.11+** | Documentation checks and shell configuration helpers | Runs `scripts/check-docs.py` (uses `tomllib`) and setup helpers |
 
 ## Optional integration configuration
 
