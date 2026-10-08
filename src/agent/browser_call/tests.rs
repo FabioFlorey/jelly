@@ -449,6 +449,7 @@ fn every_semantic_primitive_can_be_preflighted_with_raw_disabled() {
                 crate::ArgKind::String => Value::String("x".into()),
                 crate::ArgKind::Target => Value::String("css:#target".into()),
                 crate::ArgKind::Integer => json!(1),
+                crate::ArgKind::Object => json!({"name":"x","value":"x"}),
             };
             params.insert(arg.name.to_owned(), value);
         }

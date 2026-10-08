@@ -426,6 +426,16 @@ pub fn redact_tool_args(tool: &str, args: &[String]) -> Vec<String> {
                 *value = "<redacted-input>".into();
             }
         }
+        "set-cookie" => {
+            if let Some(value) = out.first_mut() {
+                *value = "<redacted-cookie>".into();
+            }
+        }
+        "storage-set" => {
+            if let Some(value) = out.get_mut(2) {
+                *value = "<redacted-storage-value>".into();
+            }
+        }
         _ => {}
     }
     out
@@ -509,6 +519,24 @@ mod tests {
         assert_eq!(
             redact_tool_args("dialog", &["accept".into(), "private".into()]),
             vec!["accept".to_owned(), "<redacted-input>".to_owned()]
+        );
+        assert_eq!(
+            redact_tool_args(
+                "set-cookie",
+                &[r#"{"name":"session","value":"secret"}"#.into()]
+            ),
+            vec!["<redacted-cookie>".to_owned()]
+        );
+        assert_eq!(
+            redact_tool_args(
+                "storage-set",
+                &["local".into(), "token".into(), "secret".into()]
+            ),
+            vec![
+                "local".to_owned(),
+                "token".to_owned(),
+                "<redacted-storage-value>".to_owned()
+            ]
         );
     }
 

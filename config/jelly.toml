@@ -29,8 +29,20 @@ cdp_timeout_secs = 60
 [mcp]
 surface = "small-surface"
 persistent_session = true
-raw_cdp = false
+raw_cdp = true
 allow_cargo_fallback = false
+
+# Active client connection profiles (configuration for onboarding, not
+# per-client enforcement). HTTPS for ChatGPT is supplied by quick-tunnel.
+[[mcp.connections]]
+provider = "chatgpt"
+method = "remote-http"
+auth = "oauth"
+
+[[mcp.connections]]
+provider = "generic-mcp"
+method = "local-http"
+auth = "bearer-token"
 
 [page]
 runtime = true

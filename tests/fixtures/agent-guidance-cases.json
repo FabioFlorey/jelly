@@ -1,0 +1,66 @@
+[
+  {
+    "id": "AGT-001", "surface": "small", "intent": "Find out which tool searches an interactive page by name; the operation contract is unknown.",
+    "expected_tool": "browser-schema", "required_args": {"action": "search", "query": "find interactive control"}, "checks": ["load-schema-before-action"], "avoid": ["browser-call", "cdp-call"]
+  },
+  {
+    "id": "AGT-002", "surface": "small", "intent": "The operation name is find-interactive; get its named JSON argument contract.",
+    "expected_tool": "browser-schema", "required_args": {"action": "schema", "operation": "find-interactive"}, "checks": ["schema-observed"], "avoid": ["browser-call"]
+  },
+  {
+    "id": "AGT-003", "surface": "small", "intent": "Read text from an already-open page; the operation contract is known.",
+    "expected_tool": "browser-call", "required_args": {"calls": [{"call": {"jelly": "read-page", "params": {}}}]}, "checks": ["inspect-observed-state"], "avoid": ["cdp-call", "browser-events"]
+  },
+  {
+    "id": "AGT-004", "surface": "small", "intent": "Find the Submit button by its visible name before clicking, on an unfamiliar page.",
+    "expected_tool": "browser-call", "required_args": {"calls": [{"call": {"jelly": "find-interactive", "params": {"query": "Submit"}}}]}, "checks": ["inspect-current-ref"], "avoid": ["cdp-call"]
+  },
+  {
+    "id": "AGT-005", "surface": "small", "intent": "Click the currently inspected button @e123, then verify its persisted result separately.",
+    "expected_tool": "browser-call", "required_args": {"calls": [{"call": {"jelly": "click", "params": {"target": "@e123"}}}]}, "checks": ["verify-result"], "avoid": ["cdp-call", "browser-events"]
+  },
+  {
+    "id": "AGT-006", "surface": "small", "intent": "A click failed with target_stale after a rerender; determine a current element ref without repeating the click.",
+    "expected_tool": "browser-call", "required_args": {"calls": [{"call": {"jelly": "find-interactive", "params": {"query": "Submit"}}}]}, "checks": ["reinspect-before-retry"], "avoid": ["cdp-call"]
+  },
+  {
+    "id": "AGT-007", "surface": "large", "intent": "Read a page with individual browser primitives exposed; do not invent the small-surface facade.",
+    "expected_tool": "read-page", "required_args": {}, "checks": ["inspect-observed-state"], "avoid": ["browser-call", "browser-schema"]
+  },
+  {
+    "id": "AGT-008", "surface": "large", "intent": "Wait with a deadline for a confirmation message and return evidence, not just pause.",
+    "expected_tool": "wait-for", "required_args": {"condition": "text", "value": "Saved"}, "checks": ["verify-result"], "avoid": ["wait", "evaluate-js"]
+  },
+  {
+    "id": "AGT-009", "surface": "small", "intent": "Take exactly one picture of the browser viewport.",
+    "expected_tool": "screenshot", "required_args": {}, "checks": ["verify-artifact"], "avoid": ["record-browser"]
+  },
+  {
+    "id": "AGT-010", "surface": "small", "intent": "Start a step-by-step MP4 with captions for each browser action.",
+    "expected_tool": "record-browser", "required_args": {"action": "start", "mode": "steps"}, "checks": ["stop-and-verify-recording"], "avoid": ["screenshot"]
+  },
+  {
+    "id": "AGT-011", "surface": "small", "intent": "Verify that the finished MP4 artifact is registered and has integrity metadata.",
+    "expected_tool": "verify-artifact", "required_args": {"artifact": "artifact-demo"}, "checks": ["inspect-integrity-result"], "avoid": ["screenshot"]
+  },
+  {
+    "id": "AGT-012", "surface": "small", "intent": "The user requested sending an existing MP4 via Telegram, and no chat channel is active.",
+    "expected_tool": "hitl", "required_args": {"message": "Here is the requested video", "video": "/tmp/demo.mp4"}, "checks": ["verify-delivery-accepted"], "avoid": ["browser-events"]
+  },
+  {
+    "id": "AGT-013", "surface": "small", "intent": "Execute a reusable routine with guarded branches and human suspension/resumption.",
+    "expected_tool": "call-routine", "required_args": {"name": "verified-screenshot"}, "checks": ["verify-routine-outcome"], "avoid": ["browser-call"]
+  },
+  {
+    "id": "AGT-014", "surface": "small", "intent": "Monitor retained CDP network notifications, including dropped-event evidence.",
+    "expected_tool": "browser-events", "required_args": {"action": "subscribe"}, "checks": ["inspect-cursor-loss"], "avoid": ["read-page", "cdp-call"]
+  },
+  {
+    "id": "AGT-015", "surface": "small", "intent": "A click timed out and could have submitted a form. Before considering a retry, read current page state.",
+    "expected_tool": "browser-call", "required_args": {"calls": [{"call": {"jelly": "read-page", "params": {}}}]}, "checks": ["inspect-before-retry"], "avoid": ["cdp-call"]
+  },
+  {
+    "id": "AGT-016", "surface": "large", "intent": "Use a page-specific script only after confirming semantic operations cannot express the required observation.",
+    "expected_tool": "evaluate-js", "required_args": {"expression": "document.readyState"}, "checks": ["inspect-script-result"], "avoid": ["cdp-call"]
+  }
+]

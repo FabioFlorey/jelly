@@ -98,7 +98,7 @@ fn system_failure_kind(name: &str) -> &'static str {
         "open-browser" | "close-browser" | "browser-task" => "browser_unavailable",
         "profile-import" => "interaction_failed",
         "screenshot" | "record-browser" | "verify-artifact" => "artifact_failed",
-        "downloads" | "wait-download" => "download_failed",
+        "download" | "downloads" | "wait-download" => "download_failed",
         "hitl" => "delivery_failed",
         _ => "internal",
     }
@@ -136,7 +136,8 @@ fn system_tool(name: &str, args: &[String]) -> Result<String, RoutineFailure> {
         } else {
             stderr
         };
-        let kind = if name == "wait-download" && message.contains("timed out") {
+        let kind = if matches!(name, "wait-download" | "download") && message.contains("timed out")
+        {
             "condition_timeout"
         } else {
             system_failure_kind(name)

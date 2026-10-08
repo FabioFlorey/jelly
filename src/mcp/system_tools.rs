@@ -16,14 +16,15 @@ pub(super) fn execute_mcp_system_tool(
         reset_mcp_browser_session();
     }
     run_system_tool(name, &args).map_err(|message| {
-        let kind = if name == "wait-download" && message.contains("timed out") {
+        let kind = if matches!(name, "wait-download" | "download") && message.contains("timed out")
+        {
             ErrorKind::ConditionTimeout
         } else {
             match name {
                 "open-browser" | "close-browser" | "browser-task" => ErrorKind::BrowserUnavailable,
                 "profile-import" => ErrorKind::InteractionFailed,
                 "screenshot" | "record-browser" | "verify-artifact" => ErrorKind::ArtifactFailed,
-                "downloads" | "wait-download" => ErrorKind::DownloadFailed,
+                "download" | "downloads" | "wait-download" => ErrorKind::DownloadFailed,
                 "hitl" => ErrorKind::DeliveryFailed,
                 _ => ErrorKind::Internal,
             }
@@ -88,6 +89,53 @@ pub(super) fn system_cli_args(
     match name {
         "open-browser" => Ok(string("url")?.into_iter().collect()),
         "close-browser" | "downloads" => Ok(Vec::new()),
+        "download" => {
+            let action = string("action")?.ok_or("download requires action")?;
+            match action.as_str() {
+                "list" => {
+                    if object.len() != 1 {
+                        return Err("download list accepts only action".into());
+                    }
+                    Ok(vec![action])
+                }
+                "status" | "cancel" => {
+                    let id =
+                        string("id")?.ok_or_else(|| format!("download {action} requires id"))?;
+                    if object
+                        .keys()
+                        .any(|key| !matches!(key.as_str(), "action" | "id"))
+                    {
+                        return Err(format!("download {action} accepts only action and id"));
+                    }
+                    Ok(vec![action, id])
+                }
+                "wait" => {
+                    let id = string("id")?.ok_or("download wait requires id")?;
+                    let seconds = integer("seconds")?.unwrap_or(30).max(1);
+                    let destination = string("destination")?;
+                    let collision = string("collision")?;
+                    if collision.is_some() && destination.is_none() {
+                        return Err("download collision requires destination".into());
+                    }
+                    if let Some(policy) = collision.as_deref()
+                        && !matches!(policy, "fail" | "overwrite" | "uniquify")
+                    {
+                        return Err(
+                            "download collision must be fail, overwrite, or uniquify".into()
+                        );
+                    }
+                    let mut args = vec![action, id, seconds.to_string()];
+                    if let Some(destination) = destination {
+                        args.push(destination);
+                        if let Some(collision) = collision {
+                            args.push(collision);
+                        }
+                    }
+                    Ok(args)
+                }
+                _ => Err("download action must be list, status, wait, or cancel".into()),
+            }
+        }
         "browser-task" => {
             let url = string("url")?.ok_or("browser-task requires url")?;
             let tool = string("tool")?.ok_or("browser-task requires tool")?;
@@ -233,5 +281,51 @@ fn run_system_tool(name: &str, args: &[String]) -> Result<String, String> {
         } else {
             stderr
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn download_system_args_preserve_lifecycle_contract() {
+        assert_eq!(
+            system_cli_args("download", json!({"action":"list"}).as_object().unwrap()).unwrap(),
+            vec!["list".to_owned()]
+        );
+        assert_eq!(
+            system_cli_args(
+                "download",
+                json!({
+                    "action":"wait",
+                    "id":"guid-1",
+                    "seconds":12,
+                    "destination":"/tmp/out",
+                    "collision":"uniquify"
+                })
+                .as_object()
+                .unwrap()
+            )
+            .unwrap(),
+            vec![
+                "wait".to_owned(),
+                "guid-1".to_owned(),
+                "12".to_owned(),
+                "/tmp/out".to_owned(),
+                "uniquify".to_owned()
+            ]
+        );
+        assert!(
+            system_cli_args(
+                "download",
+                json!({"action":"wait","id":"guid-1","collision":"overwrite"})
+                    .as_object()
+                    .unwrap()
+            )
+            .unwrap_err()
+            .contains("requires destination")
+        );
     }
 }

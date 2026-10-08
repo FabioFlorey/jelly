@@ -1,4 +1,4 @@
-use jelly::mcp;
+use jelly::{config::config, mcp};
 use std::{env, net::SocketAddr};
 
 #[tokio::main]
@@ -16,12 +16,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|value| value == "true")
         .unwrap_or(false);
 
+    let local_approval_enabled = consent_mode == "paired" && public_chatgpt_dcr;
     let address = env::var("JELLY_MCP_ADDR").unwrap_or_else(|_| "127.0.0.1:8787".into());
     let address: SocketAddr = address.parse()?;
+    let admin_address = if local_approval_enabled {
+        env::var("JELLY_MCP_ADMIN_ADDR").unwrap_or_else(|_| "127.0.0.1:8788".into())
+    } else {
+        "127.0.0.1:8788".into()
+    };
+    let admin_address: SocketAddr = admin_address.parse()?;
+    if local_approval_enabled && !admin_address.ip().is_loopback() {
+        return Err("JELLY_MCP_ADMIN_ADDR must bind to a loopback address".into());
+    }
+    let local_admin_url = format!("http://{admin_address}");
     let public_url = env::var("JELLY_PUBLIC_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| format!("http://{address}"));
+
+    // Explicit connection profiles are validated before opening any listener.
+    // No profile configured means the existing MCP/authorization setup is unchanged.
+    for connection in &config().mcp.connections {
+        connection.validate_deployment(address, &public_url)?;
+    }
 
     let listener = tokio::net::TcpListener::bind(address).await?;
     println!("jelly MCP listening on http://{address}/mcp");
@@ -32,17 +49,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         consent_mode, public_chatgpt_dcr
     );
 
-    axum::serve(
-        listener,
-        mcp::router(
-            token,
-            oauth_password,
-            bootstrap_secret,
-            consent_mode,
-            public_chatgpt_dcr,
-            public_url,
-        )?,
-    )
-    .await?;
+    let (public_router, admin_router) = mcp::server_routers(
+        token,
+        oauth_password,
+        bootstrap_secret,
+        consent_mode,
+        public_chatgpt_dcr,
+        public_url,
+        local_admin_url,
+    )?;
+
+    if local_approval_enabled {
+        let admin_listener = tokio::net::TcpListener::bind(admin_address).await?;
+        println!("jelly local admin listening on http://{admin_address}");
+        tokio::try_join!(
+            axum::serve(listener, public_router),
+            axum::serve(admin_listener, admin_router)
+        )?;
+    } else {
+        axum::serve(listener, public_router).await?;
+    }
     Ok(())
 }

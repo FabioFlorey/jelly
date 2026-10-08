@@ -1,6 +1,6 @@
 use jelly::{
-    BrowserSession, DOWNLOAD_DIR, ErrorKind, HEADLESS_PROFILE_DIR, PROFILE_DIR, jelly_error,
-    register_download,
+    BrowserSession, DOWNLOAD_DIR, ErrorKind, HEADLESS_PROFILE_DIR, PROFILE_DIR, download_records,
+    finalize_download, jelly_error, register_download,
 };
 use std::{
     env, fs,
@@ -94,6 +94,56 @@ fn main() -> Result<(), jelly::Error> {
     let threshold = after_ms;
 
     loop {
+        let mut has_lifecycle_match = false;
+        if let Ok(records) = download_records() {
+            let mut lifecycle = records
+                .into_iter()
+                .filter(|record| u128::from(record.started_at_ms) >= threshold)
+                .filter(|record| {
+                    name_contains.is_none_or(|needle| record.suggested_filename.contains(needle))
+                })
+                .collect::<Vec<_>>();
+            lifecycle.sort_by_key(|record| std::cmp::Reverse(record.started_at_ms));
+            has_lifecycle_match = !lifecycle.is_empty();
+
+            for record in lifecycle {
+                match record.state.as_str() {
+                    "completed" => {
+                        let record = finalize_download(&record.id, None, "fail")?;
+                        if let Some(artifact) = record.artifact {
+                            println!("{}", serde_json::to_string(&artifact)?);
+                            return Ok(());
+                        }
+                    }
+                    "canceled" | "interrupted" => {
+                        return Err(jelly_error(
+                            ErrorKind::DownloadFailed,
+                            format!(
+                                "download {} ended in state {} ({})",
+                                record.id,
+                                record.state,
+                                record.failure_reason.as_deref().unwrap_or("unknown reason")
+                            ),
+                            false,
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if has_lifecycle_match {
+            if Instant::now() >= deadline {
+                return Err(jelly_error(
+                    ErrorKind::ConditionTimeout,
+                    format!("timed out after {seconds}s waiting for a completed download"),
+                    true,
+                ));
+            }
+            thread::sleep(Duration::from_millis(100));
+            continue;
+        }
+
         let mut matches = candidates()
             .into_iter()
             .filter(|path| modified_ms(path) >= threshold)

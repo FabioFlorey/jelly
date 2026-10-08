@@ -39,6 +39,36 @@ fn named_schema_and_optional_dependencies_share_the_positional_contract() {
     assert_eq!(highlight["required"], json!(["target"]));
     assert_eq!(highlight["dependentRequired"]["mode"], json!(["label"]));
     assert_eq!(highlight["additionalProperties"], false);
+
+    let set_cookie = named_primitive_input_schema(spec("set-cookie")).unwrap();
+    assert_eq!(
+        set_cookie["properties"]["cookie"]["required"],
+        json!(["name", "value"])
+    );
+    assert_eq!(
+        set_cookie["properties"]["cookie"]["properties"]["sameSite"]["enum"],
+        json!(["Strict", "Lax", "None"])
+    );
+    assert_eq!(
+        set_cookie["properties"]["cookie"]["additionalProperties"],
+        false
+    );
+
+    let delete_cookie = named_primitive_input_schema(spec("delete-cookie")).unwrap();
+    assert_eq!(
+        delete_cookie["properties"]["selector"]["required"],
+        json!(["name"])
+    );
+    assert_eq!(
+        delete_cookie["properties"]["selector"]["additionalProperties"],
+        false
+    );
+
+    let storage_set = named_primitive_input_schema(spec("storage-set")).unwrap();
+    assert_eq!(
+        storage_set["properties"]["area"]["enum"],
+        json!(["local", "session"])
+    );
 }
 
 #[test]

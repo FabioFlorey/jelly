@@ -33,7 +33,7 @@ pub static TOOL_CATEGORIES: &[ToolCategorySpec] = &[
     },
     ToolCategorySpec {
         name: "artifacts",
-        description: "Capture screenshots and inspect files downloaded by the browser.",
+        description: "Capture browser artifacts and inspect or control first-class download lifecycle state.",
     },
     ToolCategorySpec {
         name: "network",
@@ -76,19 +76,25 @@ pub static TOOLS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "screenshot",
-        description: "Capture browser-rendered content only: the active page viewport by default or a specific target such as css:body, css:main, exact text, or a Jelly element reference.",
+        description: "Capture a single browser-rendered viewport or targeted element. For a multi-action video use record-browser, not repeated screenshots.",
         usage: "screenshot [target] [output] [--output path]",
         category: "artifacts",
     },
     ToolSpec {
         name: "record-browser",
-        description: "Start or stop a browser-content recording. Continuous mode streams renderer frames; steps mode captures browser state after relevant actions and turns the trace into a timed video.",
+        description: "Start or stop a browser-content MP4. Use steps for captioned action-by-action evidence; continuous streams renderer frames. Use screenshot for one still image.",
         usage: "record-browser start [--mode continuous|steps] [--interval-ms n] [--hold-ms n] | record-browser stop",
         category: "artifacts",
     },
     ToolSpec {
+        name: "download",
+        description: "Inspect and control first-class browser download lifecycle state, including progress, cancellation, suggested filenames, destination selection, and collision policy.",
+        usage: "download <list|status|wait|cancel> [id] [seconds] [destination] [fail|overwrite|uniquify]",
+        category: "artifacts",
+    },
+    ToolSpec {
         name: "downloads",
-        description: "List files downloaded into jelly browser download locations.",
+        description: "List files downloaded into jelly browser download locations. This legacy filesystem view is retained for compatibility; use download for lifecycle state.",
         usage: "downloads",
         category: "artifacts",
     },
@@ -112,13 +118,13 @@ pub static TOOLS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "call-routine",
-        description: "Execute or resume a routine. JSON graph routines support guarded branches, loops, jumps, budgets, HITL suspension, and owned-browser cleanup.",
+        description: "Execute or resume guarded workflows with branching, loops, budgets, HITL continuation, or cleanup. Use browser-call for a simple ordered action batch.",
         usage: "call-routine <name> [key=value] | call-routine resume <id> [key=value]",
         category: "routines",
     },
     ToolSpec {
         name: "hitl",
-        description: "Request human intervention through Telegram with a browser-content screenshot by default, or attach a local MP4 video. A specific page element can be attached without capturing the desktop.",
+        description: "Request a human decision through Telegram when chat is unavailable; attach a browser screenshot or a local MP4 for delivery. This is not browser-event monitoring.",
         usage: "hitl <message> [--video path | --screenshot-target target | --no-screenshot]",
         category: "hitl",
     },

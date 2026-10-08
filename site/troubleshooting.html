@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#ffc107">
+    <meta name="description" content="Diagnose Jelly MCP server startup failures, remote HTTPS configuration, OAuth and bearer-token errors, missing Chromium, tool errors and Quick Tunnel reconnections.">
+    <meta name="robots" content="index,follow">
+    <title>
+      Troubleshoot Jelly MCP Connections · Jelly MCP Server
+    </title>
+    <link rel="canonical" href="https://fabioflorey.github.io/jelly/troubleshooting.html">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="alternate icon" type="image/png" href="./assets/images/favicon.png">
+    <link rel="stylesheet" href="./assets/css/style.css">
+    <meta property="og:title" content="Troubleshoot Jelly MCP Connections · Jelly MCP Server">
+    <meta property="og:description" content="Diagnose Jelly MCP server startup failures, remote HTTPS configuration, OAuth and bearer-token errors, missing Chromium, tool errors and Quick Tunnel reconnections.">
+    <meta property="og:url" content="https://fabioflorey.github.io/jelly/troubleshooting.html">
+    <meta property="og:type" content="article">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header>
+      <nav class="shell" aria-label="Primary navigation">
+        <a class="wordmark" href="./" aria-label="Jelly home">
+        <img src="./assets/images/logo.png" alt="" width="40" height="40">
+        </a>
+        <div class="nav-links">
+          <a href="./getting-started.html">Get Started</a><a href="./tools.html">Tools</a><a
+          href="./clients.html">Clients</a><a href="./examples.html">Examples</a><a
+          href="https://github.com/FabioFlorey/jelly">GitHub</a>
+        </div>
+      </nav>
+    </header>
+    <main class="shell doc-page" id="main">
+      <div class="doc-head">
+        <div class="eyebrow">
+          Jelly / Developer documentation
+        </div>
+        <h1>
+          Troubleshoot Jelly MCP Connections
+        </h1>
+        <p class="lede">
+          Find an observed symptom, run a diagnostic command, apply a resolution, and verify the outcome.
+        </p>
+      </div>
+      <section>
+        <h2>
+          Observed symptom → diagnosis → resolution
+        </h2>
+        <p>
+          Run commands from the Jelly repository root. Do not paste tokens or personal browser data into issue reports.
+        </p>
+      </section>
+      <section id="issue-1">
+        <h2>
+          MCP service does not respond
+        </h2>
+        <p>
+          <strong>Likely cause:</strong> The user service is stopped, dependencies are missing, or the configured loopback
+          port differs.
+        </p>
+        <p>
+          <strong>Diagnostic check:</strong>
+        </p>
+        <pre><code>systemctl --user status jelly-mcp.service
+journalctl --user -u jelly-mcp.service -n 50 --no-pager</code></pre>
+        <p>
+          <strong>Resolution:</strong> Start the service with the configured installer or resolve the logged error; verify
+          the configured address.
+        </p>
+        <p>
+          <strong>Verification:</strong> Run curl http://127.0.0.1:8787/health and check for status: ok.
+        </p>
+      </section>
+      <section id="issue-2">
+        <h2>
+          Remote profile rejects local startup
+        </h2>
+        <p>
+          <strong>Likely cause:</strong> The checked-in chatgpt remote-http profile requires a real HTTPS JELLY_PUBLIC_URL.
+        </p>
+        <p>
+          <strong>Diagnostic check:</strong>
+        </p>
+        <pre><code>grep -A3 &quot;\[\[mcp.connections\]\]&quot; config/jelly.toml</code></pre>
+        <p>
+          <strong>Resolution:</strong> Use the hosting wizard to establish an HTTPS origin, or remove the remote ChatGPT
+          profile for local-only operation.
+        </p>
+        <p>
+          <strong>Verification:</strong> Restart the MCP process and confirm /health returns ok.
+        </p>
+      </section>
+      <section id="issue-3">
+        <h2>
+          HTTP 401 Unauthorized
+        </h2>
+        <p>
+          <strong>Likely cause:</strong> The bearer token is absent, mismatched or expired, or OAuth has not completed.
+        </p>
+        <p>
+          <strong>Diagnostic check:</strong>
+        </p>
+        <pre><code>curl -i http://127.0.0.1:8787/mcp</code></pre>
+        <p>
+          <strong>Resolution:</strong> Load JELLY_MCP_TOKEN from the local .env without printing it, or complete OAuth. Do
+          not use the bootstrap secret as a normal MCP token.
+        </p>
+        <p>
+          <strong>Verification:</strong> An authenticated tools/list or browser-schema tools/call returns a JSON-RPC result.
+        </p>
+      </section>
+      <section id="issue-4">
+        <h2>
+          HTTP 403 on dashboard or status
+        </h2>
+        <p>
+          <strong>Likely cause:</strong> Ordinary OAuth credentials do not grant operator diagnostics.
+        </p>
+        <p>
+          <strong>Diagnostic check:</strong>
+        </p>
+        <pre><code>curl -i http://127.0.0.1:8787/status.json</code></pre>
+        <p>
+          <strong>Resolution:</strong> Use the configured owner pairing flow or authorized bootstrap/static bearer token.
+        </p>
+        <p>
+          <strong>Verification:</strong> Authorized /status.json succeeds; ordinary OAuth remains forbidden.
+        </p>
+      </section>
+      <section id="issue-5">
+        <h2>
+          Browser tool fails with browser_unavailable
+        </h2>
+        <p>
+          <strong>Likely cause:</strong> Chromium is not running or the browser launch failed.
+        </p>
+        <p>
+          <strong>Diagnostic check:</strong>
+        </p>
+        <pre><code>command -v chromium
+systemctl --user status jelly-browser.service</code></pre>
+        <p>
+          <strong>Resolution:</strong> Verify Chromium at /usr/bin/chromium and inspect service logs; use open-browser to
+          start it.
+        </p>
+        <p>
+          <strong>Verification:</strong> The open-browser operation succeeds before browser-call read-page.
+        </p>
+      </section>
+      <section id="issue-6">
+        <h2>
+          Unknown tool or invalid arguments
+        </h2>
+        <p>
+          <strong>Likely cause:</strong> The client called an operation outside the active small/large surface or supplied
+          the wrong argument shape.
+        </p>
+        <p>
+          <strong>Diagnostic check:</strong>
+        </p>
+        <pre><code>curl --fail http://127.0.0.1:8787/health</code></pre>
+        <p>
+          <strong>Resolution:</strong> Call tools/list to inspect published tools; use browser-schema with action=schema
+          to retrieve semantic operation parameters.
+        </p>
+        <p>
+          <strong>Verification:</strong> Repeat the published tool with matching arguments and inspect structuredContent.ok.
+        </p>
+      </section>
+      <section id="issue-7">
+        <h2>
+          Quick Tunnel URL changed
+        </h2>
+        <p>
+          <strong>Likely cause:</strong> A temporary Cloudflare URL was regenerated, changing OAuth issuer and protected resource.
+        </p>
+        <p>
+          <strong>Diagnostic check:</strong>
+        </p>
+        <pre><code>scripts/status-mcp-services.sh</code></pre>
+        <p>
+          <strong>Resolution:</strong> Update the client&#x27;s MCP URL, reconnect, and repeat OAuth authorization against
+          the new origin.
+        </p>
+        <p>
+          <strong>Verification:</strong> The client authenticates against the new HTTPS origin and completes tools/list.
+        </p>
+      </section>
+      <section>
+        <h2>
+          Still blocked?
+        </h2>
+        <p>
+          Read the <a
+          href="https://github.com/FabioFlorey/jelly/blob/main/docs/getting-started/QUICKSTART.md#troubleshooting">setup
+          troubleshooting guide</a>, then open a <a href="https://github.com/FabioFlorey/jelly/issues">bug report</a> with
+          the failing command, sanitized output, operating system and commit. For security reports, <a
+          href="https://github.com/FabioFlorey/jelly/blob/main/SECURITY.md">contact the maintainer privately</a>.
+        </p>
+      </section>
+    </main>
+    <footer>
+      <div class="shell">
+        <span>Jelly · Browser instrumentation for agents</span>
+        <span class="footer-links">
+          <a href="./getting-started.html">Get Started</a> ·
+          <a href="./examples.html">Examples</a> ·
+          <a href="./tools.html">Tools</a> ·
+          <a href="./troubleshooting.html">Troubleshooting</a> ·
+          <a href="https://github.com/FabioFlorey/jelly">Repository</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/releases">Releases</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/CHANGELOG.md">Changelog</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/LICENSE">License</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/issues">Issues</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/CONTRIBUTING.md">Contribution policy</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/SECURITY.md">Security policy</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -167,63 +167,119 @@ case "$hosting_mode" in
 esac
 
 local_url="http://${JELLY_MCP_ADDR:-127.0.0.1:8787}"
+admin_url="http://${JELLY_MCP_ADMIN_ADDR:-127.0.0.1:8788}"
 health="unreachable"
+chatgpt_authorized=false
 if command -v curl >/dev/null 2>&1 && curl -fsS "$local_url/health" >/dev/null 2>&1; then
   health="healthy"
+  oauth_status="$(curl -fsS -H "Authorization: Bearer $bootstrap_secret" "$local_url/status.json" 2>/dev/null || true)"
+  if [[ "$oauth_status" == *'"chatgpt_authorized":true'* ]]; then
+    chatgpt_authorized=true
+  fi
 fi
 
 if [[ "$consent_mode" == "paired" ]]; then
-  printf '\n%b◇  Owner pairing%b\n' "$C_HONEY$C_BOLD" "$C_RESET"
-  pair_json="$(curl -fsS -X POST -H "Authorization: Bearer $bootstrap_secret" "$local_url/pair/code" 2>/dev/null || true)"
-  pair_url="$(printf '%s' "$pair_json" | sed -n 's/.*"pair_url":"\([^"]*\)".*/\1/p')"
-  if [[ -z "$pair_url" ]]; then
+  local_approved=false
+
+  if [[ "$chatgpt_authorized" == "true" ]]; then
+    local_approved=true
+    printf '\n%b✓%b  Existing ChatGPT OAuth authorization found; owner setup skipped.\n' \
+      "$C_GREEN$C_BOLD" "$C_RESET"
+  fi
+
+  if [[ "$local_approved" != "true" && "${JELLY_OAUTH_PUBLIC_CHATGPT_DCR:-false}" == "true" && -t 0 && -t 1 ]]; then
+    # Authorize setup from the installer; a bare GET /connect never creates it.
+    setup_json="$(curl -fsS -X POST -H "Authorization: Bearer $bootstrap_secret" \
+      "$admin_url/admin/oauth/setup/open" 2>/dev/null || true)"
+    browser_connect_url="$(printf '%s' "$setup_json" | sed -n 's/.*"connect_url":"\([^"]*\)".*/\1/p')"
     if [[ -n "$public_url" ]]; then
-      pair_url="$public_url/pair"
+      mcp_url="$public_url/mcp"
     else
-      pair_url="$local_url/pair"
+      mcp_url="$local_url/mcp"
     fi
-    printf '  Pairing page    %b%s%b\n' "$C_HONEY$C_BOLD" "$pair_url" "$C_RESET"
-    printf '  Pairing secret  JELLY_BOOTSTRAP_SECRET in %s\n' "$ENV_FILE"
-  else
-    printf '  One-time link   %b%s%b\n' "$C_HONEY$C_BOLD" "$pair_url" "$C_RESET"
+
+    if [[ -n "$browser_connect_url" ]]; then
+      printf '\n%b◇  Jelly browser setup%b\n' "$C_HONEY$C_BOLD" "$C_RESET"
+      printf '  MCP URL         %b%s%b\n' "$C_HONEY$C_BOLD" "$mcp_url" "$C_RESET"
+    printf '  Connect page    %b%s%b\n' "$C_HONEY$C_BOLD" "$browser_connect_url" "$C_RESET"
+
     opened=false
     if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v xdg-open >/dev/null 2>&1; then
-      xdg-open "$pair_url" >/dev/null 2>&1 &
+      xdg-open "$browser_connect_url" >/dev/null 2>&1 &
       opened=true
     elif [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v gio >/dev/null 2>&1; then
-      gio open "$pair_url" >/dev/null 2>&1 &
+      gio open "$browser_connect_url" >/dev/null 2>&1 &
       opened=true
     elif command -v open >/dev/null 2>&1; then
-      open "$pair_url" >/dev/null 2>&1 &
+      open "$browser_connect_url" >/dev/null 2>&1 &
       opened=true
     fi
-    if [[ "$opened" == "true" ]]; then
-      printf '  Browser         opened automatically (link expires in 5 minutes)\n'
-    else
-      printf '  Browser         open the one-time link above (expires in 5 minutes)\n'
-    fi
-  fi
-  paired=false
-  spinner='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
-  for i in $(seq 1 600); do
-    if curl -fsS -H "Authorization: Bearer $bootstrap_secret" "$local_url/pair/status" 2>/dev/null \
-      | grep -q '"paired":true'; then
-      paired=true
-      break
-    fi
-    frame="${spinner:$(((i - 1) % ${#spinner})):1}"
-    printf '\r  %b%s%b  Waiting for owner pairing' "$C_HONEY$C_BOLD" "$frame" "$C_RESET"
-    sleep 0.5
-  done
-  printf '\r\033[K'
-  if [[ "$paired" != "true" ]]; then
-    printf '%b✕%b  Pairing timed out; Jelly is still running. Open the pairing page and rerun the status command.\n' \
-      "$C_RED$C_BOLD" "$C_RESET" >&2
-    exit 3
-  fi
-  printf '%b✓%b  Owner browser paired.\n' "$C_GREEN$C_BOLD" "$C_RESET"
-fi
 
+    if [[ "$opened" == "true" ]]; then
+      local_approved=true
+      printf '  Browser         opened using an authorized short-lived setup link.\n'
+    else
+      printf '%b!%b  Could not open /connect automatically; using browser pairing fallback.\n' \
+        "$C_HONEY$C_BOLD" "$C_RESET"
+    fi
+    else
+      printf '%b!%b  Authorized setup link unavailable; using browser pairing fallback.\n' \
+        "$C_HONEY$C_BOLD" "$C_RESET"
+    fi
+  fi
+
+  if [[ "$local_approved" != "true" ]]; then
+    printf '\n%b◇  Owner pairing%b\n' "$C_HONEY$C_BOLD" "$C_RESET"
+    pair_json="$(curl -fsS -X POST -H "Authorization: Bearer $bootstrap_secret" "$local_url/pair/code" 2>/dev/null || true)"
+    pair_url="$(printf '%s' "$pair_json" | sed -n 's/.*"pair_url":"\([^"]*\)".*/\1/p')"
+    if [[ -z "$pair_url" ]]; then
+      if [[ -n "$public_url" ]]; then
+        pair_url="$public_url/pair"
+      else
+        pair_url="$local_url/pair"
+      fi
+      printf '  Pairing page    %b%s%b\n' "$C_HONEY$C_BOLD" "$pair_url" "$C_RESET"
+      printf '  Pairing secret  JELLY_BOOTSTRAP_SECRET in %s\n' "$ENV_FILE"
+    else
+      printf '  One-time link   %b%s%b\n' "$C_HONEY$C_BOLD" "$pair_url" "$C_RESET"
+      opened=false
+      if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "$pair_url" >/dev/null 2>&1 &
+        opened=true
+      elif [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v gio >/dev/null 2>&1; then
+        gio open "$pair_url" >/dev/null 2>&1 &
+        opened=true
+      elif command -v open >/dev/null 2>&1; then
+        open "$pair_url" >/dev/null 2>&1 &
+        opened=true
+      fi
+      if [[ "$opened" == "true" ]]; then
+        printf '  Browser         opened automatically (link expires in 5 minutes)\n'
+      else
+        printf '  Browser         open the one-time link above (expires in 5 minutes)\n'
+      fi
+    fi
+    paired=false
+    spinner='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    for i in $(seq 1 600); do
+      if curl -fsS -H "Authorization: Bearer $bootstrap_secret" "$local_url/pair/status" 2>/dev/null \
+        | grep -q '"paired":true'; then
+        paired=true
+        break
+      fi
+      frame="${spinner:$(((i - 1) % ${#spinner})):1}"
+      printf '\r  %b%s%b  Waiting for owner pairing' "$C_HONEY$C_BOLD" "$frame" "$C_RESET"
+      sleep 0.5
+    done
+    printf '\r\033[K'
+    if [[ "$paired" != "true" ]]; then
+      printf '%b✕%b  Pairing timed out; Jelly is still running. Open the pairing page and rerun the status command.\n' \
+        "$C_RED$C_BOLD" "$C_RESET" >&2
+      exit 3
+    fi
+    printf '%b✓%b  Owner browser paired.\n' "$C_GREEN$C_BOLD" "$C_RESET"
+  fi
+fi
 printf '\n%b✓%b  Jelly is running.\n\n' "$C_GREEN$C_BOLD" "$C_RESET"
 printf '%b◇  System summary%b\n' "$C_HONEY$C_BOLD" "$C_RESET"
 printf '  Service         %s\n' "$service_state"

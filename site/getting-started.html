@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#ffc107">
+    <meta name="description" content="Linux installation and configuration of Jelly Chromium MCP server, with prerequisites, local bearer token, OAuth, verification and troubleshooting.">
+    <meta name="robots" content="index,follow">
+    <title>
+      Install and Configure Jelly · Jelly MCP Server
+    </title>
+    <link rel="canonical" href="https://fabioflorey.github.io/jelly/getting-started.html">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="alternate icon" type="image/png" href="./assets/images/favicon.png">
+    <link rel="stylesheet" href="./assets/css/style.css">
+    <meta property="og:title" content="Install and Configure Jelly · Jelly MCP Server">
+    <meta property="og:description" content="Linux installation and configuration of Jelly Chromium MCP server, with prerequisites, local bearer token, OAuth, verification and troubleshooting.">
+    <meta property="og:url" content="https://fabioflorey.github.io/jelly/getting-started.html">
+    <meta property="og:type" content="article">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header>
+      <nav class="shell" aria-label="Primary navigation">
+        <a class="wordmark" href="./" aria-label="Jelly home">
+        <img src="./assets/images/logo.png" alt="" width="40" height="40">
+        </a>
+        <div class="nav-links">
+          <a href="./getting-started.html">Get Started</a><a href="./tools.html">Tools</a><a
+          href="./clients.html">Clients</a><a href="./examples.html">Examples</a><a
+          href="https://github.com/FabioFlorey/jelly">GitHub</a>
+        </div>
+      </nav>
+    </header>
+    <main class="shell doc-page" id="main">
+      <div class="doc-head">
+        <div class="eyebrow">
+          Jelly / Developer documentation
+        </div>
+        <h1>
+          Install and Configure Jelly
+        </h1>
+        <p class="lede">
+          Install Jelly, choose your MCP connection, and make your first tool call.
+        </p>
+      </div>
+      <section id="prerequisites">
+        <h2>
+          1. Prerequisites
+        </h2>
+        <p>
+          <strong>Platform:</strong> Linux with a working <code>systemd --user</code> manager. <strong>Runtime:</strong>
+          Rust 1.98.1 and Cargo, Chromium at <code>/usr/bin/chromium</code>, Bash, Git and common core utilities.
+          <code>curl</code> is used for the checks below. Remote Quick Tunnel mode additionally needs
+          <code>cloudflared</code>; <code>nip-io</code> needs Caddy and a reachable public IPv4 address.
+        </p>
+      </section>
+      <section id="install">
+        <h2>
+          2. Get the checkout and audit prerequisites
+        </h2>
+        <pre><code>git clone https://github.com/FabioFlorey/jelly.git
+cd jelly
+./quickstart.sh --check
+./quickstart.sh --dry-run</code></pre>
+        <p>
+          The first command checks dependencies. The dry run previews configuration without saving <code>.env</code>,
+          building binaries or starting services. Fix reported failures before proceeding.
+        </p>
+      </section>
+      <section id="client">
+        <h2>
+          3. Choose the client and hosting profile
+        </h2>
+        <p>
+          <strong>Remote ChatGPT:</strong> The checked-in <code>config/jelly.toml</code> contains the <code>chatgpt</code>
+          / <code>remote-http</code> / <code>oauth</code> profile. Choose <code>quick-tunnel</code>,
+          <code>cloudflare-fixed</code> or <code>nip-io</code> in the wizard. The hosting wrapper must provide an actual
+          public HTTPS <code>JELLY_PUBLIC_URL</code>. An arbitrary fake URL is not a working proxy.
+        </p>
+        <p>
+          <strong>Local generic MCP client:</strong> Remove the <code>[[mcp.connections]]</code> entry whose
+          <code>provider</code> is <code>chatgpt</code> from <code>config/jelly.toml</code> when using local-only hosting
+          without HTTPS. Keep the <code>generic-mcp</code> / <code>local-http</code> / <code>bearer-token</code> profile.
+          Otherwise the remote profile fails startup validation.
+        </p>
+        <p>See <a href="./clients.html">connection options</a> for a walkthrough of each client setup.</p>
+      </section>
+      <section id="credentials">
+        <h2>
+          4. Set credentials and start services
+        </h2>
+        <pre><code>./quickstart.sh</code></pre>
+        <p>
+          Answer the hosting and authentication prompts. Select installation/startup of the user services. The wizard
+          writes local secrets to the ignored <code>.env</code> file with restricted permissions and installs the
+          configured services. Do not commit or share that file.
+        </p>
+        <p>
+          For local HTTP clients, use the configured <code>JELLY_MCP_TOKEN</code>. For remote clients, complete the
+          configured OAuth flow. The single OAuth scope is <code>jelly</code>.
+        </p>
+      </section>
+      <section id="verify">
+        <h2>
+          5. Verify service and MCP tool call
+        </h2>
+        <pre><code>scripts/status-mcp-services.sh
+curl --fail --silent --show-error http://127.0.0.1:8787/health
+set -a
+source ./.env
+set +a
+curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
+  -H "Authorization: Bearer $JELLY_MCP_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"browser-schema","arguments":{"action":"capabilities"}}}'</code></pre>
+        <p>
+          <strong>Expected:</strong> <code>/health</code> returns <code>"status":"ok"</code>. The JSON-RPC response has a
+          <code>result.structuredContent</code> object whose <code>ok</code> is <code>true</code>, <code>meta.tool</code>
+          is <code>"browser-schema"</code>, and <code>data.action</code> is <code>"capabilities"</code>. Actual
+          categories/counts depend on the current binary. This validates MCP discovery, <strong>not</strong> browser
+          startup.
+        </p>
+      </section>
+      <section id="next">
+        <h2>
+          6. First browser operation and next steps
+        </h2>
+        <pre><code>cargo run --quiet --bin agent-run -- open-browser https://example.com
+cargo run --quiet --bin agent-run -- read-page
+cargo run --quiet --bin agent-run -- close-browser</code></pre>
+        <p>
+          These are local CLI browser operations, distinct from the MCP request above. A healthy MCP server alone does not
+          imply an active browser. Next, read <a href="./examples.html">MCP request examples</a>, <a
+          href="./tools.html">the tool catalog</a>, or <a href="./troubleshooting.html">failure diagnostics</a>. The <a
+          href="https://github.com/FabioFlorey/jelly/blob/main/docs/getting-started/QUICKSTART.md">repository setup
+          guide</a> remains the authoritative detailed procedure.
+        </p>
+      </section>
+    </main>
+    <footer>
+      <div class="shell">
+        <span>Jelly · Browser instrumentation for agents</span>
+        <span class="footer-links">
+          <a href="./getting-started.html">Get Started</a> ·
+          <a href="./examples.html">Examples</a> ·
+          <a href="./tools.html">Tools</a> ·
+          <a href="./troubleshooting.html">Troubleshooting</a> ·
+          <a href="https://github.com/FabioFlorey/jelly">Repository</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/releases">Releases</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/CHANGELOG.md">Changelog</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/LICENSE">License</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/issues">Issues</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/CONTRIBUTING.md">Contribution policy</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/SECURITY.md">Security policy</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

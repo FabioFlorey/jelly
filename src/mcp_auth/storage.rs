@@ -29,6 +29,22 @@ pub(super) struct AccessGrant {
     pub(super) resource: String,
     pub(super) scope: String,
     pub(super) expires_at: u64,
+    pub(super) family_id: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct RefreshGrant {
+    pub(super) client_id: String,
+    pub(super) resource: String,
+    pub(super) scope: String,
+    pub(super) family_id: String,
+    pub(super) expires_at: u64,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct ConsumedRefreshGrant {
+    pub(super) family_id: String,
+    pub(super) expires_at: u64,
 }
 
 #[derive(Default)]
@@ -36,6 +52,8 @@ pub(super) struct AuthStore {
     pub(super) clients: HashMap<String, Client>,
     pub(super) codes: HashMap<String, CodeGrant>,
     pub(super) tokens: HashMap<String, AccessGrant>,
+    pub(super) refresh_tokens: HashMap<String, RefreshGrant>,
+    pub(super) consumed_refresh_tokens: HashMap<String, ConsumedRefreshGrant>,
 }
 
 fn store_path() -> String {
@@ -90,16 +108,73 @@ pub(super) fn load_store() -> Result<AuthStore, String> {
             let Some(expires_at) = grant.get("expires_at").and_then(Value::as_u64) else {
                 continue;
             };
+            let family_id = grant
+                .get("family_id")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
             store.tokens.insert(
                 token.clone(),
                 AccessGrant {
                     resource: resource.to_owned(),
                     scope: scope.to_owned(),
                     expires_at,
+                    family_id,
                 },
             );
         }
     }
+
+    if let Some(refresh_tokens) = value.get("refresh_tokens").and_then(Value::as_object) {
+        for (token_hash, grant) in refresh_tokens {
+            let Some(client_id) = grant.get("client_id").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(resource) = grant.get("resource").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(scope) = grant.get("scope").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(family_id) = grant.get("family_id").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(expires_at) = grant.get("expires_at").and_then(Value::as_u64) else {
+                continue;
+            };
+            store.refresh_tokens.insert(
+                token_hash.clone(),
+                RefreshGrant {
+                    client_id: client_id.to_owned(),
+                    resource: resource.to_owned(),
+                    scope: scope.to_owned(),
+                    family_id: family_id.to_owned(),
+                    expires_at,
+                },
+            );
+        }
+    }
+
+    if let Some(consumed) = value
+        .get("consumed_refresh_tokens")
+        .and_then(Value::as_object)
+    {
+        for (token_hash, grant) in consumed {
+            let Some(family_id) = grant.get("family_id").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(expires_at) = grant.get("expires_at").and_then(Value::as_u64) else {
+                continue;
+            };
+            store.consumed_refresh_tokens.insert(
+                token_hash.clone(),
+                ConsumedRefreshGrant {
+                    family_id: family_id.to_owned(),
+                    expires_at,
+                },
+            );
+        }
+    }
+
     Ok(store)
 }
 
@@ -120,13 +195,48 @@ pub(super) fn persist_store(store: &AuthStore) -> Result<(), String> {
                 json!({
                     "resource":grant.resource,
                     "scope":grant.scope,
-                    "expires_at":grant.expires_at
+                    "expires_at":grant.expires_at,
+                    "family_id":grant.family_id
                 }),
             )
         })
         .collect::<Map<String, Value>>();
-    let bytes = serde_json::to_vec_pretty(&json!({"clients":clients,"tokens":tokens}))
-        .map_err(|error| format!("failed to serialize OAuth state: {error}"))?;
+    let refresh_tokens = store
+        .refresh_tokens
+        .iter()
+        .map(|(token_hash, grant)| {
+            (
+                token_hash.clone(),
+                json!({
+                    "client_id": grant.client_id,
+                    "resource": grant.resource,
+                    "scope": grant.scope,
+                    "family_id": grant.family_id,
+                    "expires_at": grant.expires_at
+                }),
+            )
+        })
+        .collect::<Map<String, Value>>();
+    let consumed_refresh_tokens = store
+        .consumed_refresh_tokens
+        .iter()
+        .map(|(token_hash, grant)| {
+            (
+                token_hash.clone(),
+                json!({
+                    "family_id": grant.family_id,
+                    "expires_at": grant.expires_at
+                }),
+            )
+        })
+        .collect::<Map<String, Value>>();
+    let bytes = serde_json::to_vec_pretty(&json!({
+        "clients": clients,
+        "tokens": tokens,
+        "refresh_tokens": refresh_tokens,
+        "consumed_refresh_tokens": consumed_refresh_tokens
+    }))
+    .map_err(|error| format!("failed to serialize OAuth state: {error}"))?;
     let path = store_path();
     let temp = format!("{path}.tmp");
     let mut file = OpenOptions::new()

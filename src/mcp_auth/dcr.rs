@@ -26,7 +26,7 @@ pub(super) async fn authorization_server_metadata(State(state): State<AuthState>
         "authorization_endpoint": format!("{}/authorize", state.public_url()),
         "token_endpoint": format!("{}/token", state.public_url()),
         "response_types_supported": ["code"],
-        "grant_types_supported": ["authorization_code"],
+        "grant_types_supported": ["authorization_code", "refresh_token"],
         "code_challenge_methods_supported": ["S256"],
         "scopes_supported": [SCOPE],
         "token_endpoint_auth_methods_supported": ["none"],

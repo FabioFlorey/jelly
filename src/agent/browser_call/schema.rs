@@ -9,8 +9,8 @@ pub fn browser_call_input_schema(raw_cdp: RawCdpAccess) -> Value {
             "call":{
                 "type":"object",
                 "properties":{
-                    "jelly":{"type":"string","minLength":1},
-                    "params":{"type":"object","default":{}}
+                    "jelly":{"type":"string","minLength":1,"description":"Semantic operation name from browser-schema, not a raw CDP method."},
+                    "params":{"type":"object","default":{},"description":"Named JSON arguments matching browser-schema schema for this operation; not CLI positional args."}
                 },
                 "required":["jelly"],
                 "additionalProperties":false

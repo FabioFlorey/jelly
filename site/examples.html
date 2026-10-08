@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#ffc107">
+    <meta name="description" content="Working JSON-RPC MCP request examples for Jelly: browser-schema capabilities, browser-call read-page, authentication and representative result structure.">
+    <meta name="robots" content="index,follow">
+    <title>
+      Jelly MCP Request Examples · Jelly MCP Server
+    </title>
+    <link rel="canonical" href="https://fabioflorey.github.io/jelly/examples.html">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="alternate icon" type="image/png" href="./assets/images/favicon.png">
+    <link rel="stylesheet" href="./assets/css/style.css">
+    <meta property="og:title" content="Jelly MCP Request Examples · Jelly MCP Server">
+    <meta property="og:description" content="Working JSON-RPC MCP request examples for Jelly: browser-schema capabilities, browser-call read-page, authentication and representative result structure.">
+    <meta property="og:url" content="https://fabioflorey.github.io/jelly/examples.html">
+    <meta property="og:type" content="article">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header>
+      <nav class="shell" aria-label="Primary navigation">
+        <a class="wordmark" href="./" aria-label="Jelly home">
+        <img src="./assets/images/logo.png" alt="" width="40" height="40">
+        </a>
+        <div class="nav-links">
+          <a href="./getting-started.html">Get Started</a><a href="./tools.html">Tools</a><a
+          href="./clients.html">Clients</a><a href="./examples.html">Examples</a><a
+          href="https://github.com/FabioFlorey/jelly">GitHub</a>
+        </div>
+      </nav>
+    </header>
+    <main class="shell doc-page" id="main">
+      <div class="doc-head">
+        <div class="eyebrow">
+          Jelly / Developer documentation
+        </div>
+        <h1>
+          Jelly MCP Request Examples
+        </h1>
+        <p class="lede">
+          Two tool-call recipes based on Jelly&#x27;s current Rust schemas, with setup, expected result shapes, and limitations.
+        </p>
+      </div>
+      <section id="discover">
+        <h2>
+          Example 1: Discover browser operations
+        </h2>
+        <p>
+          <strong>Objective:</strong> Confirm authenticated MCP access and list semantic capability categories.
+          <strong>Setup:</strong> Start Jelly and load <code>JELLY_MCP_TOKEN</code> from the local <code>.env</code> file.
+          No Chromium process is needed for this stateless tool.
+        </p>
+        <pre><code>set -a
+source ./.env
+set +a
+curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
+  -H "Authorization: Bearer $JELLY_MCP_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"browser-schema","arguments":{"action":"capabilities"}}}'</code></pre>
+        <p>
+          <strong>Source-derived output excerpt:</strong> The counts and category descriptions below are derived from the
+          checked-in Rust primitive registry; this is not a recorded live MCP response. The transport's additional
+          <code>result.content</code> field is omitted to keep the example readable.
+        </p>
+        <pre><code>{
+  &quot;jsonrpc&quot;: &quot;2.0&quot;,
+  &quot;id&quot;: 1,
+  &quot;result&quot;: {
+    &quot;structuredContent&quot;: {
+      &quot;ok&quot;: true,
+      &quot;data&quot;: {
+        &quot;schema_version&quot;: 1,
+        &quot;action&quot;: &quot;capabilities&quot;,
+        &quot;operation_count&quot;: 47,
+        &quot;categories&quot;: [
+          {
+            &quot;name&quot;: &quot;input&quot;,
+            &quot;description&quot;: &quot;Interact with page controls through clicks, typing, keys, selection, checks, dialogs, and drag-and-drop.&quot;,
+            &quot;operation_count&quot;: 8
+          },
+          {
+            &quot;name&quot;: &quot;navigation&quot;,
+            &quot;description&quot;: &quot;Navigate documents, wait for browser conditions, and move through page history.&quot;,
+            &quot;operation_count&quot;: 3
+          },
+          {
+            &quot;name&quot;: &quot;inspect&quot;,
+            &quot;description&quot;: &quot;Observe page content, elements, controls, links, images, layout, and accessibility state.&quot;,
+            &quot;operation_count&quot;: 12
+          },
+          {
+            &quot;name&quot;: &quot;verify&quot;,
+            &quot;description&quot;: &quot;Establish explicit browser-state predicates and wait for bounded conditions before dependent actions run.&quot;,
+            &quot;operation_count&quot;: 6
+          },
+          {
+            &quot;name&quot;: &quot;tabs&quot;,
+            &quot;description&quot;: &quot;List, open, switch, and close browser tabs while preserving the active session.&quot;,
+            &quot;operation_count&quot;: 4
+          },
+          {
+            &quot;name&quot;: &quot;files&quot;,
+            &quot;description&quot;: &quot;Move local files into browser-controlled file inputs.&quot;,
+            &quot;operation_count&quot;: 1
+          },
+          {
+            &quot;name&quot;: &quot;script&quot;,
+            &quot;description&quot;: &quot;Evaluate or inject JavaScript as an explicit browser-page escape hatch.&quot;,
+            &quot;operation_count&quot;: 2
+          },
+          {
+            &quot;name&quot;: &quot;visual&quot;,
+            &quot;description&quot;: &quot;Add or remove non-interactive visual annotations from browser-rendered content.&quot;,
+            &quot;operation_count&quot;: 2
+          },
+          {
+            &quot;name&quot;: &quot;storage&quot;,
+            &quot;description&quot;: &quot;Inspect and mutate browser cookies plus active-origin localStorage and sessionStorage without page JavaScript.&quot;,
+            &quot;operation_count&quot;: 9
+          }
+        ]
+      },
+      &quot;error&quot;: null,
+      &quot;meta&quot;: {
+        &quot;tool&quot;: &quot;browser-schema&quot;
+      }
+    },
+    &quot;isError&quot;: false
+  }
+}</code></pre>
+        <p>
+          <strong>Note:</strong> The 47-operation inventory above matches this checkout; a rebuilt server may publish a
+          different catalog. Inspect the actual JSON-RPC result instead of relying on a static count. A failed
+          authentication produces HTTP 401.
+        </p>
+      </section>
+      <section id="read">
+        <h2>
+          Example 2: Read a page through MCP
+        </h2>
+        <p>
+          <strong>Objective:</strong> Read content from a running Chromium page. <strong>Setup:</strong> After the server
+          and token are configured, start the browser using the system MCP tool:
+        </p>
+        <pre><code>curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
+  -H "Authorization: Bearer $JELLY_MCP_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"open-browser","arguments":{"url":"https://example.com"}}}'</code></pre>
+        <p>
+          Then call <code>browser-call</code> with a single ordered semantic operation:
+        </p>
+        <pre><code>curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
+  -H "Authorization: Bearer $JELLY_MCP_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"browser-call","arguments":{"calls":[{"call":{"jelly":"read-page","params":{}}}]}}}'</code></pre>
+        <p>
+          <strong>Expected result:</strong> A JSON-RPC result containing <code>structuredContent.ok: true</code> and
+          per-call data if Chromium opened and the page was read. The exact page text and JSON payload depend on Chromium
+          and the network. Do not treat this as an end-to-end test result from a clean environment; the request and
+          argument shapes are derived from the current Rust schemas.
+        </p>
+        <p>
+          Close the browser when finished by calling <code>close-browser</code> with empty arguments. A failed browser
+          launch returns a structured error (such as <code>browser_unavailable</code>).
+        </p>
+      </section>
+      <section id="video">
+        <h2>
+          Browser recording example
+        </h2>
+        <p>
+          Watch Jelly configure a Racing Yellow Porsche 718 Spyder RS, select performance options,
+          and highlight the final price. Every step is captioned.
+        </p>
+        <video autoplay loop muted playsinline controls preload="auto" poster="./assets/images/jelly-demo-poster.png" aria-label="Jelly configuring a Porsche 718 Spyder RS in Racing Yellow">
+          <source src="./assets/images/jelly-demo.mp4" type="video/mp4">
+          Your browser does not support video. <a href="./assets/images/jelly-demo.mp4">Open the demonstration video</a>.
+        </video>
+        <p>
+          <strong>Limitations:</strong> Real sites may require authentication, and actions can have side effects. Do not
+          submit purchases or change accounts without consent. Reference: <a href="./tools.html">Tool parameters</a> and
+          <a href="./tools.html">Tool reference</a>.
+        </p>
+      </section>
+    </main>
+    <footer>
+      <div class="shell">
+        <span>Jelly · Browser instrumentation for agents</span>
+        <span class="footer-links">
+          <a href="./getting-started.html">Get Started</a> ·
+          <a href="./examples.html">Examples</a> ·
+          <a href="./tools.html">Tools</a> ·
+          <a href="./troubleshooting.html">Troubleshooting</a> ·
+          <a href="https://github.com/FabioFlorey/jelly">Repository</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/releases">Releases</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/CHANGELOG.md">Changelog</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/LICENSE">License</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/issues">Issues</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/CONTRIBUTING.md">Contribution policy</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/SECURITY.md">Security policy</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

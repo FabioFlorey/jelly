@@ -8,7 +8,7 @@ use serde_json::json;
 
 pub(crate) fn oauth_page(title: &str, content: &str) -> String {
     format!(
-        r#"<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title><link rel="icon" type="image/png" href="/brand/favicon.png"><link rel="stylesheet" href="/brand/jelly.css"></head><body><main><a class="logo-link" href="/" aria-label="Jelly home"><img class="logo" src="/brand/full-logo.png" alt="Jelly"></a>{content}</main></body></html>"#,
+        r#"<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title><link rel="icon" type="image/png" href="/brand/favicon.png"><link rel="stylesheet" href="/brand/jelly.css"></head><body><main><a class="logo-link" href="/" aria-label="Jelly home"><img class="logo" src="/brand/full-logo.png" alt="Jelly"></a><nav class="site-nav" aria-label="Jelly navigation"><a href="/">Home</a><a href="/dashboard">Dashboard</a><a href="/connections">Connections</a></nav>{content}</main></body></html>"#,
         title = html_escape(title),
         content = content
     )
@@ -33,7 +33,7 @@ pub(super) fn client_registration_response(
             "client_id": client_id,
             "client_id_issued_at": now(),
             "redirect_uris": redirect_uris,
-            "grant_types": ["authorization_code"],
+            "grant_types": ["authorization_code", "refresh_token"],
             "response_types": ["code"],
             "token_endpoint_auth_method": "none"
         })),

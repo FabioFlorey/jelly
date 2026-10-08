@@ -46,19 +46,19 @@ impl AgentBuiltin {
     pub const fn description(self) -> &'static str {
         match self {
             Self::BrowserSchema => {
-                "Discover Jelly semantic browser capabilities, search operations, and load the named JSON argument schema for one operation."
+                "Discover semantic browser operations without changing browser state: search by intent, then load the named JSON schema before browser-call."
             }
             Self::BrowserCall { raw_cdp } if raw_cdp.enabled() => {
                 "Execute ordered Jelly semantic browser operations plus explicitly scoped privileged raw CDP calls. Raw CDP has broader authority than Jelly semantic operations or page JavaScript and can bypass Jelly-level interaction, verification, and future browser-policy guards; enable it only for trusted workflows."
             }
             Self::BrowserCall { .. } => {
-                "Execute an ordered batch of Jelly semantic browser operations through one persistent browser session, with strict preflight and structured per-call outcomes."
+                "Execute named semantic browser operations in a preflighted ordered batch. Use browser-schema for unknown contracts; inspect and verify results separately."
             }
             Self::CdpCall => {
                 "Execute explicitly scoped privileged raw CDP calls on page targets or the browser connection. Raw CDP bypasses Jelly semantic-operation policy and should be enabled only for trusted workflows."
             }
             Self::BrowserEvents => {
-                "Subscribe to retained CDP notifications, poll them through bounded logical-target/method filters, and explicitly observe cursor loss, drops, and stream resets."
+                "Use retained CDP event subscriptions only for protocol event-stream monitoring, not page-state inspection. Check cursor loss, drops, and stream resets."
             }
         }
     }

@@ -180,7 +180,7 @@ check_core_requirements() {
   fi
 
   if (( CHECK_FAILURES > before )); then
-    printf '\n%b%s  Missing required dependencies. See docs/wiki/REQUIREMENTS.md before continuing.%b\n' "$C_RED$C_BOLD" "$I_FAIL" "$C_RESET" >&2
+    printf '\n%b%s  Missing required dependencies. See docs/getting-started/REQUIREMENTS.md before continuing.%b\n' "$C_RED$C_BOLD" "$I_FAIL" "$C_RESET" >&2
     exit 2
   fi
   printf '\n'

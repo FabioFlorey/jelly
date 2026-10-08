@@ -51,6 +51,7 @@ Generated run artifacts are intentionally outside the repository at `<runtime_ro
 | `ranking` | `RANK` | Limits, pagination, ranking order, and runtime/legacy parity |
 | `highlight` | `HLT` | Highlight modes, geometry, follow behavior, cleanup, and validation |
 | `rollback` | `RBK` | Persistent-session/page-runtime rollback matrices and transitions |
+| `browser-state` | `BST` | Cookie/DOM-storage scope plus download lifecycle, progress, cancellation, destination, collision, and browser-stop behavior |
 | `framework` | `FWK` | Network-dependent React mutation and reconciliation behavior |
 | `real-world` | `WEB` | Network-dependent public-site browser regressions |
 

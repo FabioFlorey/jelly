@@ -14,6 +14,7 @@ const SCOPE: &str = "jelly";
 const OWNER_COOKIE: &str = "jelly_owner";
 
 mod dcr;
+mod local_approval;
 mod oauth;
 mod pages;
 pub(crate) use pages::{html_escape, oauth_page};
@@ -23,15 +24,31 @@ mod storage;
 use dcr::{authorization_server_metadata, protected_resource_metadata, register_client};
 #[cfg(test)]
 use dcr::{is_chatgpt_redirect, valid_redirect_uri};
+pub(crate) use local_approval::local_admin_routes;
 #[cfg(test)]
-use oauth::{authorize_action, pkce_challenge, validate_authorize_request};
+use oauth::{
+    authorize_action, pkce_challenge, revoke_refresh_family, token_hash, validate_authorize_request,
+};
 use oauth::{authorize_get, authorize_post, pair_code, pair_get, pair_post, pair_status, token};
 pub use state::{AuthState, ConsentMode};
 #[cfg(test)]
 use storage::Client;
 
+/// Brand assets are available on both the public and loopback-only routers.
+pub(crate) fn brand_routes() -> Router<AuthState> {
+    Router::new()
+        .route("/brand/full-logo.png", get(brand_logo))
+        .route("/brand/favicon.png", get(brand_favicon))
+        .route("/brand/jelly.css", get(brand_css))
+        .route("/brand/dynapuff.ttf", get(brand_dynapuff))
+        .route("/brand/roboto-400.ttf", get(brand_roboto_400))
+        .route("/brand/roboto-500.ttf", get(brand_roboto_500))
+        .route("/brand/roboto-700.ttf", get(brand_roboto_700))
+}
+
 pub fn routes() -> Router<AuthState> {
     Router::new()
+        .merge(brand_routes())
         .route(
             "/.well-known/oauth-protected-resource",
             get(protected_resource_metadata),
@@ -44,13 +61,6 @@ pub fn routes() -> Router<AuthState> {
             "/.well-known/oauth-authorization-server",
             get(authorization_server_metadata),
         )
-        .route("/brand/full-logo.png", get(brand_logo))
-        .route("/brand/favicon.png", get(brand_favicon))
-        .route("/brand/jelly.css", get(brand_css))
-        .route("/brand/dynapuff.ttf", get(brand_dynapuff))
-        .route("/brand/roboto-400.ttf", get(brand_roboto_400))
-        .route("/brand/roboto-500.ttf", get(brand_roboto_500))
-        .route("/brand/roboto-700.ttf", get(brand_roboto_700))
         .route("/register", post(register_client))
         .route("/authorize", get(authorize_get).post(authorize_post))
         .route("/pair", get(pair_get).post(pair_post))

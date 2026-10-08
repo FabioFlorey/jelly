@@ -305,6 +305,16 @@ pub fn register_download(
     source_url: Option<&str>,
     source_title: Option<&str>,
 ) -> Result<Value, Error> {
+    register_download_with_context(path, source_url, source_title, None, None)
+}
+
+pub(crate) fn register_download_with_context(
+    path: impl AsRef<Path>,
+    source_url: Option<&str>,
+    source_title: Option<&str>,
+    download_id: Option<&str>,
+    suggested_filename: Option<&str>,
+) -> Result<Value, Error> {
     let source_path = absolute(path.as_ref());
     let metadata = fs::metadata(&source_path)?;
     if metadata.len() == 0 {
@@ -337,7 +347,12 @@ pub fn register_download(
         "kind": "download",
         "path": path,
         "created_at": created_at,
-        "source": {"url": safe_source_url(source_url), "title": source_title},
+        "source": {
+            "url": safe_source_url(source_url),
+            "title": source_title,
+            "download_id": download_id,
+            "suggested_filename": suggested_filename
+        },
         "properties": {"bytes": metadata.len()},
         "verification": {
             "integrity_verified": true,

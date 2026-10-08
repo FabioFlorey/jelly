@@ -46,6 +46,18 @@ pub(crate) fn system_input_schema(name: &str) -> Option<Value> {
         "close-browser" | "downloads" => json!({
             "type":"object","properties":{},"additionalProperties":false
         }),
+        "download" => json!({
+            "type":"object",
+            "properties":{
+                "action":{"type":"string","enum":["list","status","wait","cancel"]},
+                "id":{"type":"string","description":"Chromium download GUID returned by download list/status."},
+                "seconds":{"type":"integer","minimum":1,"description":"Maximum wait time for action=wait; defaults to 30."},
+                "destination":{"type":"string","description":"Optional destination directory for a completed download. Jelly keeps the managed original and copies the suggested filename here."},
+                "collision":{"type":"string","enum":["fail","overwrite","uniquify"],"description":"Destination collision policy; defaults to fail."}
+            },
+            "required":["action"],
+            "additionalProperties":false
+        }),
         "verify-artifact" => json!({
             "type":"object",
             "properties":{

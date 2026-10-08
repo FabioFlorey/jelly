@@ -10,6 +10,9 @@ mod browser;
 /// Browser process launcher used by the `agent-open-browser` binary.
 pub mod browser_launcher;
 pub mod config;
+/// Provider-independent MCP connection profiles and onboarding presets.
+pub mod connection;
+mod downloads;
 mod error;
 mod execution;
 /// MCP HTTP/JSON-RPC server integration.
@@ -37,7 +40,14 @@ pub use agent::{
 pub use artifacts::{
     mark_artifact_verified, register_download, register_screenshot, verify_artifact,
 };
-pub(crate) use artifacts::{register_recording, sanitize_url};
+pub(crate) use artifacts::{register_download_with_context, register_recording, sanitize_url};
+
+pub(crate) use downloads::start_download_tracker;
+/// First-class browser download lifecycle records and operations.
+pub use downloads::{
+    DownloadRecord, cancel_download, download_record, download_records, finalize_download,
+    wait_download,
+};
 
 /// Browser session, target, event, and runtime-path types required by package clients.
 ///

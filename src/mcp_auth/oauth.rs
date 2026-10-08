@@ -1,6 +1,8 @@
 use super::pages::{html_escape, oauth_json_error, oauth_page};
 use super::state::{AuthState, ConsentMode};
-use super::storage::{AccessGrant, CodeGrant, persist_store};
+use super::storage::{
+    AccessGrant, AuthStore, CodeGrant, ConsumedRefreshGrant, RefreshGrant, persist_store,
+};
 use super::{OWNER_COOKIE, SCOPE};
 use axum::{
     Form, Json,
@@ -20,6 +22,7 @@ use url::Url;
 
 const CODE_TTL_SECS: u64 = 300;
 const TOKEN_TTL_SECS: u64 = 24 * 60 * 60;
+const REFRESH_TOKEN_TTL_SECS: u64 = 30 * 24 * 60 * 60;
 const OWNER_SESSION_TTL_SECS: u64 = 24 * 60 * 60;
 const PAIR_CODE_TTL_SECS: u64 = 5 * 60;
 
@@ -95,6 +98,17 @@ pub(super) async fn pair_status(State(state): State<AuthState>, headers: HeaderM
     Json(json!({"paired": !sessions.is_empty()})).into_response()
 }
 
+fn oauth_ui_error(status: StatusCode, title: &str, message: &str) -> Response {
+    (
+        status,
+        Html(oauth_page(
+            title,
+            &format!("<h1>{}</h1><p>{}</p><div class=\"links\"><a class=\"button secondary\" href=\"/connections\">Connections</a></div>", html_escape(title), html_escape(message)),
+        )),
+    )
+        .into_response()
+}
+
 pub(super) async fn pair_post(
     State(state): State<AuthState>,
     Form(params): Form<HashMap<String, String>>,
@@ -104,7 +118,11 @@ pub(super) async fn pair_post(
     }
     let secret = params.get("secret").map(String::as_str).unwrap_or("");
     if !constant_time_eq(secret.as_bytes(), state.bootstrap_secret.as_bytes()) {
-        return (StatusCode::UNAUTHORIZED, "invalid bootstrap secret").into_response();
+        return oauth_ui_error(
+            StatusCode::UNAUTHORIZED,
+            "Pairing failed",
+            "Invalid bootstrap secret. Please try again.",
+        );
     }
 
     paired_response(&state)
@@ -140,9 +158,18 @@ pub(super) async fn authorize_get(
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
     if let Err(response) = validate_authorize_request(&state, &params) {
-        return *response;
+        return oauth_ui_error(
+            response.status(),
+            "Invalid OAuth request",
+            "Authorization parameters are missing or invalid. Start the connection again from your MCP client.",
+        );
     }
     if state.consent_mode == ConsentMode::Paired && !state.has_owner_session(&headers) {
+        if let Some(response) =
+            super::local_approval::redirect_to_local_chatgpt_approval(&state, &params)
+        {
+            return response;
+        }
         return (
             StatusCode::FORBIDDEN,
             Html(oauth_page(
@@ -188,31 +215,49 @@ pub(super) async fn authorize_post(
     Form(params): Form<HashMap<String, String>>,
 ) -> Response {
     if let Err(response) = validate_authorize_request(&state, &params) {
-        return *response;
+        return oauth_ui_error(
+            response.status(),
+            "Invalid OAuth request",
+            "Authorization parameters are missing or invalid. Start the connection again from your MCP client.",
+        );
     }
 
     let action = match authorize_action(&params) {
         Ok(action) => action,
-        Err(message) => return (StatusCode::BAD_REQUEST, message).into_response(),
+        Err(message) => {
+            return oauth_ui_error(StatusCode::BAD_REQUEST, "Invalid decision", message);
+        }
     };
 
     if state.consent_mode == ConsentMode::Paired {
         if !state.has_owner_session(&headers) {
-            return (
+            return oauth_ui_error(
                 StatusCode::FORBIDDEN,
-                "owner pairing is required for OAuth consent",
-            )
-                .into_response();
+                "Owner pairing required",
+                "Pair this browser as Jelly's owner before approving OAuth access.",
+            );
         }
     } else {
         let password = params.get("password").map(String::as_str).unwrap_or("");
         if !constant_time_eq(password.as_bytes(), state.password.as_bytes()) {
-            return (StatusCode::UNAUTHORIZED, "invalid authorization password").into_response();
+            return oauth_ui_error(
+                StatusCode::UNAUTHORIZED,
+                "Authorization failed",
+                "Invalid authorization password. Please try again.",
+            );
         }
     }
 
+    complete_authorization(&state, &params, action == "approve")
+}
+
+pub(super) fn complete_authorization(
+    state: &AuthState,
+    params: &HashMap<String, String>,
+    approved: bool,
+) -> Response {
     let redirect_uri = params["redirect_uri"].clone();
-    if action == "deny" {
+    if !approved {
         let mut redirect = Url::parse(&redirect_uri).unwrap();
         {
             let mut query = redirect.query_pairs_mut();
@@ -259,14 +304,18 @@ pub(super) async fn token(
     State(state): State<AuthState>,
     Form(params): Form<HashMap<String, String>>,
 ) -> Response {
-    if params.get("grant_type").map(String::as_str) != Some("authorization_code") {
-        return oauth_json_error(
+    match params.get("grant_type").map(String::as_str) {
+        Some("authorization_code") => authorization_code_token(&state, &params),
+        Some("refresh_token") => refresh_token(&state, &params),
+        _ => oauth_json_error(
             StatusCode::BAD_REQUEST,
             "unsupported_grant_type",
-            "only authorization_code is supported",
-        );
+            "grant_type must be authorization_code or refresh_token",
+        ),
     }
+}
 
+fn authorization_code_token(state: &AuthState, params: &HashMap<String, String>) -> Response {
     let Some(code) = params.get("code") else {
         return oauth_json_error(
             StatusCode::BAD_REQUEST,
@@ -329,16 +378,33 @@ pub(super) async fn token(
         );
     }
 
+    let current = now();
     let access_token = random_token(32);
-    let expires_at = now() + TOKEN_TTL_SECS;
+    let refresh_token = random_token(32);
+    let refresh_token_hash = token_hash(&refresh_token);
+    let family_id = random_token(18);
+    let access_expires_at = current + TOKEN_TTL_SECS;
+    let refresh_expires_at = current + REFRESH_TOKEN_TTL_SECS;
+
     {
         let mut store = state.store_guard();
         store.tokens.insert(
             access_token.clone(),
             AccessGrant {
+                resource: grant.resource.clone(),
+                scope: grant.scope.clone(),
+                expires_at: access_expires_at,
+                family_id: Some(family_id.clone()),
+            },
+        );
+        store.refresh_tokens.insert(
+            refresh_token_hash,
+            RefreshGrant {
+                client_id: grant.client_id,
                 resource: grant.resource,
                 scope: grant.scope.clone(),
-                expires_at,
+                family_id,
+                expires_at: refresh_expires_at,
             },
         );
         if let Err(error) = persist_store(&store) {
@@ -350,6 +416,133 @@ pub(super) async fn token(
         "access_token": access_token,
         "token_type": "Bearer",
         "expires_in": TOKEN_TTL_SECS,
+        "refresh_token": refresh_token,
+        "refresh_token_expires_in": REFRESH_TOKEN_TTL_SECS,
+        "scope": grant.scope
+    }))
+    .into_response()
+}
+
+fn refresh_token(state: &AuthState, params: &HashMap<String, String>) -> Response {
+    let Some(client_id) = params.get("client_id") else {
+        return oauth_json_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "client_id is required",
+        );
+    };
+    let Some(presented) = params.get("refresh_token") else {
+        return oauth_json_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "refresh_token is required",
+        );
+    };
+
+    let presented_hash = token_hash(presented);
+    let current = now();
+    let mut store = state.store_guard();
+    store.tokens.retain(|_, grant| grant.expires_at > current);
+    store
+        .refresh_tokens
+        .retain(|_, grant| grant.expires_at > current);
+    store
+        .consumed_refresh_tokens
+        .retain(|_, grant| grant.expires_at > current);
+
+    if let Some(consumed) = store.consumed_refresh_tokens.get(&presented_hash).cloned() {
+        let family_id = consumed.family_id;
+        revoke_refresh_family(&mut store, &family_id);
+        if let Err(error) = persist_store(&store) {
+            return oauth_json_error(StatusCode::INTERNAL_SERVER_ERROR, "server_error", &error);
+        }
+        return oauth_json_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_grant",
+            "refresh token replay detected; token family revoked",
+        );
+    }
+
+    let Some(grant) = store.refresh_tokens.get(&presented_hash).cloned() else {
+        return oauth_json_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_grant",
+            "refresh token is invalid or expired",
+        );
+    };
+
+    if grant.client_id != *client_id || grant.expires_at <= current {
+        return oauth_json_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_grant",
+            "refresh token validation failed",
+        );
+    }
+    if params
+        .get("resource")
+        .is_some_and(|resource| resource != &grant.resource)
+        || grant.resource != state.resource_url()
+    {
+        return oauth_json_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_target",
+            "refresh token resource does not match",
+        );
+    }
+    if params
+        .get("scope")
+        .is_some_and(|scope| scope != &grant.scope)
+    {
+        return oauth_json_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_scope",
+            "refresh token cannot broaden or change scope",
+        );
+    }
+
+    let replacement = random_token(32);
+    let replacement_hash = token_hash(&replacement);
+    let access_token = random_token(32);
+    let access_expires_at = current + TOKEN_TTL_SECS;
+    let refresh_expires_at = current + REFRESH_TOKEN_TTL_SECS;
+
+    store.refresh_tokens.remove(&presented_hash);
+    store.consumed_refresh_tokens.insert(
+        presented_hash,
+        ConsumedRefreshGrant {
+            family_id: grant.family_id.clone(),
+            expires_at: grant.expires_at,
+        },
+    );
+    store.refresh_tokens.insert(
+        replacement_hash,
+        RefreshGrant {
+            client_id: grant.client_id,
+            resource: grant.resource.clone(),
+            scope: grant.scope.clone(),
+            family_id: grant.family_id.clone(),
+            expires_at: refresh_expires_at,
+        },
+    );
+    store.tokens.insert(
+        access_token.clone(),
+        AccessGrant {
+            resource: grant.resource,
+            scope: grant.scope.clone(),
+            expires_at: access_expires_at,
+            family_id: Some(grant.family_id),
+        },
+    );
+    if let Err(error) = persist_store(&store) {
+        return oauth_json_error(StatusCode::INTERNAL_SERVER_ERROR, "server_error", &error);
+    }
+
+    Json(json!({
+        "access_token": access_token,
+        "token_type": "Bearer",
+        "expires_in": TOKEN_TTL_SECS,
+        "refresh_token": replacement,
+        "refresh_token_expires_in": REFRESH_TOKEN_TTL_SECS,
         "scope": grant.scope
     }))
     .into_response()
@@ -428,6 +621,19 @@ pub(super) fn bearer(headers: &HeaderMap) -> Option<&str> {
 
 pub(super) fn pkce_challenge(verifier: &str) -> String {
     URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
+}
+
+pub(super) fn token_hash(token: &str) -> String {
+    URL_SAFE_NO_PAD.encode(Sha256::digest(token.as_bytes()))
+}
+
+pub(super) fn revoke_refresh_family(store: &mut AuthStore, family_id: &str) {
+    store
+        .refresh_tokens
+        .retain(|_, grant| grant.family_id != family_id);
+    store
+        .tokens
+        .retain(|_, grant| grant.family_id.as_deref() != Some(family_id));
 }
 
 pub(super) fn random_token(bytes: usize) -> String {

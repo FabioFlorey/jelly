@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#ffc107">
+    <meta name="description" content="Jelly is a Rust MCP server for controlling Chromium: inspect pages, run browser tools, verify outcomes, and capture artifacts. Explore capabilities, setup, and MCP integration.">
+    <meta name="robots" content="index,follow">
+    <title>
+      Jelly | Browser instrumentation for agents
+    </title>
+    <link rel="canonical" href="https://fabioflorey.github.io/jelly/">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="alternate icon" type="image/png" href="./assets/images/favicon.png">
+    <link rel="stylesheet" href="./assets/css/style.css">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Jelly">
+    <meta property="og:title" content="Jelly | Browser instrumentation for agents">
+    <meta property="og:description" content="Authenticated browser automation via MCP and Chromium. Explore browser tools, integration options, and working examples.">
+    <meta property="og:url" content="https://fabioflorey.github.io/jelly/">
+    <meta property="og:image" content="https://fabioflorey.github.io/jelly/assets/images/og-jelly-chan.png">
+    <meta property="og:image:alt" content="Jelly Chromium browser control">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://fabioflorey.github.io/jelly/assets/images/og-jelly-chan.png">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header>
+      <nav class="shell" aria-label="Primary navigation">
+        <a class="wordmark" href="./" aria-label="Jelly home">
+        <img src="./assets/images/logo.png" alt="" width="40" height="40">
+        </a>
+        <div class="nav-links">
+          <a href="./getting-started.html">Get Started</a>
+          <a href="./tools.html">Tools</a>
+          <a href="./clients.html">Clients</a>
+          <a href="./examples.html">Examples</a>
+          <a href="https://github.com/FabioFlorey/jelly">GitHub</a>
+        </div>
+      </nav>
+    </header>
+    <main id="main">
+      <div id="top"></div>
+      <div class="hero" id="hero">
+        <canvas class="hero-liquid" id="heroLiquid" aria-hidden="true">
+        </canvas>
+        <div class="shell hero-inner">
+          <div class="hero-mark">
+            <img src="./assets/images/full-logo.png" alt="Jelly" draggable="false" width="600" height="390">
+          </div>
+          <div>
+            <div class="eyebrow">
+              Chromium · Streamable HTTP · Model Context Protocol
+            </div>
+            <h1>
+              Jelly
+            </h1>
+            <p class="hero-subtitle">
+              Browser instrumentation for agents
+            </p>
+            <p class="lede">
+              Jelly is a Rust MCP server that lets authenticated agents inspect and control a real Chromium browser through
+              semantic tools, verify page state, and retain screenshots and downloads. It runs on Linux with Rust and
+              Chromium.
+            </p>
+            <div class="cta-row">
+              <a class="btn btn-primary" href="./getting-started.html">Get Started</a>
+              <a class="btn" href="https://github.com/FabioFlorey/jelly">View on GitHub</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <section id="possibilities">
+        <div class="shell">
+          <div class="section-head">
+            <div class="section-kicker">What you can build</div>
+            <h2>Put your AI to work on the real web.</h2>
+          </div>
+
+          <p class="section-copy">
+            From research to action, Jelly gives AI agents the browser capabilities to get things done.
+            Modern websites are interactive, dynamic, and often impossible to navigate through simple web requests.
+            Jelly gives AI agents access to a real Chromium browser so they can explore websites,
+            interact with applications, and complete complex tasks.
+          </p>
+
+          <div class="possibilities-grid">
+            <article class="possibility">
+              <div class="index">BROWSER AUTOMATION</div>
+              <h3>Let AI handle the repetitive work.</h3>
+              <p>
+                Automate everyday tasks across websites and business applications. Fill forms, update records,
+                navigate dashboards, process requests, and complete multi-step workflows.
+              </p>
+            </article>
+
+            <article class="possibility">
+              <div class="index">AI-POWERED RESEARCH</div>
+              <h3>Explore the web beyond what search engines can see.</h3>
+              <p>
+                Give your AI access to JavaScript-heavy websites, interactive dashboards, and dynamically loaded
+                content. Research competitors, compare products, investigate markets, and gather information
+                from multiple sources.
+              </p>
+            </article>
+
+            <article class="possibility">
+              <div class="index">BROWSER TESTING</div>
+              <h3>Test your website the way real people use it.</h3>
+              <p>
+                Automate user journeys in a real browser. Test forms, navigation, and interactive features,
+                verify expected results, and capture screenshots to investigate problems.
+              </p>
+            </article>
+
+            <article class="possibility">
+              <div class="index">DATA EXTRACTION</div>
+              <h3>Turn complex websites into useful information.</h3>
+              <p>
+                Collect information from interactive tables, paginated results, and web applications.
+                Navigate through pages, apply filters, retrieve documents, and organize the results
+                for further analysis.
+              </p>
+            </article>
+
+            <article class="possibility">
+              <div class="index">BUSINESS PROCESS AUTOMATION</div>
+              <h3>Connect the steps your business depends on.</h3>
+              <p>
+                Automate workflows across CRM systems, customer portals, reporting tools, and back-office
+                applications. Reduce repetitive manual work without requiring a dedicated integration
+                for every website.
+              </p>
+            </article>
+
+            <article class="possibility">
+              <div class="index">AI AGENTS</div>
+              <h3>Give your agents the ability to act, not just answer.</h3>
+              <p>
+                Connect Jelly through MCP to let AI agents navigate websites, interact with applications,
+                verify outcomes, and execute multi-step browser workflows.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="capabilities">
+        <div class="shell">
+          <div class="section-head">
+            <div class="section-kicker">
+              Implemented capabilities
+            </div>
+            <h2>
+              Browser operations with verifiable state.
+            </h2>
+          </div>
+          <p class="section-copy">
+            The current small MCP surface publishes three browser tools plus thirteen system tools. Use the runtime
+            <code>tools/list</code> response for the active set.
+          </p>
+          <div class="grid">
+            <article class="card">
+              <div class="index">
+                DISCOVER
+              </div>
+              <h3>
+                Inspect browser capabilities
+              </h3>
+              <p>
+                <code>browser-schema</code> searches operations and returns their argument contracts; for example, discover how
+                to find a form control before interacting with it.
+              </p>
+              <p>
+                <a href="./tools.html#browser-schema">Parameters and example →</a>
+              </p>
+            </article>
+            <article class="card">
+              <div class="index">
+                EXECUTE
+              </div>
+              <h3>
+                Call browser operations
+              </h3>
+              <p>
+                <code>browser-call</code> executes an ordered batch of semantic operations; for example, read a page and verify
+                visible text.
+              </p>
+              <p>
+                <a href="./tools.html#browser-call">Parameters and example →</a>
+              </p>
+            </article>
+            <article class="card">
+              <div class="index">
+                VERIFY
+              </div>
+              <h3>
+                Retain browser events
+              </h3>
+              <p>
+                <code>browser-events</code> subscribes to bounded CDP notifications; for example, observe target lifecycle
+                changes and detect dropped events.
+              </p>
+              <p>
+                <a href="./tools.html#browser-events">Parameters and example →</a>
+              </p>
+            </article>
+            <article class="card">
+              <div class="index">
+                ARTIFACTS
+              </div>
+              <h3>
+                Capture browser evidence
+              </h3>
+              <p>
+                <code>screenshot</code>, <code>download</code>, and <code>verify-artifact</code> capture files and verify their
+                integrity after an automation step.
+              </p>
+              <p>
+                <a href="./tools.html#screenshot">Parameters and example →</a>
+              </p>
+            </article>
+            <article class="card">
+              <div class="index">
+                WORKFLOWS
+              </div>
+              <h3>
+                Resume guarded routines
+              </h3>
+              <p>
+                <code>call-routine</code> executes reusable workflows; for example, capture a screenshot only after the target
+                passes an assertion.
+              </p>
+              <p>
+                <a href="./tools.html#call-routine">Parameters and example →</a>
+              </p>
+            </article>
+            <article class="card">
+              <div class="index">HUMAN IN THE LOOP</div>
+              <h3>Bring people into the workflow</h3>
+              <p>
+                <code>hitl</code> sends a Telegram message and optional browser screenshot when an agent
+                needs a person's input to continue.
+              </p>
+              <p><a href="./tools.html#hitl">Parameters and example →</a></p>
+            </article>
+          </div>
+        </div>
+      </section>
+      <section id="demo">
+        <div class="shell">
+          <div class="section-head">
+            <div class="section-kicker">Browser recording</div>
+            <h2>Work around the click!</h2>
+          </div>
+
+          <p class="section-copy">
+            Watch Jelly open Porsche's configurator, build a Racing Yellow 718 Spyder RS,
+            select performance options, and highlight the final price. Every step is captioned in the video.
+          </p>
+
+          <div class="demo-stage">
+            <video
+              autoplay
+              loop
+              muted
+              playsinline
+              controls
+              preload="auto"
+              poster="./assets/images/jelly-demo-poster.png"
+              aria-label="Jelly configuring a Racing Yellow Porsche 718 Spyder RS, step by step"
+            >
+              <source src="./assets/images/jelly-demo.mp4" type="video/mp4">
+              Your browser cannot play this video.
+              <a href="./assets/images/jelly-demo.mp4">Open the recording</a>.
+            </video>
+          </div>
+
+          <p class="demo-caption">
+            <strong>A real browser automation demo.</strong> Jelly selects Racing Yellow paint, black wheels with
+            yellow accents, and the Weissach Package, then highlights the configured price.
+          </p>
+        </div>
+      </section>
+
+      <section id="how-it-works">
+        <div class="shell">
+          <div class="section-head">
+            <div class="section-kicker">
+              How it works
+            </div>
+            <h2>
+              Three steps from setup to tool call.
+            </h2>
+          </div>
+          <div class="grid">
+            <article class="card">
+              <div class="index">
+                01 · INSTALL
+              </div>
+              <h3>
+                Configure and start
+              </h3>
+              <p>
+                Install Rust 1.98.1, Chromium and the Linux user services; run <code>./quickstart.sh</code>. The installer
+                configures authentication and hosting.
+              </p>
+              <a href="./getting-started.html">Installation procedure →</a>
+            </article>
+            <article class="card">
+              <div class="index">
+                02 · CONNECT
+              </div>
+              <h3>
+                Authenticate an MCP client
+              </h3>
+              <p>
+                Connect ChatGPT through a remote HTTPS endpoint with OAuth, or use Streamable HTTP and a bearer token
+                with a local MCP client.
+              </p>
+              <a href="./clients.html">Connection options →</a>
+            </article>
+            <article class="card">
+              <div class="index">
+                03 · CALL
+              </div>
+              <h3>
+                Discover and execute
+              </h3>
+              <p>
+                Call <code>browser-schema</code> with <code>action: "capabilities"</code>. Then start Chromium before using
+                browser-session tools.
+              </p>
+              <a href="./examples.html">Working request example →</a>
+            </article>
+          </div>
+        </div>
+      </section>
+      <section id="working-example">
+        <div class="shell">
+          <div class="section-head">
+            <div class="section-kicker">
+              MCP working example
+            </div>
+            <h2>
+              Discover tools without starting Chromium.
+            </h2>
+          </div>
+          <p class="section-copy">
+            With a running server and a valid local bearer token, call the stateless <code>browser-schema</code> tool using
+            the standard MCP <code>tools/call</code> method.
+          </p>
+          <div class="terminal docs-terminal">
+            <pre>curl http://127.0.0.1:8787/mcp \
+  -H "Authorization: Bearer $JELLY_MCP_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"browser-schema","arguments":{"action":"capabilities"}}}'</pre>
+          </div>
+          <p class="section-copy">
+            A successful JSON-RPC response includes <code>result.structuredContent.ok: true</code> and
+            <code>result.structuredContent.data.action: "capabilities"</code>, with categories and an operation count.
+            <strong>Permission:</strong> bearer token or OAuth <code>jelly</code> scope. <strong>Limitation:</strong> this
+            verifies MCP discovery, not browser readiness.
+          </p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="./examples.html">Full example and output</a>
+            <a class="btn" href="./tools.html#browser-schema">Tool schema</a>
+          </div>
+        </div>
+      </section>
+      <section id="integrations">
+        <div class="shell">
+          <div class="section-head">
+            <div class="section-kicker">Integrations</div>
+            <h2>Connect Jelly to your agents.</h2>
+          </div>
+
+          <p class="section-copy">
+            Use Jelly with an MCP client or invoke its Rust CLI directly. Choose the connection
+            that fits how your agent operates.
+          </p>
+
+          <div class="grid">
+            <article class="card">
+              <div class="index">CHATGPT</div>
+              <h3>Remote MCP with OAuth</h3>
+              <p>
+                Connect through a public HTTPS endpoint using the ChatGPT OAuth onboarding profile.
+              </p>
+              <p><a href="./clients.html#chatgpt">Connect ChatGPT →</a></p>
+            </article>
+
+            <article class="card">
+              <div class="index">MCP CLIENTS</div>
+              <h3>Streamable HTTP</h3>
+              <p>
+                Connect an MCP client to the local endpoint and authorize requests with a bearer token.
+              </p>
+              <p><a href="./clients.html#generic">MCP connection guide →</a></p>
+            </article>
+
+            <article class="card">
+              <div class="index">RUST CLI</div>
+              <h3>Direct browser tools</h3>
+              <p>
+                Run browser actions and discover capabilities directly from the terminal using Jelly's CLI.
+              </p>
+              <p><a href="./getting-started.html#next">CLI quickstart →</a></p>
+            </article>
+          </div>
+
+          <div class="cta-row">
+            <a class="btn" href="./clients.html">All connection options</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="quickstart">
+        <div class="shell">
+          <div class="section-head">
+            <div class="section-kicker">Quickstart</div>
+            <h2>Try Jelly.</h2>
+          </div>
+
+          <p class="section-copy">
+            Check your Linux prerequisites, preview the configuration, then run the interactive installer.
+            The wizard configures authentication, hosting, and managed services.
+          </p>
+
+          <div class="quickstart-stage">
+            <img
+              class="quickstart-chan"
+              src="./assets/images/jelly-chan.png"
+              alt=""
+              aria-hidden="true"
+              draggable="false"
+            >
+            <div class="terminal" aria-label="Jelly installation commands">
+              <div class="terminal-bar">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span>jelly / quickstart</span>
+              </div>
+              <pre><span class="prompt">$</span> git clone https://github.com/FabioFlorey/jelly.git
+<span class="prompt">$</span> cd jelly
+<span class="prompt">$</span> ./quickstart.sh --check
+
+<span class="dim"># preview setup without changing services or secrets</span>
+<span class="prompt">$</span> ./quickstart.sh --dry-run
+
+<span class="dim"># run the interactive setup</span>
+<span class="prompt">$</span> ./quickstart.sh</pre>
+            </div>
+          </div>
+
+          <p class="section-copy quickstart-note">
+            For hosting, credentials, and the first MCP request, follow the step-by-step installation guide.
+          </p>
+
+          <div class="cta-row">
+            <a class="btn btn-primary" href="./getting-started.html">Installation guide</a>
+            <a class="btn" href="./tools.html">Browse the tools</a>
+            <a class="btn" href="./troubleshooting.html">Troubleshooting</a>
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer>
+      <div class="shell">
+        <span>Jelly · Browser instrumentation for agents</span>
+        <span class="footer-links">
+          <a href="./getting-started.html">Get Started</a> ·
+          <a href="./tools.html">Tools</a> ·
+          <a href="./troubleshooting.html">Troubleshooting</a> ·
+          <a href="https://github.com/FabioFlorey/jelly">Repository</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/releases">Releases</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/CHANGELOG.md">Changelog</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/LICENSE">License</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/issues">Issues</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/CONTRIBUTING.md">Contribution policy</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/SECURITY.md">Security</a>
+        </span>
+      </div>
+    </footer>
+    <script defer src="./assets/js/main.js">
+    </script>
+  </body>
+</html>

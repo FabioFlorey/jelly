@@ -11,6 +11,23 @@ use std::{
 };
 use url::Url;
 
+#[derive(Debug, Clone)]
+pub(super) struct PendingApproval {
+    pub(super) id: String,
+    pub(super) client_id: String,
+    pub(super) redirect_uri: String,
+    pub(super) scope: String,
+    pub(super) expires_at: u64,
+    pub(super) setup_token: String,
+    pub(super) params: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct LocalSetupSession {
+    pub(super) token: String,
+    pub(super) expires_at: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConsentMode {
     Browser,
@@ -35,12 +52,17 @@ pub struct AuthState {
     pub(super) consent_mode: ConsentMode,
     pub(super) public_chatgpt_dcr: bool,
     pub(super) public_url: Arc<str>,
+    pub(super) local_admin_url: Arc<str>,
     pub(super) store: Arc<Mutex<AuthStore>>,
     pub(super) owner_sessions: Arc<Mutex<HashMap<String, u64>>>,
     pub(super) pair_codes: Arc<Mutex<HashMap<String, u64>>>,
+    pub(super) local_approval_window_expires_at: Arc<Mutex<u64>>,
+    pub(super) local_setup_session: Arc<Mutex<Option<LocalSetupSession>>>,
+    pub(super) pending_approval: Arc<Mutex<Option<PendingApproval>>>,
 }
 
 impl AuthState {
+    #[cfg(test)]
     pub fn new(
         static_token: String,
         password: String,
@@ -48,6 +70,26 @@ impl AuthState {
         consent_mode: ConsentMode,
         public_chatgpt_dcr: bool,
         public_url: String,
+    ) -> Result<Self, String> {
+        Self::new_with_admin_url(
+            static_token,
+            password,
+            bootstrap_secret,
+            consent_mode,
+            public_chatgpt_dcr,
+            public_url,
+            "http://127.0.0.1:8788".into(),
+        )
+    }
+
+    pub fn new_with_admin_url(
+        static_token: String,
+        password: String,
+        bootstrap_secret: String,
+        consent_mode: ConsentMode,
+        public_chatgpt_dcr: bool,
+        public_url: String,
+        local_admin_url: String,
     ) -> Result<Self, String> {
         if static_token.len() < 32 {
             return Err("JELLY_MCP_TOKEN must be at least 32 bytes".into());
@@ -73,9 +115,27 @@ impl AuthState {
             );
         }
 
+        let local_admin_url = local_admin_url.trim_end_matches('/').to_owned();
+        let admin_parsed =
+            Url::parse(&local_admin_url).map_err(|e| format!("invalid local admin URL: {e}"))?;
+        if admin_parsed.scheme() != "http"
+            || !matches!(
+                admin_parsed.host_str(),
+                Some("127.0.0.1" | "localhost" | "::1")
+            )
+        {
+            return Err("local admin URL must use http on a loopback host".into());
+        }
+
         let mut store = load_store()?;
         let now = now();
         store.tokens.retain(|_, grant| grant.expires_at > now);
+        store
+            .refresh_tokens
+            .retain(|_, grant| grant.expires_at > now);
+        store
+            .consumed_refresh_tokens
+            .retain(|_, grant| grant.expires_at > now);
 
         Ok(Self {
             static_token: Arc::from(static_token),
@@ -84,9 +144,13 @@ impl AuthState {
             consent_mode,
             public_chatgpt_dcr,
             public_url: Arc::from(public_url),
+            local_admin_url: Arc::from(local_admin_url),
             store: Arc::new(Mutex::new(store)),
             owner_sessions: Arc::new(Mutex::new(HashMap::new())),
             pair_codes: Arc::new(Mutex::new(HashMap::new())),
+            local_approval_window_expires_at: Arc::new(Mutex::new(0)),
+            local_setup_session: Arc::new(Mutex::new(None)),
+            pending_approval: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -108,12 +172,34 @@ impl AuthState {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
+    pub(super) fn local_approval_window_guard(&self) -> MutexGuard<'_, u64> {
+        self.local_approval_window_expires_at
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    pub(super) fn local_setup_guard(&self) -> MutexGuard<'_, Option<LocalSetupSession>> {
+        self.local_setup_session
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    pub(super) fn pending_approval_guard(&self) -> MutexGuard<'_, Option<PendingApproval>> {
+        self.pending_approval
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     pub fn public_url(&self) -> &str {
         &self.public_url
     }
 
     pub fn resource_url(&self) -> String {
         format!("{}/mcp", self.public_url)
+    }
+
+    pub(crate) fn local_admin_url(&self) -> &str {
+        &self.local_admin_url
     }
 
     pub fn consent_mode_name(&self) -> &'static str {
@@ -134,11 +220,36 @@ impl AuthState {
         sessions.len()
     }
 
-    pub fn oauth_counts(&self) -> (usize, usize) {
+    pub fn oauth_counts(&self) -> (usize, usize, usize) {
         let now = now();
         let mut store = self.store_guard();
         store.tokens.retain(|_, grant| grant.expires_at > now);
-        (store.clients.len(), store.tokens.len())
+        store
+            .refresh_tokens
+            .retain(|_, grant| grant.expires_at > now);
+        (
+            store.clients.len(),
+            store.tokens.len(),
+            store.refresh_tokens.len(),
+        )
+    }
+
+    /// A stored, unexpired ChatGPT OAuth refresh grant (not proof that the
+    /// ChatGPT client is currently online).
+    pub fn chatgpt_authorized(&self) -> bool {
+        let now = now();
+        let mut store = self.store_guard();
+        store
+            .refresh_tokens
+            .retain(|_, grant| grant.expires_at > now);
+        store.refresh_tokens.values().any(|grant| {
+            store.clients.get(&grant.client_id).is_some_and(|client| {
+                client
+                    .redirect_uris
+                    .iter()
+                    .any(|uri| super::dcr::is_chatgpt_redirect(uri))
+            })
+        })
     }
 
     pub fn authorized(&self, headers: &HeaderMap) -> bool {
@@ -173,6 +284,15 @@ impl AuthState {
                 .insert(header::WWW_AUTHENTICATE, value);
         }
         response
+    }
+
+    /// Owner-only diagnostics: OAuth application tokens do not grant admin access.
+    pub(crate) fn has_admin_access(&self, headers: &HeaderMap) -> bool {
+        self.has_owner_session(headers)
+            || self.has_bootstrap_access(headers)
+            || bearer(headers).is_some_and(|token| {
+                constant_time_eq(token.as_bytes(), self.static_token.as_bytes())
+            })
     }
 
     pub(super) fn has_bootstrap_access(&self, headers: &HeaderMap) -> bool {

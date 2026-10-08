@@ -59,6 +59,15 @@ pub fn run_from_env() -> rustwright::Result<()> {
         .headless(headless)
         .executable_path("/usr/bin/chromium");
 
+    // Load locally managed browser extensions without coupling them to the profile.
+    let violentmonkey_dir = "/data/jelly-runtime/extensions/violentmonkey-src/dist-mv3";
+    if std::path::Path::new(violentmonkey_dir)
+        .join("manifest.json")
+        .is_file()
+    {
+        options = options.arg(format!("--load-extension={violentmonkey_dir}"));
+    }
+
     if !headless {
         options = options.arg("--start-maximized");
     }
@@ -78,6 +87,11 @@ pub fn run_from_env() -> rustwright::Result<()> {
     fs::write(BROWSER_MODE, if headless { "headless" } else { "headed" })?;
     fs::write(BROWSER_PID, process::id().to_string())?;
     fs::write(ENDPOINT, browser.ws_endpoint())?;
+    crate::start_download_tracker(&browser.ws_endpoint()).map_err(|error| {
+        rustwright::Error::Io(std::io::Error::other(format!(
+            "failed to start Jelly download tracker: {error}"
+        )))
+    })?;
 
     if let Some(url) = url {
         let page = browser.new_page()?;
@@ -145,6 +159,8 @@ pub fn run_from_env() -> rustwright::Result<()> {
                 remove_if_exists(stale)?;
             }
             browser.close()?;
+            let download_state_error =
+                crate::downloads::interrupt_downloads_on_browser_stop().err();
             for stale in [
                 ENDPOINT,
                 PAGE_TARGET,
@@ -155,6 +171,11 @@ pub fn run_from_env() -> rustwright::Result<()> {
                 BROWSER_READY,
             ] {
                 remove_if_exists(stale)?;
+            }
+            if let Some(error) = download_state_error {
+                return Err(rustwright::Error::Io(std::io::Error::other(format!(
+                    "browser closed but download lifecycle state could not be persisted: {error}"
+                ))));
             }
             println!("Browser closed cleanly.");
             return Ok(());

@@ -8,11 +8,13 @@ on:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
+      - "site/**"
       - "assets/**"
   pull_request:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
+      - "site/**"
       - "assets/**"
 
 permissions:

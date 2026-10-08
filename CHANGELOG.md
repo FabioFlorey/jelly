@@ -25,8 +25,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Branded MCP operational index/dashboard/status surfaces with browser, recording, process, and OAuth state plus owner-gated inactive-process cleanup.
 - Telegram HITL can attach a local MP4 instead of a screenshot and uses configurable title/subtitle/body/signature formatting with HTML-safe dynamic content.
 - Paired OAuth setup can mint a one-time, five-minute owner-pairing link so installers can establish the owner browser without exposing the bootstrap secret to the browser.
+- Interactive paired ChatGPT setup uses a loopback-only `/connect` page opened from an installer-authorized short-lived session (a bare GET is informational and cannot mint authorization), optionally opens a configured private Jelly plugin directly, redirects validated DCR/PKCE authorization through one-time `/approve` Yes/No controls, and returns the browser to ChatGPT; pairing remains the non-TTY/headless fallback.
+- OAuth authorization-code clients receive rotating 30-day refresh tokens stored by hash; reuse of a consumed refresh token revokes its active token family.
+- First-class semantic cookie and active-origin `localStorage`/`sessionStorage` operations, including HttpOnly cookie access through Chromium without requiring page JavaScript or raw CDP.
+- First-class browser download lifecycle tracking with Chromium GUIDs, progress, suggested filenames, cancellation, terminal/failure state, artifact provenance, explicit destination materialization, and `fail`/`overwrite`/`uniquify` collision policy.
 
 ### Changed
+
+- Jelly's public and local administration pages now share its logo, typography and honey-toned CSS, including styled OAuth/approval error pages. Routes are grouped by interface/operations/protocol, and `/connections` lists provider profiles without leaking credentials. Detailed `/dashboard` and `/status.json` (legacy `/status`) require owner or administrative access; `/health` and `/ready` remain public service probes. Added an isolated Chromium web UI screenshot smoke test.
+- Active ChatGPT authorization detection now checks the registered ChatGPT OAuth client rather than assuming any stored refresh token belongs to ChatGPT; installer setup uses an authenticated loopback POST and does not create sessions through GET navigation.
 
 - Screenshot capture now relies exclusively on Chromium/CDP. The Linux-specific `grim`/`hyprctl` desktop fallback was removed, screenshot base64 decoding now uses the Rust library instead of an external command, and element capture no longer scrolls the live page before taking a cropped screenshot.
 - Step recordings now resolve human-readable target names before actions and use concise action-in-progress labels such as `filling Text input`, `selecting Two in Dropdown (select)`, and `clicking Submit`.
@@ -43,3 +50,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Continuous recordings now follow Jelly's shared active browser target between frames and retain initial/final target provenance; routine graph system-tool failures now use the same typed classifications as MCP for profile import and browser recording.
 - MCP service installation rebuild freshness now includes the compile-time embedded dashboard stylesheet and font assets.
 - MCP installation and hosting now resolve the release build directory from the shared Cargo configuration, preventing installer/build-stamp drift from Cargo's configured target directory; an empty `JELLY_PUBLIC_URL` falls back to the local bind origin instead of becoming an empty OAuth issuer.
+- Legacy `wait-download` now prefers matching event-backed lifecycle state and uses the historical filesystem completion heuristic only when no lifecycle record exists; graceful browser stop, detected launcher-process exit, restart, and tracker loss convert unfinished downloads to explicit interrupted state, and non-overwrite destination policies reserve paths atomically.

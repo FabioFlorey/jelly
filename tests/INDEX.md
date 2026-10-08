@@ -53,6 +53,10 @@ Generated test-run data does not belong in this directory. By default it is writ
 
 Browser/build runtime state likewise stays outside the repository.
 
+## Agent-routing evaluation
+
+[`fixtures/agent-guidance-cases.json`](./fixtures/agent-guidance-cases.json) contains deterministic intent-to-tool cases for the [offline evaluator](../scripts/eval-agent-guidance.py). Run `python3 scripts/eval-agent-guidance.py --self-test` to check its scoring contract without starting a browser. Real agent decisions can be evaluated with `--predictions`, but verified end-to-end browser task success requires a separate execution run. See [Agent Guidance Evaluation](../docs/development/AGENT_EVALUATION.md).
+
 ## Test groups
 
 | Group | Scope |
@@ -68,6 +72,7 @@ Browser/build runtime state likewise stays outside the repository.
 | `ranking` | Limits, pagination, ordering, and runtime/legacy ranking parity |
 | `highlight` | Highlight modes, geometry, target-following behavior, cleanup, and validation |
 | `rollback` | Compatibility matrices for persistent sessions, page runtime, ref namespaces, and snapshot limits |
+| `browser-state` | First-class cookie/DOM-storage semantics and CDP-backed download lifecycle, cancellation, destination, and restart/stop behavior |
 | `framework` | Network-dependent React mutation/reconciliation scenarios |
 | `real-world` | Network-dependent public-site regression scenarios |
 
@@ -112,4 +117,4 @@ A selected disabled test is reported as `DISABLED` rather than silently omitted.
 
 A test implementation is not considered trustworthy merely because its shell function exists. Repository validation should cover the harness itself as well as the product behavior. The `quality` group therefore checks Rust formatting/build/tests/Clippy, generated-tool-index consistency, suite catalog integrity, shell syntax, test-index coverage, and the global suite lock.
 
-For project-level development guidance, see [`../docs/wiki/DEVELOPMENT.md`](../docs/wiki/DEVELOPMENT.md).
+For project-level development guidance, see [`../docs/development/DEVELOPMENT.md`](../docs/development/DEVELOPMENT.md).

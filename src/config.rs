@@ -34,6 +34,9 @@ pub struct McpConfig {
     pub persistent_session: bool,
     pub raw_cdp: bool,
     pub allow_cargo_fallback: bool,
+    /// Optional client onboarding profiles. Empty preserves legacy MCP behavior.
+    #[serde(default)]
+    pub connections: Vec<crate::connection::ProviderConnection>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -285,6 +288,31 @@ mod tests {
         assert_eq!(
             paths.logical_targets,
             PathBuf::from("/tmp/jelly-runtime/state/logical_targets.json")
+        );
+    }
+
+    #[test]
+    fn mcp_connections_are_optional_and_support_multiple_providers() {
+        let legacy: McpConfig = toml::from_str(
+            "surface = 'small-surface'\npersistent_session = true\nraw_cdp = false\nallow_cargo_fallback = false",
+        )
+        .unwrap();
+        assert!(legacy.connections.is_empty());
+
+        let configured: McpConfig = toml::from_str(
+            "surface = 'small-surface'\npersistent_session = true\nraw_cdp = false\nallow_cargo_fallback = false\n\
+             [[connections]]\nprovider = 'chatgpt'\nmethod = 'remote-http'\nauth = 'oauth'\n\
+             [[connections]]\nprovider = 'generic-mcp'\nmethod = 'local-http'\nauth = 'bearer-token'",
+        )
+        .unwrap();
+        assert_eq!(configured.connections.len(), 2);
+        assert_eq!(
+            configured.connections[0],
+            crate::connection::Provider::ChatGPT.preset()
+        );
+        assert_eq!(
+            configured.connections[1],
+            crate::connection::Provider::GenericMcp.preset()
         );
     }
 

@@ -48,13 +48,46 @@ pub fn named_primitive_input_schema(spec: &PrimitiveSpec) -> Result<Value, Strin
     let mut dependent_required = Map::new();
 
     for (index, arg) in spec.args.iter().enumerate() {
-        let schema = match arg.kind {
-            ArgKind::Integer => json!({"type":"integer","minimum":0}),
-            ArgKind::Target => json!({
+        let schema = match (spec.name, arg.name, arg.kind) {
+            ("set-cookie", "cookie", ArgKind::Object) => json!({
+                "type":"object",
+                "properties":{
+                    "name":{"type":"string"},
+                    "value":{"type":"string"},
+                    "url":{"type":"string"},
+                    "domain":{"type":"string"},
+                    "path":{"type":"string"},
+                    "secure":{"type":"boolean"},
+                    "httpOnly":{"type":"boolean"},
+                    "sameSite":{"type":"string","enum":["Strict","Lax","None"]},
+                    "expires":{"type":"number"}
+                },
+                "required":["name","value"],
+                "additionalProperties":false
+            }),
+            ("delete-cookie", "selector", ArgKind::Object) => json!({
+                "type":"object",
+                "properties":{
+                    "name":{"type":"string"},
+                    "url":{"type":"string"},
+                    "domain":{"type":"string"},
+                    "path":{"type":"string"}
+                },
+                "required":["name"],
+                "additionalProperties":false
+            }),
+            (
+                "storage-list" | "storage-get" | "storage-set" | "storage-remove" | "storage-clear",
+                "area",
+                ArgKind::String,
+            ) => json!({"type":"string","enum":["local","session"]}),
+            (_, _, ArgKind::Integer) => json!({"type":"integer","minimum":0}),
+            (_, _, ArgKind::Target) => json!({
                 "type":"string",
                 "description":"Element target: document-scoped @e…/@img… ref, css:<selector>, text:<exact text>, or plain exact text."
             }),
-            ArgKind::String => json!({"type":"string"}),
+            (_, _, ArgKind::String) => json!({"type":"string"}),
+            (_, _, ArgKind::Object) => json!({"type":"object"}),
         };
         properties.insert(arg.name.to_owned(), schema);
 
@@ -200,6 +233,16 @@ fn named_value_to_positional(
                 )
             })?;
             Ok(value.to_string())
+        }
+        ArgKind::Object => {
+            if !value.is_object() {
+                return Err(jelly_error(
+                    ErrorKind::InvalidArguments,
+                    format!("{name} for {} must be an object", spec.name),
+                    false,
+                ));
+            }
+            serde_json::to_string(value).map_err(Into::into)
         }
     }
 }

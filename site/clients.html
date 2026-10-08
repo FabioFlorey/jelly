@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#ffc107">
+    <meta name="description" content="Connect Jelly with ChatGPT, MCP clients, or its Rust CLI. Setup instructions for HTTPS OAuth and local Streamable HTTP.">
+    <meta name="robots" content="index,follow">
+    <title>
+      Connect Jelly to Your Agent · Jelly MCP Server
+    </title>
+    <link rel="canonical" href="https://fabioflorey.github.io/jelly/clients.html">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="alternate icon" type="image/png" href="./assets/images/favicon.png">
+    <link rel="stylesheet" href="./assets/css/style.css">
+    <meta property="og:title" content="Connect Jelly to Your Agent · Jelly MCP Server">
+    <meta property="og:description" content="Connect Jelly with ChatGPT, MCP clients, or its Rust CLI. Setup instructions for HTTPS OAuth and local Streamable HTTP.">
+    <meta property="og:url" content="https://fabioflorey.github.io/jelly/clients.html">
+    <meta property="og:type" content="article">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header>
+      <nav class="shell" aria-label="Primary navigation">
+        <a class="wordmark" href="./" aria-label="Jelly home">
+        <img src="./assets/images/logo.png" alt="" width="40" height="40">
+        </a>
+        <div class="nav-links">
+          <a href="./getting-started.html">Get Started</a><a href="./tools.html">Tools</a><a
+          href="./clients.html">Clients</a><a href="./examples.html">Examples</a><a
+          href="https://github.com/FabioFlorey/jelly">GitHub</a>
+        </div>
+      </nav>
+    </header>
+    <main class="shell doc-page" id="main">
+      <div class="doc-head">
+        <div class="eyebrow">
+          Jelly / Developer documentation
+        </div>
+        <h1>
+          Connect Jelly to Your Agent
+        </h1>
+        <p class="lede">
+          Connect to Chromium through MCP or the Jelly CLI. Choose a connection path and follow the setup steps.
+        </p>
+      </div>
+      <section id="connections">
+        <h2>Choose how to connect</h2>
+
+        <div class="grid">
+          <article class="card">
+            <div class="index">CHATGPT</div>
+            <h3>Remote HTTPS + OAuth</h3>
+            <p>Use the ChatGPT connection profile to provide browser tools through an HTTPS MCP endpoint.</p>
+            <p><a href="#chatgpt">ChatGPT setup →</a></p>
+          </article>
+
+          <article class="card">
+            <div class="index">MCP CLIENTS</div>
+            <h3>Local Streamable HTTP</h3>
+            <p>Connect an MCP client to Jelly's local HTTP endpoint using your configured bearer token.</p>
+            <p><a href="#generic">Local MCP setup →</a></p>
+          </article>
+
+          <article class="card">
+            <div class="index">RUST CLI</div>
+            <h3>Direct browser access</h3>
+            <p>Run browser commands with <code>agent-run</code> or discover capabilities with <code>agent-discover</code>.</p>
+            <p><a href="#cli">CLI commands →</a></p>
+          </article>
+        </div>
+      </section>
+
+      <section id="chatgpt">
+        <h2>ChatGPT connection</h2>
+
+        <p>
+          Choose a remote hosting mode in <code>./quickstart.sh</code> to establish an HTTPS endpoint.
+          The ChatGPT profile uses OAuth. Once the server is available, enter the MCP URL in your
+          ChatGPT connection settings and complete the authorization flow.
+        </p>
+
+        <p>
+          For hosting and the local approval flow, follow the
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/docs/reference/MCP.md#authentication">OAuth setup guide</a>.
+        </p>
+      </section>
+
+      <section id="generic">
+        <h2>Local MCP connection</h2>
+
+        <p>Configure your Streamable HTTP MCP client with the endpoint and authorization below.</p>
+
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Local MCP configuration">
+          <table>
+            <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>Endpoint</td><td><code>http://127.0.0.1:8787/mcp</code></td></tr>
+              <tr><td>Authentication</td><td><code>Authorization: Bearer &lt;JELLY_MCP_TOKEN&gt;</code></td></tr>
+              <tr><td>Transport</td><td>Streamable HTTP</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>For a complete authenticated request, see the <a href="./examples.html#discover">MCP example</a>.</p>
+      </section>
+
+      <section id="cli">
+        <h2>Rust CLI</h2>
+
+        <p>From the Jelly repository, open Chromium, inspect a page, and close the browser:</p>
+
+        <pre><code>cargo run --quiet --bin agent-run -- open-browser https://example.com
+cargo run --quiet --bin agent-run -- read-page
+cargo run --quiet --bin agent-run -- close-browser</code></pre>
+
+        <p>Discover browser operations:</p>
+
+        <pre><code>cargo run --quiet --bin agent-discover -- capabilities</code></pre>
+      </section>
+
+    </main>
+    <footer>
+      <div class="shell">
+        <span>Jelly · Browser instrumentation for agents</span>
+        <span class="footer-links">
+          <a href="./getting-started.html">Get Started</a> ·
+          <a href="./examples.html">Examples</a> ·
+          <a href="./tools.html">Tools</a> ·
+          <a href="./troubleshooting.html">Troubleshooting</a> ·
+          <a href="https://github.com/FabioFlorey/jelly">Repository</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/releases">Releases</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/CHANGELOG.md">Changelog</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/LICENSE">License</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/issues">Issues</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/CONTRIBUTING.md">Contribution policy</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/SECURITY.md">Security policy</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

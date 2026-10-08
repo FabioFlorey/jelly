@@ -1,5 +1,5 @@
 # batch<TAB>comma-separated groups
-deterministic	quality,agent-api,session,events,runtime,refs,semantic,shadow,ranking,highlight,rollback
-browser	agent-api,session,events,runtime,refs,semantic,shadow,ranking,highlight,rollback
+deterministic	quality,agent-api,session,events,runtime,refs,semantic,shadow,ranking,highlight,rollback,browser-state
+browser	agent-api,session,events,runtime,refs,semantic,shadow,ranking,highlight,rollback,browser-state
 fast	quality,refs,semantic,highlight
 network	framework,real-world

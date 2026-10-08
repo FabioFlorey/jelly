@@ -14,7 +14,7 @@ pub fn browser_schema_input_schema() -> Value {
             {
                 "type":"object",
                 "properties":{
-                    "action":{"const":"capabilities"}
+                    "action":{"const":"capabilities","description":"List semantic browser categories and operation counts without opening Chromium."}
                 },
                 "required":["action"],
                 "additionalProperties":false
@@ -22,7 +22,7 @@ pub fn browser_schema_input_schema() -> Value {
             {
                 "type":"object",
                 "properties":{
-                    "action":{"const":"search"},
+                    "action":{"const":"search","description":"Find likely browser operation names for a user intent; load schema before calling."},
                     "query":{"type":"string","minLength":1},
                     "limit":{
                         "type":"integer",
@@ -37,7 +37,7 @@ pub fn browser_schema_input_schema() -> Value {
             {
                 "type":"object",
                 "properties":{
-                    "action":{"const":"schema"},
+                    "action":{"const":"schema","description":"Return the named JSON input contract for the selected operation."},
                     "operation":{"type":"string","minLength":1}
                 },
                 "required":["action","operation"],

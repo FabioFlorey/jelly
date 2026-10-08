@@ -64,7 +64,7 @@ quality_suite_catalog() {
 quality_suite_shell_syntax() {
   local f
   bash -n tests/suite/run.sh tests/suite/lib.sh tests/suite/manage.sh
-  for f in tests/suite/groups/*.sh scripts/check-test-suite.sh scripts/check-browser-session-lifecycle.sh scripts/check-page-runtime.sh scripts/check-framework-mutations.sh scripts/check-ref-semantics.sh scripts/check-semantic-targets.sh scripts/check-shadow-dom.sh scripts/check-filtering-ranking.sh scripts/check-highlight-modes.sh scripts/check-rollback-matrix.sh scripts/check-real-world-regressions.sh scripts/benchmark-mcp-surface.sh; do
+  for f in tests/suite/groups/*.sh scripts/check-test-suite.sh scripts/check-browser-session-lifecycle.sh scripts/check-page-runtime.sh scripts/check-framework-mutations.sh scripts/check-ref-semantics.sh scripts/check-semantic-targets.sh scripts/check-shadow-dom.sh scripts/check-filtering-ranking.sh scripts/check-highlight-modes.sh scripts/check-rollback-matrix.sh scripts/check-real-world-regressions.sh scripts/benchmark-mcp-surface.sh scripts/check-web-ui.sh; do
     bash -n "$f"
   done
 }
@@ -135,18 +135,26 @@ quality_mcp_instructions() {
     jt_fail "small-surface instructions must not depend on snapshot-interactive being a top-level MCP tool"
   fi
 
-  raw_boundary_count="$(grep -c '^### Raw CDP trust boundary$' docs/wiki/MCP.md)"
+  raw_boundary_count="$(grep -c '^### Raw CDP trust boundary$' docs/reference/MCP.md)"
   jt_assert_eq "$raw_boundary_count" "1" "MCP documentation must contain exactly one raw-CDP trust-boundary section"
+}
+
+quality_agent_guidance() {
+  grep -Fq '### Tool choice in one pass' .agent/instructions/mcp.md \
+    || jt_fail 'agent startup instructions must contain a tool-selection decision table'
+  grep -Fq '### Final task check' .agent/instructions/mcp.md \
+    || jt_fail 'agent startup instructions must verify user outcomes before reporting success'
+  python3 scripts/eval-agent-guidance.py --self-test
 }
 
 quality_raw_cdp_boundary_docs() {
   local reliability security mcp config_file
-  reliability="$(cat docs/wiki/RELIABILITY.md)"
+  reliability="$(cat docs/guides/RELIABILITY.md)"
   security="$(cat SECURITY.md)"
-  mcp="$(cat docs/wiki/MCP.md)"
+  mcp="$(cat docs/reference/MCP.md)"
   config_file="$(cat config/jelly.toml)"
 
-  jt_assert_eq "$(grep -c '^Raw CDP has a different reliability contract from Jelly semantic operations\.' docs/wiki/RELIABILITY.md)" "1"     "Reliability must contain exactly one raw-CDP reliability-contract paragraph"
+  jt_assert_eq "$(grep -c '^Raw CDP has a different reliability contract from Jelly semantic operations\.' docs/guides/RELIABILITY.md)" "1"     "Reliability must contain exactly one raw-CDP reliability-contract paragraph"
   grep -Fq 'authorization boundary is deployment-wide, not per-client' <<<"$security" || jt_fail "Security docs must state the current raw-CDP authorization boundary"
   grep -Fq 'all published MCP tools use the same OAuth `jelly` scope' <<<"$security" || jt_fail "Security docs must state the single OAuth scope"
   grep -Fq 'Changing `[mcp].raw_cdp` requires restarting the MCP process' <<<"$security" || jt_fail "Security docs must state restart semantics"
@@ -162,7 +170,7 @@ quality_raw_cdp_boundary_docs() {
 quality_discovery_docs() {
   local index discovery instructions
   index="$(cat .agent/tools/index.md)"
-  discovery="$(cat docs/wiki/DISCOVERY.md)"
+  discovery="$(cat docs/reference/DISCOVERY.md)"
   instructions="$(cat .agent/instructions/mcp.md)"
 
   grep -Fq '# jelly internal capability index' <<<"$index" || jt_fail "generated index must identify itself as the internal capability index"
@@ -213,7 +221,7 @@ quality_mcp_surface_budget() {
   small_raw_desc="$(jq -r '.small_surface_raw_on.description_bytes' <<<"$report")"
 
   jt_assert_gt "$large_tools" "$small_tools" "small-surface must publish fewer tools than large-surface"
-  jt_assert_eq "$(jq -r '.large_surface.binding_distribution.browser_primitive' <<<"$report")" "38"     "large-surface must publish the 38 semantic browser primitives"
+  jt_assert_eq "$(jq -r '.large_surface.binding_distribution.browser_primitive' <<<"$report")" "47"     "large-surface must publish the 47 semantic browser primitives"
   jt_assert_eq "$(jq -r '.large_surface.binding_distribution.builtin_facade' <<<"$report")" "0"     "large-surface must not publish small-surface browser facade entries"
   jt_assert_eq "$(jq -r '.small_surface_raw_off.binding_distribution.browser_primitive' <<<"$report")" "0"     "small-surface must not republish individual browser primitives"
   jt_assert_eq "$(jq -r '.small_surface_raw_off.binding_distribution.builtin_facade' <<<"$report")" "3"     "small-surface must publish exactly the three browser facade entries"
@@ -256,10 +264,12 @@ jt_register "QLT-007" "quality" "Test harness shell syntax" "Verify the runner, 
 jt_register "QLT-008" "quality" "Global suite concurrency lock" "Verify executable suite runs are serialized so shared browser/service state cannot be corrupted by concurrent runs." "Test is executed by tests/suite/run.sh while the parent runner owns the lock." "Attempt a nested executable suite run." "Nested run exits 75 and reports that another suite run is already active." "quality" quality_suite_lock
 jt_register "QLT-009" "quality" "Test index coverage" "Verify the repository test index exists and stays synchronized with executable groups and named batches." "tests/INDEX.md, suite catalog, and batches.tsv are readable." "Compare documented group/batch rows with run.sh --list and config/batches.tsv." "Every executable group and configured batch is present in tests/INDEX.md, which links to the detailed suite guide." "quality" quality_test_index
 jt_register "QLT-010" "quality" "test-jelly CLI contract" "Verify the cargo test-jelly frontend documents argument forwarding, renders canonical behavioral-test metadata, and presents Rust test summaries in table form." "Cargo alias, the suite catalog, and Rust test binaries are available." "Run cargo test-jelly help, catalog QLT-003, and one focused Rust unit test." "Help documents both modes; catalog exposes metadata; focused Rust test renders PASS and preserves counts." "quality" quality_test_jelly_cli
-jt_register "QLT-011" "quality" "Small-surface MCP operating instructions" "Verify the agent operating instructions teach small-surface discovery and execution without depending on individually published browser primitives, while preserving verification, retry, HITL, logical-target, raw-CDP, and cookie discipline." ".agent/instructions/mcp.md and docs/wiki/MCP.md are readable." "Inspect required small-surface policy guidance, reject large-surface primitive-selection wording, and verify a single raw-CDP trust-boundary section." "Instructions select semantic operations via browser-schema/browser-call, use browser-events/raw CDP only for their intended roles, retain safety/reliability discipline, and do not depend on top-level browser primitives." "quality" quality_mcp_instructions
-jt_register "QLT-012" "quality" "Discovery-layer documentation boundary" "Verify generated/internal capability documentation cannot be mistaken for the published MCP Agent API and that remote discovery points to tools/list and browser-schema." ".agent/tools/index.md, docs/wiki/DISCOVERY.md, and .agent/instructions/mcp.md are readable and the generated index is current." "Inspect boundary wording across the generated internal index, discovery documentation, and operating instructions." "Internal registry docs are explicitly non-MCP; tools/list is authoritative remotely; browser-schema is small-surface semantic discovery; agent-discover remains internal CLI/development discovery." "quality" quality_discovery_docs
-jt_register "QLT-013" "quality" "Raw CDP authorization documentation boundary" "Verify the raw-CDP documentation states the current process-wide authorization model, restart semantics, and a single reliability contract." "SECURITY.md, docs/wiki/MCP.md, docs/wiki/RELIABILITY.md, and .env.example are readable." "Inspect process-wide/single-scope/restart wording and ensure the reliability contract is not duplicated." "Raw CDP is documented as deployment-wide under the current jelly OAuth scope, configuration changes require MCP restart, and Reliability contains one canonical contract paragraph." "quality" quality_raw_cdp_boundary_docs
+jt_register "QLT-011" "quality" "Small-surface MCP operating instructions" "Verify the agent operating instructions teach small-surface discovery and execution without depending on individually published browser primitives, while preserving verification, retry, HITL, logical-target, raw-CDP, and cookie discipline." ".agent/instructions/mcp.md and docs/reference/MCP.md are readable." "Inspect required small-surface policy guidance, reject large-surface primitive-selection wording, and verify a single raw-CDP trust-boundary section." "Instructions select semantic operations via browser-schema/browser-call, use browser-events/raw CDP only for their intended roles, retain safety/reliability discipline, and do not depend on top-level browser primitives." "quality" quality_mcp_instructions
+jt_register "QLT-012" "quality" "Discovery-layer documentation boundary" "Verify generated/internal capability documentation cannot be mistaken for the published MCP Agent API and that remote discovery points to tools/list and browser-schema." ".agent/tools/index.md, docs/reference/DISCOVERY.md, and .agent/instructions/mcp.md are readable and the generated index is current." "Inspect boundary wording across the generated internal index, discovery documentation, and operating instructions." "Internal registry docs are explicitly non-MCP; tools/list is authoritative remotely; browser-schema is small-surface semantic discovery; agent-discover remains internal CLI/development discovery." "quality" quality_discovery_docs
+jt_register "QLT-013" "quality" "Raw CDP authorization documentation boundary" "Verify the raw-CDP documentation states the current process-wide authorization model, restart semantics, and a single reliability contract." "SECURITY.md, docs/reference/MCP.md, docs/guides/RELIABILITY.md, and .env.example are readable." "Inspect process-wide/single-scope/restart wording and ensure the reliability contract is not duplicated." "Raw CDP is documented as deployment-wide under the current jelly OAuth scope, configuration changes require MCP restart, and Reliability contains one canonical contract paragraph." "quality" quality_raw_cdp_boundary_docs
 jt_register "QLT-014" "quality" "Auxiliary Rust lockfile alignment" "Verify Rust test probes that depend on Jelly resolve the exact same registry package versions/checksums as the root build." "Cargo.lock and the event/Agent API probe lockfiles are readable; the Rust tooling wrapper builds." "Compare the complete registry package tuple set (name, version, source, checksum) in each probe lock against Cargo.lock." "Both probe lockfiles have exactly the same registry dependency resolution as the root lock; probe Cargo commands run with --locked." "quality" quality_aux_lock_alignment
 jt_register "QLT-015" "quality" "Small-surface MCP budget" "Verify the small-surface MCP Agent API remains materially smaller than large-surface using the real tools/list projection." "Agent API probe builds with the root-aligned lockfile; jq is available." "Measure large-surface, small-surface raw-off, and small-surface raw-on tools/list JSON using jelly::mcp::mcp_tools in isolated subprocesses." "Small-surface preserves the intended binding distribution and system-tool count while keeping total tools/list, input/output schemas, and descriptions materially smaller than large-surface." "quality" quality_mcp_surface_budget
 jt_register "QLT-016" "quality" "Cleanup architecture guardrails" "Verify cleanup-established architecture conventions cannot silently regress." "Python 3 and repository sources are available." "Run scripts/check-cleanup-architecture.py against primitive errors, MCP surface naming, and lib.rs module visibility." "Primitive failures remain explicitly typed, only canonical MCP surface names appear in production surface code, and implementation modules remain private." "quality" quality_cleanup_architecture
 jt_register "QLT-017" "quality" "Canonical MCP build root" "Verify MCP install/hosting/runtime scripts consume the shared Cargo build root instead of deriving a second target directory." "scripts/config.sh exposes CONFIG_BUILD_ROOT and MCP service scripts are readable." "Inspect install, hosting, nip.io, and cleanup scripts for BUILD_DIR resolution." "All MCP service scripts resolve BUILD_DIR from CONFIG_BUILD_ROOT and the installer contains no separate .jelly-build derivation." "quality" quality_mcp_build_root
+
+jt_register "QLT-018" "quality" "Agent routing guidance evaluation" "Validate the compact MCP decision table, final-outcome gate, and routing/slot/verification scoring harness with negative controls."   ".agent/instructions/mcp.md and agent-guidance fixtures are readable; Python 3 available."   "Check bootstrap rules and run scripts/eval-agent-guidance.py --self-test."   "All deterministic reference cases and mutation negatives behave correctly without model or browser calls." "quality" quality_agent_guidance

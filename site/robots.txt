@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://fabioflorey.github.io/jelly/sitemap.xml

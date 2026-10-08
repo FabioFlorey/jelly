@@ -16,13 +16,14 @@ This generated reference describes Jelly internal semantic browser primitives an
 | `files` | Move local files into browser-controlled file inputs. |
 | `script` | Evaluate or inject JavaScript as an explicit browser-page escape hatch. |
 | `visual` | Add or remove non-interactive visual annotations from browser-rendered content. |
+| `storage` | Inspect and mutate browser cookies plus active-origin localStorage and sessionStorage without page JavaScript. |
 
 ## System capability groups
 
 | Category | Description |
 | --- | --- |
 | `browser-lifecycle` | Start and stop the persistent Chromium browser service and run scoped browser tasks. |
-| `artifacts` | Capture screenshots and inspect files downloaded by the browser. |
+| `artifacts` | Capture browser artifacts and inspect or control first-class download lifecycle state. |
 | `network` | Capture and inspect browser network traffic. |
 | `routines` | Run and resume reusable multi-step workflows. |
 | `hitl` | Pause workflows for human intervention. Telegram is the current HITL transport. |
@@ -31,31 +32,31 @@ This generated reference describes Jelly internal semantic browser primitives an
 
 | Tool | Category | Usage | Arguments | Description |
 | --- | --- | --- | --- | --- |
-| `click` | `input` | `click <target>` | `target:target` | Dispatch a click to a visible element. This confirms the interaction was performed, not the resulting application state. |
-| `type-text` | `input` | `type-text <text> [target]` | `text:string` `[target:target]` | Type text into a visible editable element, optionally targeting a specific element. |
-| `fill` | `input` | `fill <text> [target]` | `text:string` `[target:target]` | Replace the current contents of a visible editable element and dispatch input/change events. |
+| `click` | `input` | `click <target>` | `target:target` | Click a known visible target. First use find-interactive or an existing current ref when target identity is uncertain; a click does not verify the resulting state. |
+| `type-text` | `input` | `type-text <text> [target]` | `text:string` `[target:target]` | Type text at the caret into an editable element, optionally targeted. Use fill instead to replace an input value. |
+| `fill` | `input` | `fill <text> [target]` | `text:string` `[target:target]` | Replace an editable element value and dispatch input/change events. Use type-text instead for caret typing or appending. |
 | `press-key` | `input` | `press-key <key>` | `key:string` | Dispatch a keyboard key to the currently focused page element. |
 | `select` | `input` | `select <target> <value>` | `target:target` `value:string` | Select an option in a native select element by value or visible option text. |
 | `check` | `input` | `check <target>` | `target:target` | Ensure a checkbox or other checkable element is checked. |
 | `dialog` | `input` | `dialog <accept\|dismiss> [text]` | `action:string` `[text:string]` | Accept or dismiss the active JavaScript dialog, optionally supplying prompt text. |
 | `drag` | `input` | `drag <source> <target\|x:N,y:N>` | `source:target` `destination:string` | Drag an element to another element or explicit viewport coordinates using pointer events. |
-| `wait` | `navigation` | `wait <text\|css\|visible\|url\|gone\|js> <value> [seconds]` | `condition:string` `value:string` `[seconds:integer]` | Wait until text, CSS, visibility, URL, disappearance, or a JavaScript condition is satisfied. |
+| `wait` | `navigation` | `wait <text\|css\|visible\|url\|gone\|js> <value> [seconds]` | `condition:string` `value:string` `[seconds:integer]` | Wait for a supported page condition (text, CSS, visibility, URL, disappearance, or JS). Prefer wait-for for explicit post-action verification evidence. |
 | `navigate` | `navigation` | `navigate <url>` | `url:string` | Navigate the active tab and report the observed URL/title/readiness. Use verification primitives for application-state guarantees. |
 | `tab-history` | `navigation` | `tab-history <back\|forward>` | `direction:string` | Move the active tab backward or forward in its navigation history. |
-| `wait-for` | `verify` | `wait-for <exists\|visible\|hidden\|text\|url\|title\|image-ready> <value> [seconds]` | `condition:string` `value:string` `[seconds:integer]` | Wait with a finite deadline for an explicit page or target condition and return the observed evidence. |
+| `wait-for` | `verify` | `wait-for <exists\|visible\|hidden\|text\|url\|title\|image-ready> <value> [seconds]` | `condition:string` `value:string` `[seconds:integer]` | Wait for an explicit post-action page predicate with a finite deadline and observed evidence. Unlike wait, this is the preferred verification gate. |
 | `assert-url` | `verify` | `assert-url <expected> [exact\|contains]` | `expected:string` `[match:string]` | Require the current page URL to match the expected value before dependent work continues. |
 | `assert-title` | `verify` | `assert-title <expected> [exact\|contains]` | `expected:string` `[match:string]` | Require the current document title to match the expected value. |
 | `assert-visible` | `verify` | `assert-visible <target>` | `target:target` | Require a target to exist and be visibly rendered, returning geometry as evidence. |
 | `assert-text` | `verify` | `assert-text <target> <text> [exact\|contains]` | `target:target` `text:string` `[match:string]` | Require a target's current text to match an expected value. |
 | `assert-image-ready` | `verify` | `assert-image-ready <target>` | `target:target` | Require a visible image to be complete with nonzero natural dimensions before capture or downstream use. |
-| `snapshot-interactive` | `inspect` | `snapshot-interactive [limit] [offset]` | `[limit:integer]` `[offset:integer]` | Return visible interactive elements with document-scoped refs, optionally bounded and paged by result limit and offset. |
-| `find-interactive` | `inspect` | `find-interactive <query> [limit] [offset]` | `query:string` `[limit:integer]` `[offset:integer]` | Search visible interactive elements by semantic name, rank useful matches in the browser, and return a bounded, pageable result set with document-scoped refs. |
-| `read-page` | `inspect` | `read-page` | — | Return the active page title, URL, headings, and main readable text. |
+| `snapshot-interactive` | `inspect` | `snapshot-interactive [limit] [offset]` | `[limit:integer]` `[offset:integer]` | List interactive elements and document-scoped refs, optionally paged. Prefer find-interactive when searching for a known control by name. |
+| `find-interactive` | `inspect` | `find-interactive <query> [limit] [offset]` | `query:string` `[limit:integer]` `[offset:integer]` | Find a particular control by semantic name and return ranked current refs. Prefer snapshot-interactive for general inventory; refresh refs after rerender. |
+| `read-page` | `inspect` | `read-page` | — | Read page title, URL, headings, and readable text. Use find-interactive for actionable controls and assert-* to prove an expected result. |
 | `inspect-inputs` | `inspect` | `inspect-inputs` | — | List visible form controls with type, label, placeholder, name, value, and checked state. |
 | `inspect-elements` | `inspect` | `inspect-elements [css]` | `[css:string]` | Inspect up to 100 visible elements matching a CSS selector with text, attributes, and geometry. |
 | `element-info` | `inspect` | `element-info <target>` | `target:target` | Return detailed content, attributes, state, geometry, and computed style for one target. |
 | `scroll` | `inspect` | `scroll [down\|up\|top\|bottom\|target]` | `[destination:string]` | Scroll the page by direction or bring a target element into the center of the viewport. |
-| `query-selector` | `inspect` | `query-selector <css>` | `css:string` | Return matching DOM elements for a CSS selector with text, HTML, visibility, and geometry. |
+| `query-selector` | `inspect` | `query-selector <css>` | `css:string` | Inspect DOM matches for a known CSS selector with text, HTML, visibility, and geometry. Prefer find-interactive when the selector is unknown. |
 | `get-element` | `inspect` | `get-element <target> [text\|html\|both]` | `target:target` `[mode:string]` | Return the text, outer HTML, or both for a single target element. |
 | `accessibility-tree` | `inspect` | `accessibility-tree [max]` | `[max:integer]` | Return a compact view of non-ignored nodes from the page accessibility tree. |
 | `inspect-links` | `inspect` | `inspect-links` | — | List visible links with normalized visible text and resolved URLs. |
@@ -65,9 +66,18 @@ This generated reference describes Jelly internal semantic browser primitives an
 | `close-tab` | `tabs` | `close-tab` | — | Close the active tab and reattach the session to a remaining page target when available. |
 | `open-in-new-tab` | `tabs` | `open-in-new-tab <target>` | `target:target` | Open the link or image URL represented by a target in a new active tab. |
 | `upload` | `files` | `upload <target> <file>` | `target:target` `file:string` | Set a local file on a targeted HTML file input using the DOM protocol. |
+| `cookies` | `storage` | `cookies [url]` | `[url:string]` | List browser cookies applicable to the active page URL or an explicitly supplied URL, including HttpOnly cookies. |
+| `set-cookie` | `storage` | `set-cookie <cookie-json>` | `cookie:object` | Set one browser cookie through CDP. The cookie object requires name/value and may include url, domain, path, secure, httpOnly, sameSite, and expires. |
+| `delete-cookie` | `storage` | `delete-cookie <selector-json>` | `selector:object` | Delete cookies matching a selector object. The selector requires name and may include url, domain, and path. |
+| `clear-cookies` | `storage` | `clear-cookies [url]` | `[url:string]` | Delete all cookies applicable to the active page URL or an explicitly supplied URL without clearing unrelated browser cookies. |
+| `storage-list` | `storage` | `storage-list <local\|session>` | `area:string` | List key/value entries from localStorage or sessionStorage for the active page origin. |
+| `storage-get` | `storage` | `storage-get <local\|session> <key>` | `area:string` `key:string` | Read one localStorage or sessionStorage key for the active page origin. |
+| `storage-set` | `storage` | `storage-set <local\|session> <key> <value>` | `area:string` `key:string` `value:string` | Set one localStorage or sessionStorage key for the active page origin. |
+| `storage-remove` | `storage` | `storage-remove <local\|session> <key>` | `area:string` `key:string` | Remove one localStorage or sessionStorage key for the active page origin. |
+| `storage-clear` | `storage` | `storage-clear <local\|session>` | `area:string` | Clear localStorage or sessionStorage for the active page origin. |
 | `highlight` | `visual` | `highlight <target> [label] [auto\|content\|box]` | `target:target` `[label:string]` `[mode:string]` | Draw a Jelly-owned non-interactive halo over a visible target without modifying the target element itself. Auto mode uses rendered text fragments for text-centric elements and a shape halo for controls; content forces text-fragment geometry; box preserves the rectangular outline. The highlight follows the element until cleared or navigation replaces the document. |
 | `clear-highlight` | `visual` | `clear-highlight` | — | Remove the active Jelly visual highlight from the current page. |
-| `evaluate-js` | `script` | `evaluate-js <expression>` | `expression:string` | Evaluate a JavaScript expression in the active page and return its by-value result. |
+| `evaluate-js` | `script` | `evaluate-js <expression>` | `expression:string` | Evaluate page JavaScript only when semantic inspection or actions cannot express the task. Page script is an escape hatch, not a default selector strategy. |
 | `inject-js` | `script` | `inject-js [--persistent] [--file path \| <script>]` | `script:string` | Execute a JavaScript body now, optionally persisting it across jelly navigations. |
 
 Argument types: `target` accepts document-scoped runtime refs, DOM-backed image refs from `inspect-images`, legacy numeric refs in rollback mode, `css:<selector>`, `text:<exact text>`, or plain exact text. Optional arguments are shown in brackets.
@@ -82,14 +92,15 @@ These tools are executable capabilities that intentionally do not require a shar
 | `close-browser` | `browser-lifecycle` | `close-browser` | Gracefully stop the persistent jelly Chromium browser service and clean its state files. |
 | `browser-task` | `browser-lifecycle` | `browser-task [--persist] <url> <agent-tool> [args...]` | Open a headed browser, run one agent tool, and close the browser unless persistence is requested. |
 | `profile-import` | `browser-lifecycle` | `profile-import <source> [--force]` | Copy a closed Chromium user-data directory into Jelly-managed runtime state for session reuse. This does not guarantee anti-bot or CAPTCHA behavior. |
-| `screenshot` | `artifacts` | `screenshot [target] [output] [--output path]` | Capture browser-rendered content only: the active page viewport by default or a specific target such as css:body, css:main, exact text, or a Jelly element reference. |
-| `record-browser` | `artifacts` | `record-browser start [--mode continuous\|steps] [--interval-ms n] [--hold-ms n] \| record-browser stop` | Start or stop a browser-content recording. Continuous mode streams renderer frames; steps mode captures browser state after relevant actions and turns the trace into a timed video. |
-| `downloads` | `artifacts` | `downloads` | List files downloaded into jelly browser download locations. |
+| `screenshot` | `artifacts` | `screenshot [target] [output] [--output path]` | Capture a single browser-rendered viewport or targeted element. For a multi-action video use record-browser, not repeated screenshots. |
+| `record-browser` | `artifacts` | `record-browser start [--mode continuous\|steps] [--interval-ms n] [--hold-ms n] \| record-browser stop` | Start or stop a browser-content MP4. Use steps for captioned action-by-action evidence; continuous streams renderer frames. Use screenshot for one still image. |
+| `download` | `artifacts` | `download <list\|status\|wait\|cancel> [id] [seconds] [destination] [fail\|overwrite\|uniquify]` | Inspect and control first-class browser download lifecycle state, including progress, cancellation, suggested filenames, destination selection, and collision policy. |
+| `downloads` | `artifacts` | `downloads` | List files downloaded into jelly browser download locations. This legacy filesystem view is retained for compatibility; use download for lifecycle state. |
 | `verify-artifact` | `artifacts` | `verify-artifact <artifact-id\|path> [--semantic check...]` | Verify a captured artifact still exists, is nonempty, and has valid format-specific integrity metadata. |
 | `wait-download` | `artifacts` | `wait-download <after-ms> [seconds] [name-contains]` | Wait for a completed download newer than a supplied timestamp baseline and register it as an artifact. |
 | `inspect-network` | `network` | `inspect-network <start\|stop\|show> [filters]` | Start, stop, or query persistent browser network capture with optional filters. |
-| `call-routine` | `routines` | `call-routine <name> [key=value] \| call-routine resume <id> [key=value]` | Execute or resume a routine. JSON graph routines support guarded branches, loops, jumps, budgets, HITL suspension, and owned-browser cleanup. |
-| `hitl` | `hitl` | `hitl <message> [--video path \| --screenshot-target target \| --no-screenshot]` | Request human intervention through Telegram with a browser-content screenshot by default, or attach a local MP4 video. A specific page element can be attached without capturing the desktop. |
+| `call-routine` | `routines` | `call-routine <name> [key=value] \| call-routine resume <id> [key=value]` | Execute or resume guarded workflows with branching, loops, budgets, HITL continuation, or cleanup. Use browser-call for a simple ordered action batch. |
+| `hitl` | `hitl` | `hitl <message> [--video path \| --screenshot-target target \| --no-screenshot]` | Request a human decision through Telegram when chat is unavailable; attach a browser screenshot or a local MP4 for delivery. This is not browser-event monitoring. |
 
 ## Internal discovery CLI
 

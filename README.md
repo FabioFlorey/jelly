@@ -4,9 +4,9 @@
 
 <img src="./assets/full-logo.png" alt="Jelly" width="760">
 
-**Browser instrumentation for agents.**
+**Browser instrumentation for agents**
 
-✨ [**Quickstart**](#2-quickstart)　•　⭐ [**Architecture**](./docs/wiki/ARCHITECTURE.md)　•　⚡ [**MCP**](./docs/wiki/MCP.md)　•　💡 [**Documentation**](./docs/wiki/README.md)　•　🍯 [**Tool Index**](./.agent/tools/index.md)
+✨ [**Quickstart**](#3-quickstart)　•　⭐ [**Architecture**](./docs/architecture/ARCHITECTURE.md)　•　⚡ [**MCP**](./docs/reference/MCP.md)　•　💡 [**Documentation**](#8-documentation-and-support)　•　🍯 [**Tool Index**](./.agent/tools/index.md)
 
 📒 [Visit the project website](https://fabioflorey.github.io/jelly/)
 
@@ -14,118 +14,179 @@
 
 </div>
 
-## 1. About
+## 1. What Jelly does
 
-**Jelly** is a small Rust toolkit that gives AI agents a practical way to observe and control a real Chromium browser.
+**Jelly** is a Rust Model Context Protocol (MCP) server that lets authenticated agents inspect and control a real Chromium browser, verify page state, and retain browser artifacts.
 
-It turns browser operations such as reading pages, finding interactive elements, clicking, typing, navigating, switching tabs, uploading files, inspecting network traffic, and taking screenshots into reusable primitives that agents can discover and compose.
+Jelly starts or attaches to Chromium and exposes browser capabilities through a local **Streamable HTTP** MCP endpoint, normally `http://127.0.0.1:8787/mcp`. A configured HTTPS tunnel or reverse proxy can expose that endpoint to a remote client.
 
-You do not need to know Chrome DevTools Protocol to use it. Jelly's MCP server now defaults to the `small-surface` Agent API: `browser-schema` discovers semantic operations, `browser-call` executes ordered semantic batches, and `browser-events` handles retained CDP notifications. The expanded individual-tool API is available as `large-surface`, and raw CDP stays separately opt-in.
+- **Inspect:** Read page content, identify interactive elements, and discover tools through `browser-schema`.
+- **Act:** Run ordered navigation, input, and page operations through `browser-call`.
+- **Verify:** Use semantic assertions and typed failures to confirm what changed. An action's success is not proof of the intended outcome.
+- **Capture:** Record screenshots, downloads, browser recordings, and network evidence with metadata.
+- **Recover:** Execute guarded routines and request human intervention through Telegram.
 
-> [!CAUTION]
-> Jelly controls a real browser and can perform real actions on websites. Review routines before running them against accounts or systems you care about.
+<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
 
-<p align="right"><sub><a href="#top">⭐ Back to top</a></sub></p>
+## 2. Use cases
 
-## 2. Quickstart
+**Put your AI to work on the real web.**
 
-Interactive setup:
+**From research to action, Jelly gives AI agents the browser capabilities to get things done.**
+
+Modern websites are interactive, dynamic, and often impossible to navigate through simple web requests. Jelly gives AI agents access to a real Chromium browser so they can explore websites, interact with applications, and complete complex tasks.
+
+**Browser Automation: Let AI handle the repetitive work.**
+
+Automate everyday tasks across websites and business applications. Fill forms, update records, navigate dashboards, process requests, and complete multi-step workflows.
+
+**AI-Powered Research: Explore the web beyond what search engines can see.**
+
+Give your AI access to JavaScript-heavy websites, interactive dashboards, and dynamically loaded content. Research competitors, compare products, investigate markets, and gather information from multiple sources.
+
+**Browser Testing: Test your website the way real people use it.**
+
+Automate user journeys in a real browser. Test forms, navigation, and interactive features, verify expected results, and capture screenshots to investigate problems.
+
+**Data Extraction: Turn complex websites into useful information.**
+
+Collect information from interactive tables, paginated results, and web applications. Navigate through pages, apply filters, retrieve documents, and organize the results for further analysis.
+
+**Business Process Automation: Connect the steps your business depends on.**
+
+Automate workflows across CRM systems, customer portals, reporting tools, and back-office applications. Reduce repetitive manual work without requiring a dedicated integration for every website.
+
+**AI Agents: Give your agents the ability to act, not just answer.**
+
+Connect Jelly through MCP to let AI agents navigate websites, interact with applications, verify outcomes, and execute multi-step browser workflows.
+
+<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+
+## 3. Quickstart
+
+**Requirements:** Linux with Rust **1.98.1**, Cargo, Chromium at `/usr/bin/chromium`, Bash, and systemd user services. Remote access through Quick Tunnel also requires `cloudflared`. See [complete prerequisites](./docs/getting-started/REQUIREMENTS.md).
+
+Run the interactive setup:
 
 ```bash
 git clone https://github.com/FabioFlorey/jelly.git
 cd jelly
+./quickstart.sh --check
 ./quickstart.sh
 ```
 
-The wizard checks dependencies, configures OAuth + hosting, and can install/start Jelly. See [MCP](./docs/wiki/MCP.md) for hosting modes and advanced setup.
+Follow the wizard to configure credentials, hosting, and service startup.
 
-Use `./quickstart.sh --dry-run` to preview setup, or `./quickstart.sh --check` for prerequisites only.
+Choose the connection mode in the wizard. For ChatGPT, use a public HTTPS endpoint with OAuth. For local MCP clients, use the loopback HTTP endpoint and bearer-token authentication.
 
-Or build the tools directly:
+See [Getting Started](./docs/getting-started/QUICKSTART.md) for the configuration steps for each mode.
+
+Verify the server in another terminal:
 
 ```bash
-cargo build --bins
+scripts/status-mcp-services.sh
+curl --fail --silent --show-error http://127.0.0.1:8787/health
 ```
 
-Open a browser and inspect a page:
+Expect JSON with `"status":"ok"` from `/health`.
+
+You can also use the local Rust CLI directly:
 
 ```bash
-cargo run --quiet --bin agent-run -- \
-  open-browser https://example.com
-
+cargo run --quiet --bin agent-run -- open-browser https://example.com
 cargo run --quiet --bin agent-run -- read-page
 cargo run --quiet --bin agent-run -- snapshot-interactive
-```
-
-Act on a discovered element using the ref returned by `snapshot-interactive`:
-
-```bash
-cargo run --quiet --bin agent-run -- click '<ref>'
-```
-
-Runtime refs are document-scoped tokens such as `@eabc123-7`; legacy rollback mode uses numeric refs such as `@e7`.
-
-Close the browser:
-
-```bash
 cargo run --quiet --bin agent-run -- close-browser
 ```
 
-Discover tools without loading the full catalog:
+See the [step-by-step setup guide](./docs/getting-started/QUICKSTART.md) for client credentials, browser verification, and troubleshooting.
+
+<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+
+## 4. Connect your agent
+
+Jelly exposes the browser through **Streamable HTTP MCP** and includes a CLI for direct local use.
+
+| Connection | How to use Jelly |
+| :--- | :--- |
+| **ChatGPT** | Connect through a public HTTPS MCP endpoint using OAuth. |
+| **MCP clients** | Connect to the local Streamable HTTP endpoint with a bearer token. |
+| **Rust CLI** | Use `agent-run` and `agent-discover` directly from the terminal. |
+
+See the [client setup guide](https://fabioflorey.github.io/jelly/clients.html) for URLs, credentials, and connection steps.
+
+<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+
+## 5. MCP tools
+
+The default `small-surface` API publishes three browser tools and thirteen system tools. `large-surface` publishes individual browser primitives instead of the three browser tools. The running server's `tools/list` response is authoritative.
+
+The `small-surface` browser tools are `browser-schema`, `browser-call`, and `browser-events`.
+
+System tools in both surfaces are `open-browser`, `close-browser`, `browser-task`, `profile-import`, `screenshot`, `record-browser`, `download`, `downloads`, `verify-artifact`, `wait-download`, `inspect-network`, `call-routine`, and `hitl`.
+
+For exact parameters, side effects, and output contracts, see the [MCP tool reference](https://fabioflorey.github.io/jelly/tools.html), [MCP server guide](./docs/reference/MCP.md), and the runtime's authoritative `tools/list` response.
+
+Use `browser-schema` to discover the named semantic operations available through `browser-call`.
+
+<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+
+## 6. MCP usage example
+
+With the server running and the local token available in the current shell, discover implemented browser capabilities **without opening Chromium**:
 
 ```bash
-cargo run --quiet --bin agent-discover -- capabilities
-cargo run --quiet --bin agent-discover -- search "find form inputs"
-cargo run --quiet --bin agent-discover -- schema type-text
+set -a
+source ./.env
+set +a
+
+curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
+  -H "Authorization: Bearer $JELLY_MCP_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"browser-schema","arguments":{"action":"capabilities"}}}'
 ```
 
-<p align="right"><sub><a href="#top">⭐ Back to top</a></sub></p>
+A successful response contains a JSON-RPC `result.structuredContent` envelope with `ok: true`, `meta.tool: "browser-schema"`, and `data.action: "capabilities"`. The operation count and categories depend on the current binary.
 
-## 3. Documentation
+This request discovers browser capabilities before opening Chromium.
 
-<div align="center">
+The [examples page](https://fabioflorey.github.io/jelly/examples.html) explains the next tool call and expected result.
 
-| Document | Description |
-| :--- | :--- |
-| 📒 [**Documentation Index**](./docs/wiki/README.md) | Main entry point for the documentation |
-| ⚠️ [**Requirements**](./docs/wiki/REQUIREMENTS.md) | What must be installed before running Jelly |
-| 💡 [**Glossary**](./docs/wiki/GLOSSARY.md) | Definitions for technical and project-specific terminology |
-| ⭐ [**Architecture**](./docs/wiki/ARCHITECTURE.md) | Browser session, primitives, registry, and execution model |
-| 🔑 [**Tool Discovery**](./docs/wiki/DISCOVERY.md) | Capability discovery, search, and schema loading |
-| 🔆 [**Routines**](./docs/wiki/ROUTINES.md) | Guarded workflow graphs, branching, loops, and HITL continuation |
-| 🍯 [**Reliability**](./docs/wiki/RELIABILITY.md) | Verification, typed failures, artifacts, timeouts, and cleanup |
-| ⚙️ [**Configuration**](./docs/wiki/CONFIGURATION.md) | Versioned technical configuration, secrets/deployment environment, and runtime roots |
-| 📂 [**Runtime Layout**](./docs/wiki/RUNTIME.md) | Runtime state, build output, logs, screenshots, and cleanup |
-| 🧈 [**Development**](./docs/wiki/DEVELOPMENT.md) | Project conventions, tests, and contribution rules |
-| 🧪 [**Test Index**](./tests/INDEX.md) | Test-suite layout, coverage groups, batches, and executable catalog |
-| ⚡ [**MCP Server**](./docs/wiki/MCP.md) | Small-surface Agent API, large-surface mode, authentication, tool mapping, and deployment boundary |
-| 🍯 [**Tool Index**](./.agent/tools/index.md) | Generated reference for browser primitives and system tools |
-| 🌟 [**Changelog**](./CHANGELOG.md) | Development history |
+<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
 
-</div>
-
-<p align="right"><sub><a href="#top">⭐ Back to top</a></sub></p>
-
-## 4. Live demo
+## 7. Work around the click!
 
 <div align="center">
 
 <a href="https://fabioflorey.github.io/jelly/">
-  <img src="./assets/jelly-demo.gif" alt="Jelly controlling a real Chromium browser" width="880">
+  <img src="./assets/jelly-demo.gif" alt="Looping demo of Jelly configuring a yellow Porsche 718 Spyder RS" width="880">
 </a>
 
-<sub><strong>Jelly documenting Jelly.</strong> This video was generated by Jelly itself from a real Chromium session. After each browser action, Jelly waits for the page to settle, captures the resulting state, labels what happened, and assembles the steps into this self-documenting trace.</sub>
+<sub><strong>Work around the click!</strong> Watch Jelly configure a Racing Yellow Porsche 718 Spyder RS with black-and-yellow wheels and the Weissach Package, then highlight the final price. Each browser step is captioned. This animated preview plays on repeat; <a href="https://fabioflorey.github.io/jelly/assets/images/jelly-demo.mp4">watch the MP4</a>.</sub>
 
 </div>
 
-<p align="right"><sub><a href="#top">⭐ Back to top</a></sub></p>
+<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
 
-## 5. Status
+## 8. Documentation and support
 
-Jelly is under active development. Interfaces may change while the execution, discovery, and routine layers settle.
+Start with the [documentation index](./docs/INDEX.md), or go directly to the guide you need:
 
-Jelly is currently distributed under a proprietary All Rights Reserved license. See [`LICENSE`](LICENSE) for the applicable terms.
+- **Get started:** [Installation](./docs/getting-started/QUICKSTART.md) · [Requirements](./docs/getting-started/REQUIREMENTS.md) · [Configuration](./docs/getting-started/CONFIGURATION.md)
+- **Integrate with agents:** [MCP server](./docs/reference/MCP.md) · [Tool discovery](./docs/reference/DISCOVERY.md) · [Live tool reference](https://fabioflorey.github.io/jelly/tools.html)
+- **Build reliable workflows:** [Routines](./docs/guides/ROUTINES.md) · [Reliability](./docs/guides/RELIABILITY.md) · [Architecture](./docs/architecture/ARCHITECTURE.md)
+- **Develop and troubleshoot:** [Development](./docs/development/DEVELOPMENT.md) · [Tests](./tests/INDEX.md) · [Troubleshooting](https://fabioflorey.github.io/jelly/troubleshooting.html)
 
-**Project contact:** [jelly@fabioflorey.com](mailto:jelly@fabioflorey.com?subject=Jelly%20project%20inquiry&body=Hi%2C%0A%0AI%27m%20reaching%20out%20about%20Jelly.%0A%0ATopic%3A%20%0ADetails%3A%20%0A%0AThanks.).
+The [project website](https://fabioflorey.github.io/jelly/) includes setup instructions, connection examples, and browser-tool documentation.
 
-<p align="right"><sub><a href="#top">⭐ Back to top</a></sub></p>
+<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>
+
+## 9. Project information
+
+Jelly is under active development. For updates, see the [changelog](./CHANGELOG.md) and [releases](https://github.com/FabioFlorey/jelly/releases).
+
+[Contributing](./CONTRIBUTING.md) · [Issue tracker](https://github.com/FabioFlorey/jelly/issues) · [Security policy](./SECURITY.md) · [License](./LICENSE)
+
+**Project contact:** [jelly@fabioflorey.com](mailto:jelly@fabioflorey.com?subject=Jelly%20project%20inquiry).
+
+<div align="right"><sub><a href="#top">🡩 Go to the top of the document</a></sub></div>

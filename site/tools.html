@@ -1,0 +1,1978 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#ffc107">
+    <meta name="description" content="Input parameters, output envelope, permissions, errors, and side effects for Jelly&#x27;s 16 published small-surface MCP tools, with JSON-RPC examples.">
+    <meta name="robots" content="index,follow">
+    <title>
+      Jelly MCP Tools Reference · Jelly MCP Server
+    </title>
+    <link rel="canonical" href="https://fabioflorey.github.io/jelly/tools.html">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="alternate icon" type="image/png" href="./assets/images/favicon.png">
+    <link rel="stylesheet" href="./assets/css/style.css">
+    <meta property="og:title" content="Jelly MCP Tools Reference · Jelly MCP Server">
+    <meta property="og:description" content="Input parameters, output envelope, permissions, errors, and side effects for Jelly&#x27;s 16 published small-surface MCP tools, with JSON-RPC examples.">
+    <meta property="og:url" content="https://fabioflorey.github.io/jelly/tools.html">
+    <meta property="og:type" content="article">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header>
+      <nav class="shell" aria-label="Primary navigation">
+        <a class="wordmark" href="./" aria-label="Jelly home">
+        <img src="./assets/images/logo.png" alt="" width="40" height="40">
+        </a>
+        <div class="nav-links">
+          <a href="./getting-started.html">Get Started</a><a href="./tools.html">Tools</a><a
+          href="./clients.html">Clients</a><a href="./examples.html">Examples</a><a
+          href="https://github.com/FabioFlorey/jelly">GitHub</a>
+        </div>
+      </nav>
+    </header>
+    <main class="shell doc-page" id="main">
+      <div class="doc-head">
+        <div class="eyebrow">
+          Jelly / Developer documentation
+        </div>
+        <h1>
+          Jelly MCP Tools Reference
+        </h1>
+        <p class="lede">
+          Each tool listed here corresponds to an implemented Rust MCP binding. Check tools/list for the authoritative
+          active schema.
+        </p>
+      </div>
+      <section>
+        <h2>
+          Published small-surface catalog
+        </h2>
+        <p>
+          The checked-in <code>[mcp].surface = "small-surface"</code> publishes the three browser tools below plus
+          thirteen system tools. Each has an authentication requirement: a valid static bearer token or OAuth access token
+          with the <code>jelly</code> scope. The envelope for each successful call is <code>result.structuredContent =
+          {ok:true,data:…,error:null,meta:{tool:"…"}}</code>; failures include <code>ok:false</code>, a typed
+          <code>error.kind</code>, human-readable <code>message</code>, and <code>retryable</code>. The <code>data</code>
+          field may be parsed CLI text or a structured value depending on the binding; example data below is schematic,
+          not recorded execution output.
+        </p>
+        <p>
+          <strong>Source of truth:</strong> the running server's <code>tools/list</code> schema. Browser semantic
+          operations are discovered with <code>browser-schema</code> and executed with <code>browser-call</code>. The
+          <code>large-surface</code> alternative instead publishes individual browser primitives; see the <a
+          href="https://github.com/FabioFlorey/jelly/blob/main/.agent/tools/index.md">generated internal capability
+          index</a>, but confirm remote publication through <code>tools/list</code>.
+        </p>
+      </section>
+      <section>
+        <h2>
+          Jump to a tool
+        </h2>
+        <p>
+          <a href="#browser-schema"><code>browser-schema</code></a> · <a
+          href="#browser-call"><code>browser-call</code></a> · <a href="#browser-events"><code>browser-events</code></a> ·
+          <a href="#open-browser"><code>open-browser</code></a> · <a href="#close-browser"><code>close-browser</code></a>
+          · <a href="#browser-task"><code>browser-task</code></a> · <a
+          href="#profile-import"><code>profile-import</code></a> · <a href="#screenshot"><code>screenshot</code></a> · <a
+          href="#record-browser"><code>record-browser</code></a> · <a href="#download"><code>download</code></a> · <a
+          href="#downloads"><code>downloads</code></a> · <a href="#verify-artifact"><code>verify-artifact</code></a> · <a
+          href="#wait-download"><code>wait-download</code></a> · <a
+          href="#inspect-network"><code>inspect-network</code></a> · <a href="#call-routine"><code>call-routine</code></a>
+          · <a href="#hitl"><code>hitl</code></a>
+        </p>
+      </section>
+      <section class="tool-record" id="browser-schema">
+        <h2>
+          <code>browser-schema</code>
+        </h2>
+        <p>
+          Discover semantic browser operations
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            action: string (required: capabilities | search | schema); query: string required for search; limit: integer
+            1–50, default 8; operation: string required for schema
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Read-only; no browser session required
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            Invalid action/arguments; unknown operation (unsupported)
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;action&quot;: &quot;capabilities&quot;, &quot;schema_version&quot;: 1,
+            &quot;operation_count&quot;: &quot;number&quot;, &quot;categories&quot;: &quot;array&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;browser-schema&quot;,
+  &quot;arguments&quot;: {
+    &quot;action&quot;: &quot;capabilities&quot;
+  }
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="browser-call">
+        <h2>
+          <code>browser-call</code>
+        </h2>
+        <p>
+          Execute ordered semantic operations or privileged raw CDP
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            calls: array of 1–64 items (required), each {call:{jelly:string,params?:object},target?:string}; when raw CDP
+            enabled, a call may have scope: target | browser and {call:{method:string,params?:object}}; on_error: stop |
+            continue (default stop)
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Mutates/reads browser; raw CDP can access browser-wide state
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            browser_unavailable, invalid_arguments, target_stale, cdp_failed
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;calls&quot;: &quot;per-call outcomes, ordered&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;browser-call&quot;,
+  &quot;arguments&quot;: {
+    &quot;calls&quot;: [
+      {
+        &quot;call&quot;: {
+          &quot;jelly&quot;: &quot;read-page&quot;,
+          &quot;params&quot;: {}
+        }
+      }
+    ]
+  }
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="browser-events">
+        <h2>
+          <code>browser-events</code>
+        </h2>
+        <p>
+          Subscribe/poll/unsubscribe retained Chromium events
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            action: subscribe | poll | unsubscribe (required); subscribe accepts target?: string, methods?: string[],
+            method_prefixes?: string[]; poll requires subscription_id: string, limit?: integer; unsubscribe requires
+            subscription_id: string
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Reads CDP event stream; uses process-wide persistent browser session
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            subscription_not_found, browser_unavailable, unsupported
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;action&quot;: &quot;subscribe&quot;, &quot;subscription_id&quot;: &quot;opaque
+            ID&quot;, &quot;cursor&quot;: &quot;stream cursor&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;browser-events&quot;,
+  &quot;arguments&quot;: {
+    &quot;action&quot;: &quot;subscribe&quot;,
+    &quot;methods&quot;: [
+      &quot;Target.targetCreated&quot;
+    ]
+  }
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="open-browser">
+        <h2>
+          <code>open-browser</code>
+        </h2>
+        <p>
+          Start shared Chromium and optionally open a URL
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            url?: string
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Starts browser and may navigate to URL
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            browser_unavailable
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;stdout&quot;: &quot;browser start result&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;open-browser&quot;,
+  &quot;arguments&quot;: {
+    &quot;url&quot;: &quot;https://example.com&quot;
+  }
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="close-browser">
+        <h2>
+          <code>close-browser</code>
+        </h2>
+        <p>
+          Stop shared Chromium
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            No arguments ({})
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Stops process-wide browser; may interrupt other clients
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            browser_unavailable
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;stdout&quot;: &quot;browser stop result&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;close-browser&quot;,
+  &quot;arguments&quot;: {}
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="browser-task">
+        <h2>
+          <code>browser-task</code>
+        </h2>
+        <p>
+          Open page and perform a scoped CLI operation
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            url: string, tool: string (required); args?: string[]; persist?: boolean (default false)
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Starts browser, runs operation; normally closes browser
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            browser_unavailable, tool failure
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;stdout&quot;: &quot;tool execution result&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;browser-task&quot;,
+  &quot;arguments&quot;: {
+    &quot;url&quot;: &quot;https://example.com&quot;,
+    &quot;tool&quot;: &quot;read-page&quot;
+  }
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="profile-import">
+        <h2>
+          <code>profile-import</code>
+        </h2>
+        <p>
+          Copy a closed Chromium profile into Jelly
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            source: string (required); force?: boolean (default false)
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Replaces/imports sensitive cookies and profile state
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            interaction_failed
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;stdout&quot;: &quot;import result&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;profile-import&quot;,
+  &quot;arguments&quot;: {
+    &quot;source&quot;: &quot;/path/to/closed-profile&quot;
+  }
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="screenshot">
+        <h2>
+          <code>screenshot</code>
+        </h2>
+        <p>
+          Capture viewport or selected page target
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            target?: string; output?: string
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Writes browser screenshot artifact
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            artifact_failed
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;stdout&quot;: &quot;screenshot metadata&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;screenshot&quot;,
+  &quot;arguments&quot;: {
+    &quot;target&quot;: &quot;css:body&quot;
+  }
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="record-browser">
+        <h2>
+          <code>record-browser</code>
+        </h2>
+        <p>
+          Start/stop a browser-only video recording
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            action: start | stop (required); mode?: continuous | steps; interval_ms?: integer ≥100 (default 500); hold_ms?:
+            integer ≥100 (default 1000)
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Writes recordings and temporary frame state
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            artifact_failed
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;stdout&quot;: &quot;recording state&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;record-browser&quot;,
+  &quot;arguments&quot;: {
+    &quot;action&quot;: &quot;start&quot;,
+    &quot;mode&quot;: &quot;steps&quot;
+  }
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="download">
+        <h2>
+          <code>download</code>
+        </h2>
+        <p>
+          List, inspect, wait for, or cancel Chromium downloads
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            action: list | status | wait | cancel (required); id?: string (required for status/wait/cancel); seconds?:
+            integer ≥1 (default 30); destination?: string; collision?: fail | overwrite | uniquify (default fail)
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Reads download state; cancel/wait/destination can mutate/write files
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            download_failed, condition_timeout
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;stdout&quot;: &quot;download lifecycle records&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;download&quot;,
+  &quot;arguments&quot;: {
+    &quot;action&quot;: &quot;list&quot;
+  }
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="downloads">
+        <h2>
+          <code>downloads</code>
+        </h2>
+        <p>
+          List files in legacy download directories
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            No arguments ({})
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Read-only filesystem listing
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            download_failed
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;stdout&quot;: &quot;file listing&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;downloads&quot;,
+  &quot;arguments&quot;: {}
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="verify-artifact">
+        <h2>
+          <code>verify-artifact</code>
+        </h2>
+        <p>
+          Check an existing screenshot/download artifact
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            artifact: string (required); semantic_checks?: string[]
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Reads artifact and may update verification state
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            artifact_failed
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;stdout&quot;: &quot;verification metadata&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;verify-artifact&quot;,
+  &quot;arguments&quot;: {
+    &quot;artifact&quot;: &quot;artifact-id-from-screenshot&quot;
+  }
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="wait-download">
+        <h2>
+          <code>wait-download</code>
+        </h2>
+        <p>
+          Wait for a recently initiated download
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            after_ms: integer ≥0 (required); seconds?: integer ≥1 (default 30); name_contains?: string
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Waits for/registers a completed artifact
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            download_failed, condition_timeout
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;stdout&quot;: &quot;download result&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;wait-download&quot;,
+  &quot;arguments&quot;: {
+    &quot;after_ms&quot;: 0
+  }
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="inspect-network">
+        <h2>
+          <code>inspect-network</code>
+        </h2>
+        <p>
+          Start, stop or inspect CDP request capture
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            action: start | stop | show (required); filters?: string[]
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Starts/stops capture; writes network metadata
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            internal, browser_unavailable
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;stdout&quot;: &quot;network capture result&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;inspect-network&quot;,
+  &quot;arguments&quot;: {
+    &quot;action&quot;: &quot;show&quot;
+  }
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="call-routine">
+        <h2>
+          <code>call-routine</code>
+        </h2>
+        <p>
+          Start or resume a saved guarded workflow
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            Exactly one of name: string or resume_id: string; vars?: object&lt;string,string&gt;
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Executes arbitrary workflow steps, may modify browser state
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            typed routine/tool errors
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;stdout&quot;: &quot;routine result&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;call-routine&quot;,
+  &quot;arguments&quot;: {
+    &quot;name&quot;: &quot;verified-screenshot&quot;,
+    &quot;vars&quot;: {
+      &quot;url&quot;: &quot;https://example.com/&quot;,
+      &quot;target&quot;: &quot;css:body&quot;
+    }
+  }
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section class="tool-record" id="hitl">
+        <h2>
+          <code>hitl</code>
+        </h2>
+        <p>
+          Request human intervention via Telegram
+        </p>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            message: string (required); video?: path; screenshot_target?: string; no_screenshot?: boolean
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer token or OAuth <code>jelly</code> scope (global tool access)
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Sends message/screenshots/video to external Telegram chat
+          </dd>
+          <dt>
+            Expected failures
+          </dt>
+          <dd>
+            delivery_failed
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            <code>structuredContent</code> with <code>ok</code>, <code>data</code>, <code>error</code>, <code>meta</code>;
+            example data shape: <code>{&quot;stdout&quot;: &quot;delivery result&quot;}</code>
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example <code>tools/call</code> parameters
+          </summary>
+          <pre><code>{
+  &quot;name&quot;: &quot;hitl&quot;,
+  &quot;arguments&quot;: {
+    &quot;message&quot;: &quot;Please review the current page&quot;,
+    &quot;no_screenshot&quot;: true
+  }
+}</code></pre>
+          <p>
+            Replace placeholder IDs and paths with real runtime values before calling this tool. The request uses JSON-RPC
+            method <code>tools/call</code>.
+          </p>
+        </details>
+      </section>
+      <section id="tool-surfaces">
+        <h2>Choosing a tool surface</h2>
+        <p>
+          The default small surface groups browser operations into <code>browser-schema</code>,
+          <code>browser-call</code>, and <code>browser-events</code>.
+          The expanded surface publishes individual browser primitives instead.
+        </p>
+        <p>
+          Query <code>tools/list</code> on the running MCP server for the active catalog and input schemas.
+          See the <a href="https://github.com/FabioFlorey/jelly/blob/main/docs/reference/MCP.md">MCP reference</a>
+          for deployment settings and advanced configuration.
+        </p>
+      </section>
+      <section id="large-surface">
+        <h2>
+          Expanded large-surface API
+        </h2>
+        <p>
+          When <code>[mcp].surface = "large-surface"</code>, the three browser façade tools are replaced by <strong>47
+          individual browser primitives</strong> described below. All 13 system tools above remain published. Since the
+          current raw CDP configuration, this alternate mode additionally exposes <code>cdp-call</code>, totaling
+          61 tools. Confirm the active set using the runtime <code>tools/list</code>.
+        </p>
+        <p>
+          <strong>Shared permissions:</strong> bearer token or OAuth <code>jelly</code> scope. <strong>Shared
+          result:</strong> <code>structuredContent</code> containing <code>ok</code>, <code>data</code>,
+          <code>error</code>, <code>meta.tool</code>. <strong>Common errors:</strong> <code>invalid_arguments</code>,
+          <code>browser_unavailable</code>, plus typed target/condition/script failures as appropriate. Each example below
+          is a JSON <code>params.arguments</code> object for a <code>tools/call</code> request with
+          <code>params.name</code> equal to the corresponding primitive name.
+        </p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable reference table">
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  Tool
+                </th>
+                <th>
+                  Description / usage
+                </th>
+                <th>
+                  Named parameters (* required)
+                </th>
+                <th>
+                  Side effects
+                </th>
+                <th>
+                  Example arguments
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <code>click</code><small>input</small>
+                </td>
+                <td>
+                  Dispatch a click to a visible element. This confirms the interaction was performed, not the resulting
+                  application state.<small><code>click &lt;target&gt;</code></small>
+                </td>
+                <td>
+                  target *: target
+                </td>
+                <td>
+                  Modifies page/input state
+                </td>
+                <td>
+                  <code>{&quot;target&quot;: &quot;css:body&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>type-text</code><small>input</small>
+                </td>
+                <td>
+                  Type text into a visible editable element, optionally targeting a specific element.<small><code>type-text
+                  &lt;text&gt; [target]</code></small>
+                </td>
+                <td>
+                  text *: string, target: target
+                </td>
+                <td>
+                  Modifies page/input state
+                </td>
+                <td>
+                  <code>{&quot;text&quot;: &quot;Example&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>fill</code><small>input</small>
+                </td>
+                <td>
+                  Replace the current contents of a visible editable element and dispatch input/change events.<small><code>fill
+                  &lt;text&gt; [target]</code></small>
+                </td>
+                <td>
+                  text *: string, target: target
+                </td>
+                <td>
+                  Modifies page/input state
+                </td>
+                <td>
+                  <code>{&quot;text&quot;: &quot;Example&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>press-key</code><small>input</small>
+                </td>
+                <td>
+                  Dispatch a keyboard key to the currently focused page element.<small><code>press-key &lt;key&gt;</code></small>
+                </td>
+                <td>
+                  key *: string
+                </td>
+                <td>
+                  Modifies page/input state
+                </td>
+                <td>
+                  <code>{&quot;key&quot;: &quot;name&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>select</code><small>input</small>
+                </td>
+                <td>
+                  Select an option in a native select element by value or visible option text.<small><code>select &lt;target&gt;
+                  &lt;value&gt;</code></small>
+                </td>
+                <td>
+                  target *: target, value *: string
+                </td>
+                <td>
+                  Modifies page/input state
+                </td>
+                <td>
+                  <code>{&quot;target&quot;: &quot;css:body&quot;, &quot;value&quot;: &quot;Example&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>check</code><small>input</small>
+                </td>
+                <td>
+                  Ensure a checkbox or other checkable element is checked.<small><code>check &lt;target&gt;</code></small>
+                </td>
+                <td>
+                  target *: target
+                </td>
+                <td>
+                  Modifies page/input state
+                </td>
+                <td>
+                  <code>{&quot;target&quot;: &quot;css:body&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>dialog</code><small>input</small>
+                </td>
+                <td>
+                  Accept or dismiss the active JavaScript dialog, optionally supplying prompt text.<small><code>dialog
+                  &lt;accept|dismiss&gt; [text]</code></small>
+                </td>
+                <td>
+                  action *: string, text: string
+                </td>
+                <td>
+                  Modifies page/input state
+                </td>
+                <td>
+                  <code>{&quot;action&quot;: &quot;dismiss&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>drag</code><small>input</small>
+                </td>
+                <td>
+                  Drag an element to another element or explicit viewport coordinates using pointer events.<small><code>drag
+                  &lt;source&gt; &lt;target|x:N,y:N&gt;</code></small>
+                </td>
+                <td>
+                  source *: target, destination *: string
+                </td>
+                <td>
+                  Modifies page/input state
+                </td>
+                <td>
+                  <code>{&quot;source&quot;: &quot;css:body&quot;, &quot;destination&quot;: &quot;css:main&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>wait</code><small>navigation</small>
+                </td>
+                <td>
+                  Wait until text, CSS, visibility, URL, disappearance, or a JavaScript condition is satisfied.<small><code>wait
+                  &lt;text|css|visible|url|gone|js&gt; &lt;value&gt; [seconds]</code></small>
+                </td>
+                <td>
+                  condition *: string, value *: string, seconds: integer
+                </td>
+                <td>
+                  Navigation/wait; may change page
+                </td>
+                <td>
+                  <code>{&quot;condition&quot;: &quot;visible&quot;, &quot;value&quot;: &quot;Example&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>navigate</code><small>navigation</small>
+                </td>
+                <td>
+                  Navigate the active tab and report the observed URL/title/readiness. Use verification primitives for
+                  application-state guarantees.<small><code>navigate &lt;url&gt;</code></small>
+                </td>
+                <td>
+                  url *: string
+                </td>
+                <td>
+                  Navigation/wait; may change page
+                </td>
+                <td>
+                  <code>{&quot;url&quot;: &quot;https://example.com/&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>tab-history</code><small>navigation</small>
+                </td>
+                <td>
+                  Move the active tab backward or forward in its navigation history.<small><code>tab-history
+                  &lt;back|forward&gt;</code></small>
+                </td>
+                <td>
+                  direction *: string
+                </td>
+                <td>
+                  Navigation/wait; may change page
+                </td>
+                <td>
+                  <code>{&quot;direction&quot;: &quot;back&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>wait-for</code><small>verify</small>
+                </td>
+                <td>
+                  Wait with a finite deadline for an explicit page or target condition and return the observed
+                  evidence.<small><code>wait-for &lt;exists|visible|hidden|text|url|title|image-ready&gt; &lt;value&gt;
+                  [seconds]</code></small>
+                </td>
+                <td>
+                  condition *: string, value *: string, seconds: integer
+                </td>
+                <td>
+                  Read-only assertion or wait
+                </td>
+                <td>
+                  <code>{&quot;condition&quot;: &quot;visible&quot;, &quot;value&quot;: &quot;Example&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>assert-url</code><small>verify</small>
+                </td>
+                <td>
+                  Require the current page URL to match the expected value before dependent work continues.<small><code>assert-url
+                  &lt;expected&gt; [exact|contains]</code></small>
+                </td>
+                <td>
+                  expected *: string, match: string
+                </td>
+                <td>
+                  Read-only assertion or wait
+                </td>
+                <td>
+                  <code>{&quot;expected&quot;: &quot;https://example.com/&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>assert-title</code><small>verify</small>
+                </td>
+                <td>
+                  Require the current document title to match the expected value.<small><code>assert-title &lt;expected&gt;
+                  [exact|contains]</code></small>
+                </td>
+                <td>
+                  expected *: string, match: string
+                </td>
+                <td>
+                  Read-only assertion or wait
+                </td>
+                <td>
+                  <code>{&quot;expected&quot;: &quot;https://example.com/&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>assert-visible</code><small>verify</small>
+                </td>
+                <td>
+                  Require a target to exist and be visibly rendered, returning geometry as evidence.<small><code>assert-visible
+                  &lt;target&gt;</code></small>
+                </td>
+                <td>
+                  target *: target
+                </td>
+                <td>
+                  Read-only assertion or wait
+                </td>
+                <td>
+                  <code>{&quot;target&quot;: &quot;css:body&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>assert-text</code><small>verify</small>
+                </td>
+                <td>
+                  Require a target&#x27;s current text to match an expected value.<small><code>assert-text &lt;target&gt;
+                  &lt;text&gt; [exact|contains]</code></small>
+                </td>
+                <td>
+                  target *: target, text *: string, match: string
+                </td>
+                <td>
+                  Read-only assertion or wait
+                </td>
+                <td>
+                  <code>{&quot;target&quot;: &quot;css:body&quot;, &quot;text&quot;: &quot;Example&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>assert-image-ready</code><small>verify</small>
+                </td>
+                <td>
+                  Require a visible image to be complete with nonzero natural dimensions before capture or downstream
+                  use.<small><code>assert-image-ready &lt;target&gt;</code></small>
+                </td>
+                <td>
+                  target *: target
+                </td>
+                <td>
+                  Read-only assertion or wait
+                </td>
+                <td>
+                  <code>{&quot;target&quot;: &quot;css:body&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>snapshot-interactive</code><small>inspect</small>
+                </td>
+                <td>
+                  Return visible interactive elements with document-scoped refs, optionally bounded and paged by result limit and
+                  offset.<small><code>snapshot-interactive [limit] [offset]</code></small>
+                </td>
+                <td>
+                  limit: integer, offset: integer
+                </td>
+                <td>
+                  Read-only observation
+                </td>
+                <td>
+                  <code>{}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>find-interactive</code><small>inspect</small>
+                </td>
+                <td>
+                  Search visible interactive elements by semantic name, rank useful matches in the browser, and return a bounded,
+                  pageable result set with document-scoped refs.<small><code>find-interactive &lt;query&gt; [limit]
+                  [offset]</code></small>
+                </td>
+                <td>
+                  query *: string, limit: integer, offset: integer
+                </td>
+                <td>
+                  Read-only observation
+                </td>
+                <td>
+                  <code>{&quot;query&quot;: &quot;Example&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>read-page</code><small>inspect</small>
+                </td>
+                <td>
+                  Return the active page title, URL, headings, and main readable text.<small><code>read-page</code></small>
+                </td>
+                <td>
+                  None
+                </td>
+                <td>
+                  Read-only observation
+                </td>
+                <td>
+                  <code>{}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>inspect-inputs</code><small>inspect</small>
+                </td>
+                <td>
+                  List visible form controls with type, label, placeholder, name, value, and checked
+                  state.<small><code>inspect-inputs</code></small>
+                </td>
+                <td>
+                  None
+                </td>
+                <td>
+                  Read-only observation
+                </td>
+                <td>
+                  <code>{}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>inspect-elements</code><small>inspect</small>
+                </td>
+                <td>
+                  Inspect up to 100 visible elements matching a CSS selector with text, attributes, and
+                  geometry.<small><code>inspect-elements [css]</code></small>
+                </td>
+                <td>
+                  css: string
+                </td>
+                <td>
+                  Read-only observation
+                </td>
+                <td>
+                  <code>{}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>element-info</code><small>inspect</small>
+                </td>
+                <td>
+                  Return detailed content, attributes, state, geometry, and computed style for one
+                  target.<small><code>element-info &lt;target&gt;</code></small>
+                </td>
+                <td>
+                  target *: target
+                </td>
+                <td>
+                  Read-only observation
+                </td>
+                <td>
+                  <code>{&quot;target&quot;: &quot;css:body&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>scroll</code><small>inspect</small>
+                </td>
+                <td>
+                  Scroll the page by direction or bring a target element into the center of the viewport.<small><code>scroll
+                  [down|up|top|bottom|target]</code></small>
+                </td>
+                <td>
+                  destination: string
+                </td>
+                <td>
+                  Read-only observation
+                </td>
+                <td>
+                  <code>{}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>query-selector</code><small>inspect</small>
+                </td>
+                <td>
+                  Return matching DOM elements for a CSS selector with text, HTML, visibility, and
+                  geometry.<small><code>query-selector &lt;css&gt;</code></small>
+                </td>
+                <td>
+                  css *: string
+                </td>
+                <td>
+                  Read-only observation
+                </td>
+                <td>
+                  <code>{&quot;css&quot;: &quot;body&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>get-element</code><small>inspect</small>
+                </td>
+                <td>
+                  Return the text, outer HTML, or both for a single target element.<small><code>get-element &lt;target&gt;
+                  [text|html|both]</code></small>
+                </td>
+                <td>
+                  target *: target, mode: string
+                </td>
+                <td>
+                  Read-only observation
+                </td>
+                <td>
+                  <code>{&quot;target&quot;: &quot;css:body&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>accessibility-tree</code><small>inspect</small>
+                </td>
+                <td>
+                  Return a compact view of non-ignored nodes from the page accessibility tree.<small><code>accessibility-tree
+                  [max]</code></small>
+                </td>
+                <td>
+                  max: integer
+                </td>
+                <td>
+                  Read-only observation
+                </td>
+                <td>
+                  <code>{}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>inspect-links</code><small>inspect</small>
+                </td>
+                <td>
+                  List visible links with normalized visible text and resolved URLs.<small><code>inspect-links</code></small>
+                </td>
+                <td>
+                  None
+                </td>
+                <td>
+                  Read-only observation
+                </td>
+                <td>
+                  <code>{}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>inspect-images</code><small>inspect</small>
+                </td>
+                <td>
+                  Inspect images with DOM-backed page-order refs, source, visibility, load completion, natural dimensions, and
+                  rendered dimensions.<small><code>inspect-images</code></small>
+                </td>
+                <td>
+                  None
+                </td>
+                <td>
+                  Read-only observation
+                </td>
+                <td>
+                  <code>{}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>tabs</code><small>tabs</small>
+                </td>
+                <td>
+                  List browser page targets by stable logical label, with title, URL, and low-level target ID as
+                  diagnostics.<small><code>tabs</code></small>
+                </td>
+                <td>
+                  None
+                </td>
+                <td>
+                  May change/close targets
+                </td>
+                <td>
+                  <code>{}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>switch-tab</code><small>tabs</small>
+                </td>
+                <td>
+                  Activate and attach to a tab by logical label, with target ID/title/URL matching retained for
+                  compatibility.<small><code>switch-tab &lt;label|id|title|url&gt;</code></small>
+                </td>
+                <td>
+                  query *: string
+                </td>
+                <td>
+                  May change/close targets
+                </td>
+                <td>
+                  <code>{&quot;query&quot;: &quot;Example&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>close-tab</code><small>tabs</small>
+                </td>
+                <td>
+                  Close the active tab and reattach the session to a remaining page target when
+                  available.<small><code>close-tab</code></small>
+                </td>
+                <td>
+                  None
+                </td>
+                <td>
+                  May change/close targets
+                </td>
+                <td>
+                  <code>{}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>open-in-new-tab</code><small>tabs</small>
+                </td>
+                <td>
+                  Open the link or image URL represented by a target in a new active tab.<small><code>open-in-new-tab
+                  &lt;target&gt;</code></small>
+                </td>
+                <td>
+                  target *: target
+                </td>
+                <td>
+                  May change/close targets
+                </td>
+                <td>
+                  <code>{&quot;target&quot;: &quot;css:body&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>upload</code><small>files</small>
+                </td>
+                <td>
+                  Set a local file on a targeted HTML file input using the DOM protocol.<small><code>upload &lt;target&gt;
+                  &lt;file&gt;</code></small>
+                </td>
+                <td>
+                  target *: target, file *: string
+                </td>
+                <td>
+                  Reads and uploads local file
+                </td>
+                <td>
+                  <code>{&quot;target&quot;: &quot;css:body&quot;, &quot;file&quot;:
+                  &quot;/path/to/authorized-file.txt&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>cookies</code><small>storage</small>
+                </td>
+                <td>
+                  List browser cookies applicable to the active page URL or an explicitly supplied URL, including HttpOnly
+                  cookies.<small><code>cookies [url]</code></small>
+                </td>
+                <td>
+                  url: string
+                </td>
+                <td>
+                  Reads or changes browser storage
+                </td>
+                <td>
+                  <code>{}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>set-cookie</code><small>storage</small>
+                </td>
+                <td>
+                  Set one browser cookie through CDP. The cookie object requires name/value and may include url, domain, path,
+                  secure, httpOnly, sameSite, and expires.<small><code>set-cookie &lt;cookie-json&gt;</code></small>
+                </td>
+                <td>
+                  cookie *: object
+                </td>
+                <td>
+                  Reads or changes browser storage
+                </td>
+                <td>
+                  <code>{&quot;cookie&quot;: {&quot;name&quot;: &quot;example&quot;, &quot;value&quot;: &quot;redacted&quot;,
+                  &quot;url&quot;: &quot;https://example.com/&quot;}}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>delete-cookie</code><small>storage</small>
+                </td>
+                <td>
+                  Delete cookies matching a selector object. The selector requires name and may include url, domain, and
+                  path.<small><code>delete-cookie &lt;selector-json&gt;</code></small>
+                </td>
+                <td>
+                  selector *: object
+                </td>
+                <td>
+                  Reads or changes browser storage
+                </td>
+                <td>
+                  <code>{&quot;selector&quot;: {&quot;name&quot;: &quot;example&quot;, &quot;url&quot;:
+                  &quot;https://example.com/&quot;}}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>clear-cookies</code><small>storage</small>
+                </td>
+                <td>
+                  Delete all cookies applicable to the active page URL or an explicitly supplied URL without clearing unrelated
+                  browser cookies.<small><code>clear-cookies [url]</code></small>
+                </td>
+                <td>
+                  url: string
+                </td>
+                <td>
+                  Reads or changes browser storage
+                </td>
+                <td>
+                  <code>{}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>storage-list</code><small>storage</small>
+                </td>
+                <td>
+                  List key/value entries from localStorage or sessionStorage for the active page origin.<small><code>storage-list
+                  &lt;local|session&gt;</code></small>
+                </td>
+                <td>
+                  area *: string
+                </td>
+                <td>
+                  Reads or changes browser storage
+                </td>
+                <td>
+                  <code>{&quot;area&quot;: &quot;local&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>storage-get</code><small>storage</small>
+                </td>
+                <td>
+                  Read one localStorage or sessionStorage key for the active page origin.<small><code>storage-get
+                  &lt;local|session&gt; &lt;key&gt;</code></small>
+                </td>
+                <td>
+                  area *: string, key *: string
+                </td>
+                <td>
+                  Reads or changes browser storage
+                </td>
+                <td>
+                  <code>{&quot;area&quot;: &quot;local&quot;, &quot;key&quot;: &quot;name&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>storage-set</code><small>storage</small>
+                </td>
+                <td>
+                  Set one localStorage or sessionStorage key for the active page origin.<small><code>storage-set
+                  &lt;local|session&gt; &lt;key&gt; &lt;value&gt;</code></small>
+                </td>
+                <td>
+                  area *: string, key *: string, value *: string
+                </td>
+                <td>
+                  Reads or changes browser storage
+                </td>
+                <td>
+                  <code>{&quot;area&quot;: &quot;local&quot;, &quot;key&quot;: &quot;name&quot;, &quot;value&quot;:
+                  &quot;Example&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>storage-remove</code><small>storage</small>
+                </td>
+                <td>
+                  Remove one localStorage or sessionStorage key for the active page origin.<small><code>storage-remove
+                  &lt;local|session&gt; &lt;key&gt;</code></small>
+                </td>
+                <td>
+                  area *: string, key *: string
+                </td>
+                <td>
+                  Reads or changes browser storage
+                </td>
+                <td>
+                  <code>{&quot;area&quot;: &quot;local&quot;, &quot;key&quot;: &quot;name&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>storage-clear</code><small>storage</small>
+                </td>
+                <td>
+                  Clear localStorage or sessionStorage for the active page origin.<small><code>storage-clear
+                  &lt;local|session&gt;</code></small>
+                </td>
+                <td>
+                  area *: string
+                </td>
+                <td>
+                  Reads or changes browser storage
+                </td>
+                <td>
+                  <code>{&quot;area&quot;: &quot;local&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>highlight</code><small>visual</small>
+                </td>
+                <td>
+                  Draw a Jelly-owned non-interactive halo over a visible target without modifying the target element itself. Auto
+                  mode uses rendered text fragments for text-centric elements and a shape halo for controls; content forces
+                  text-fragment geometry; box preserves the rectangular outline. The highlight follows the element until cleared
+                  or navigation replaces the document.<small><code>highlight &lt;target&gt; [label]
+                  [auto|content|box]</code></small>
+                </td>
+                <td>
+                  target *: target, label: string, mode: string
+                </td>
+                <td>
+                  Adds/removes overlay
+                </td>
+                <td>
+                  <code>{&quot;target&quot;: &quot;css:body&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>clear-highlight</code><small>visual</small>
+                </td>
+                <td>
+                  Remove the active Jelly visual highlight from the current page.<small><code>clear-highlight</code></small>
+                </td>
+                <td>
+                  None
+                </td>
+                <td>
+                  Adds/removes overlay
+                </td>
+                <td>
+                  <code>{}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>evaluate-js</code><small>script</small>
+                </td>
+                <td>
+                  Evaluate a JavaScript expression in the active page and return its by-value result.<small><code>evaluate-js
+                  &lt;expression&gt;</code></small>
+                </td>
+                <td>
+                  expression *: string
+                </td>
+                <td>
+                  Executes page JavaScript
+                </td>
+                <td>
+                  <code>{&quot;expression&quot;: &quot;document.title&quot;}</code>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <code>inject-js</code><small>script</small>
+                </td>
+                <td>
+                  Execute a JavaScript body now, optionally persisting it across jelly navigations.<small><code>inject-js
+                  [--persistent] [--file path | &lt;script&gt;]</code></small>
+                </td>
+                <td>
+                  script *: string
+                </td>
+                <td>
+                  Executes page JavaScript
+                </td>
+                <td>
+                  <code>{&quot;script&quot;: &quot;document.title&quot;}</code>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Examples show argument types and request structure. Replace targets, URLs and paths
+          with real runtime values; consult <code>tools/list</code> for exact active input/output schemas and constraints.
+        </p>
+        <h3>
+          <code>cdp-call</code> | privileged raw protocol
+        </h3>
+        <dl class="tool-fields">
+          <dt>
+            Parameters
+          </dt>
+          <dd>
+            <code>calls</code>: required array, 1–64 items. Each item requires <code>scope: "target" | "browser"</code> and
+            <code>call: {method: "Domain.command", params?: object}</code>; target scope optionally accepts a logical
+            <code>target</code>. <code>on_error: "stop" | "continue"</code> defaults to <code>stop</code>.
+          </dd>
+          <dt>
+            Permissions
+          </dt>
+          <dd>
+            Bearer/OAuth <code>jelly</code> scope; raw CDP enabled by operator.
+          </dd>
+          <dt>
+            Side effects
+          </dt>
+          <dd>
+            Privileged browser/page observation or mutation; bypasses semantic policy.
+          </dd>
+          <dt>
+            Errors
+          </dt>
+          <dd>
+            <code>invalid_arguments</code>, <code>browser_unavailable</code>, <code>cdp_failed</code>.
+          </dd>
+          <dt>
+            Output
+          </dt>
+          <dd>
+            Same MCP envelope with per-call outcomes; protocol success is not proof of a workflow goal.
+          </dd>
+        </dl>
+        <details>
+          <summary>
+            Example cdp-call arguments
+          </summary>
+          <pre><code>{"calls":[{"scope":"browser","call":{"method":"Target.getTargets","params":{}}}]}</code></pre>
+        </details>
+      </section>
+    </main>
+    <footer>
+      <div class="shell">
+        <span>Jelly · Browser instrumentation for agents</span>
+        <span class="footer-links">
+          <a href="./getting-started.html">Get Started</a> ·
+          <a href="./examples.html">Examples</a> ·
+          <a href="./tools.html">Tools</a> ·
+          <a href="./troubleshooting.html">Troubleshooting</a> ·
+          <a href="https://github.com/FabioFlorey/jelly">Repository</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/releases">Releases</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/CHANGELOG.md">Changelog</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/LICENSE">License</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/issues">Issues</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/CONTRIBUTING.md">Contribution policy</a> ·
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/SECURITY.md">Security policy</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,5 +1,70 @@
 use super::*;
 
+fn web_test_state() -> AuthState {
+    AuthState::new(
+        "01234567890123456789012345678901".into(),
+        "0123456789abcdef".into(),
+        "abcdef0123456789abcdef0123456789".into(),
+        ConsentMode::Browser,
+        true,
+        "https://jelly.example".into(),
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn detailed_status_and_dashboard_require_admin_access() {
+    let state = web_test_state();
+    let unauthenticated = status_json(State(state.clone()), HeaderMap::new()).await;
+    assert_eq!(unauthenticated.status(), StatusCode::FORBIDDEN);
+    let dashboard_page = dashboard(State(state.clone()), HeaderMap::new()).await;
+    assert_eq!(dashboard_page.status(), StatusCode::FORBIDDEN);
+
+    let mut authorized = HeaderMap::new();
+    authorized.insert(
+        axum::http::header::AUTHORIZATION,
+        "Bearer abcdef0123456789abcdef0123456789".parse().unwrap(),
+    );
+    let status = status_json(State(state), authorized).await;
+    assert_eq!(status.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(status.into_body(), 128 * 1024)
+        .await
+        .unwrap();
+    assert!(
+        String::from_utf8(body.to_vec())
+            .unwrap()
+            .contains("runtime_root")
+    );
+}
+
+#[tokio::test]
+async fn connections_page_has_jelly_branding_without_credentials() {
+    let page = connections_page(State(web_test_state()), HeaderMap::new()).await;
+    assert_eq!(page.status(), StatusCode::OK);
+    assert_eq!(
+        page.headers()[axum::http::header::CACHE_CONTROL],
+        "no-store, max-age=0"
+    );
+    let bytes = axum::body::to_bytes(page.into_body(), 128 * 1024)
+        .await
+        .unwrap();
+    let html = String::from_utf8(bytes.to_vec()).unwrap();
+    assert!(html.contains("/brand/jelly.css"));
+    assert!(html.contains("/brand/full-logo.png"));
+    assert!(html.contains("Connections"));
+    assert!(!html.contains("abcdef0123456789abcdef0123456789"));
+    assert!(!html.contains("01234567890123456789012345678901"));
+}
+
+#[tokio::test]
+async fn health_and_readiness_are_public_service_probes() {
+    let Json(health) = health().await;
+    let Json(readiness) = ready().await;
+    assert_eq!(health["status"], "ok");
+    assert_eq!(readiness["component"], "mcp-server");
+    assert_eq!(readiness["ready"], true);
+}
+
 #[test]
 fn initialize_includes_operating_instructions() {
     let response = initialize(&json!({"protocolVersion": DEFAULT_PROTOCOL_VERSION}));
@@ -18,7 +83,7 @@ fn initialize_includes_operating_instructions() {
     assert!(instructions.contains("through Telegram"));
     assert!(instructions.contains("exhaust legitimate automatable paths"));
     assert!(instructions.contains(".agent/tools/index.md"));
-    assert!(instructions.contains("docs/wiki/DISCOVERY.md"));
+    assert!(instructions.contains("docs/reference/DISCOVERY.md"));
     assert!(instructions.contains("agent-discover schema <tool>"));
     assert!(instructions.contains("Detect the active surface from `tools/list`"));
     assert!(instructions.contains("Prefer a **semantic Jelly operation**"));
@@ -41,6 +106,130 @@ fn initialize_includes_operating_instructions() {
     assert!(instructions.contains("stores it as the step `label`"));
     assert!(!instructions.contains("Use direct primitives for short, local interactions"));
     assert!(!instructions.contains("Use snapshot-interactive before clicking"));
+}
+
+#[test]
+fn instructions_expose_selection_gate_without_bloating_with_tool_catalog() {
+    let instructions = initialize(&json!({}))["instructions"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    for rule in [
+        "### Tool choice in one pass",
+        "### Final task check",
+        "**MUST** use the named MCP schema",
+        "**NEVER** claim an outcome solely",
+        "AGENT_PLAYBOOK.md",
+    ] {
+        assert!(
+            instructions.contains(rule),
+            "missing operating rule: {rule}"
+        );
+    }
+    assert!(
+        instructions.split_whitespace().count() <= 1700,
+        "MCP initialization instructions must stay bounded; move details to the on-demand playbook"
+    );
+}
+
+#[test]
+fn agent_routing_fixture_uses_actual_published_tool_names_and_input_fields() {
+    let cases: Value = serde_json::from_str(include_str!(
+        "../../tests/fixtures/agent-guidance-cases.json"
+    ))
+    .expect("agent-routing fixture must be valid JSON");
+    let cases = cases.as_array().unwrap();
+    assert!(cases.len() >= 16);
+    for case in cases {
+        let surface = match case["surface"].as_str().unwrap() {
+            "small" => crate::McpSurface::SmallSurface,
+            "large" => crate::McpSurface::LargeSurface,
+            unexpected => panic!("unknown agent-routing surface: {unexpected}"),
+        };
+        let catalog = crate::agent_catalog_for_surface(surface, crate::RawCdpAccess::Disabled);
+        let name = case["expected_tool"].as_str().unwrap();
+        let tool = catalog
+            .get(name)
+            .unwrap_or_else(|| panic!("{}: tool {name} is not published", case["id"]));
+        let args = case["required_args"].as_object().unwrap();
+        let schema = tool.input_schema();
+        // A few builtins use oneOf action branches instead of a root properties map.
+        if schema["properties"].is_object() {
+            for key in args.keys() {
+                assert!(
+                    schema["properties"].get(key).is_some(),
+                    "{}: unknown {name} input field {key}",
+                    case["id"]
+                );
+            }
+        } else if let Some(branches) = schema["oneOf"].as_array() {
+            assert!(
+                branches.iter().any(|branch| {
+                    args.keys()
+                        .all(|key| branch["properties"].get(key).is_some())
+                        && args
+                            .get("action")
+                            .is_none_or(|action| branch["properties"]["action"]["const"] == *action)
+                }),
+                "{}: no matching inputSchema action branch for {name}",
+                case["id"]
+            );
+        }
+        if let crate::AgentToolBinding::Builtin(builtin) = tool.binding() {
+            builtin
+                .preflight(&Value::Object(args.clone()))
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "{}: invalid builtin {name} reference arguments: {error}",
+                        case["id"]
+                    )
+                });
+        }
+    }
+}
+
+#[test]
+fn descriptions_disambiguate_commonly_confused_tools() {
+    let small = mcp_tools_from_catalog(crate::agent_catalog_for_surface(
+        crate::McpSurface::SmallSurface,
+        crate::RawCdpAccess::Disabled,
+    ));
+    let description = |name: &str| {
+        small.iter().find(|tool| tool["name"] == name).unwrap()["description"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    assert!(description("screenshot").contains("record-browser"));
+    assert!(description("record-browser").contains("screenshot"));
+    assert!(description("call-routine").contains("browser-call"));
+    assert!(description("browser-call").contains("browser-schema"));
+    assert!(description("hitl").contains("Telegram"));
+
+    let large = mcp_tools_from_catalog(crate::agent_catalog_for_surface(
+        crate::McpSurface::LargeSurface,
+        crate::RawCdpAccess::Disabled,
+    ));
+    let find = large
+        .iter()
+        .find(|tool| tool["name"] == "find-interactive")
+        .unwrap();
+    let snapshot = large
+        .iter()
+        .find(|tool| tool["name"] == "snapshot-interactive")
+        .unwrap();
+    assert!(
+        find["description"]
+            .as_str()
+            .unwrap()
+            .contains("snapshot-interactive")
+    );
+    assert!(
+        snapshot["description"]
+            .as_str()
+            .unwrap()
+            .contains("find-interactive")
+    );
 }
 
 #[test]

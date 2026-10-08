@@ -41,30 +41,75 @@ pub fn router(
     public_chatgpt_dcr: bool,
     public_url: String,
 ) -> Result<Router, String> {
-    active_agent_catalog()
-        .map_err(|error| format!("invalid MCP tool surface configuration: {error}"))?;
-    let consent_mode = ConsentMode::parse(&consent_mode)?;
-    let state = AuthState::new(
+    let (public, _) = server_routers(
         token,
         oauth_password,
         bootstrap_secret,
         consent_mode,
         public_chatgpt_dcr,
         public_url,
+        "http://127.0.0.1:8788".into(),
     )?;
-    Ok(Router::new()
-        .route("/", get(index_page))
-        .route("/index", get(index_page))
-        .route("/dashboard", get(dashboard))
-        .route("/status", get(status_json))
-        .route("/status.json", get(status_json))
-        .route("/health", get(health))
-        .route("/ready", get(ready))
-        .route("/admin/cleanup-inactive", post(cleanup_inactive))
+    Ok(public)
+}
+
+/// Build the public MCP/OAuth router plus the loopback-only local admin router.
+///
+/// Both routers share one AuthState so a public ChatGPT OAuth request can
+/// redirect through the loopback-only connect/approval UI and then complete
+/// back to ChatGPT without exposing that local UI through the public tunnel.
+pub fn server_routers(
+    token: String,
+    oauth_password: String,
+    bootstrap_secret: String,
+    consent_mode: String,
+    public_chatgpt_dcr: bool,
+    public_url: String,
+    local_admin_url: String,
+) -> Result<(Router, Router), String> {
+    active_agent_catalog()
+        .map_err(|error| format!("invalid MCP tool surface configuration: {error}"))?;
+    let consent_mode = ConsentMode::parse(&consent_mode)?;
+    let state = AuthState::new_with_admin_url(
+        token,
+        oauth_password,
+        bootstrap_secret,
+        consent_mode,
+        public_chatgpt_dcr,
+        public_url,
+        local_admin_url,
+    )?;
+
+    let admin = crate::mcp_auth::local_admin_routes().with_state(state.clone());
+    let public = Router::new()
+        .merge(web_routes())
+        .merge(operational_routes())
         .route("/mcp", post(handle_mcp))
         .merge(crate::mcp_auth::routes())
         .fallback(not_found)
-        .with_state(state))
+        .with_state(state);
+
+    Ok((public, admin))
+}
+
+/// Human-facing pages; `/index` remains an alias for `/`.
+fn web_routes() -> Router<AuthState> {
+    Router::new()
+        .route("/", get(index_page))
+        .route("/index", get(index_page))
+        .route("/dashboard", get(dashboard))
+        .route("/connections", get(connections_page))
+}
+
+/// Service probes, private diagnostics and explicitly authorized admin actions.
+/// `/status` remains a backward-compatible alias for `/status.json`.
+fn operational_routes() -> Router<AuthState> {
+    Router::new()
+        .route("/health", get(health))
+        .route("/ready", get(ready))
+        .route("/status.json", get(status_json))
+        .route("/status", get(status_json))
+        .route("/admin/cleanup-inactive", post(cleanup_inactive))
 }
 
 fn process_tree_size(root_pid: u32) -> usize {
@@ -224,7 +269,7 @@ fn inactive_jelly_mcp_pids() -> Vec<u32> {
 fn runtime_status(state: &AuthState) -> Value {
     let browser_ready = BROWSER_READY.path().exists();
     let recording_active = RECORDING_DIR.path().join("active.json").exists();
-    let (oauth_clients, oauth_tokens) = state.oauth_counts();
+    let (oauth_clients, oauth_tokens, oauth_refresh_tokens) = state.oauth_counts();
     let mcp_pid = std::process::id();
     let live_children = process_tree_size(mcp_pid);
     let browser_pid = browser_pid();
@@ -252,7 +297,9 @@ fn runtime_status(state: &AuthState) -> Value {
             "public_chatgpt_dcr": state.public_chatgpt_dcr(),
             "owner_sessions": state.owner_session_count(),
             "clients": oauth_clients,
-            "active_tokens": oauth_tokens
+            "active_tokens": oauth_tokens,
+            "active_refresh_tokens": oauth_refresh_tokens,
+            "chatgpt_authorized": state.chatgpt_authorized()
         },
         "endpoints": {
             "mcp": "/mcp",
@@ -278,24 +325,111 @@ async fn ready() -> Json<Value> {
     Json(json!({
         "name": SERVER_NAME,
         "version": env!("CARGO_PKG_VERSION"),
-        "ready": true
+        "ready": true,
+        "component": "mcp-server"
     }))
 }
 
-async fn status_json(State(state): State<AuthState>) -> Json<Value> {
-    Json(runtime_status(&state))
+fn private_page(mut response: Response) -> Response {
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("no-store, max-age=0"),
+    );
+    response
+}
+
+async fn status_json(State(state): State<AuthState>, headers: HeaderMap) -> Response {
+    if !state.has_admin_access(&headers) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({"error":"owner authorization required for detailed diagnostics"})),
+        )
+            .into_response();
+    }
+    private_page(Json(runtime_status(&state)).into_response())
 }
 
 async fn index_page() -> Html<String> {
     let content = r#"<h1>Jelly</h1><p>Local-first browser instrumentation and MCP service.</p>
 <div class="grid">
 <a class="card" href="/dashboard"><span class="k">Service</span><span class="v">Dashboard →</span></a>
-<a class="card" href="/pair"><span class="k">OAuth</span><span class="v">Pair this browser →</span></a>
+<a class="card" href="/connections"><span class="k">AI clients</span><span class="v">Connections →</span></a>
 <a class="card" href="https://github.com/FabioFlorey/jelly"><span class="k">Source</span><span class="v">GitHub repository ↗</span></a>
 <a class="card" href="https://fabioflorey.com/en/"><span class="k">Writing</span><span class="v">Fabio Florey blog ↗</span></a>
 </div>
-<div class="links"><a class="button secondary" href="/health">health</a><a class="button secondary" href="/ready">ready</a><a class="button secondary" href="/status">status</a></div>"#;
+<div class="links"><a class="button secondary" href="/health">health</a><a class="button secondary" href="/ready">ready</a><a class="button secondary" href="/status.json">status (private)</a></div>"#;
     Html(crate::mcp_auth::oauth_page("Jelly", content))
+}
+
+/// Public setup guide: profiles are configuration, not proof of active OAuth.
+/// Never expose tokens, browser paths or local process diagnostics here.
+pub(crate) async fn connections_page(
+    State(state): State<AuthState>,
+    headers: HeaderMap,
+) -> Response {
+    use crate::connection::{AuthMethod, ConnectionMethod, Provider, ProviderConnection};
+    let defaults = [ProviderConnection::default()];
+    let profiles = if config().mcp.connections.is_empty() {
+        &defaults[..]
+    } else {
+        &config().mcp.connections[..]
+    };
+    let mut cards = String::new();
+    for profile in profiles {
+        let name = match profile.provider {
+            Provider::ChatGPT => "ChatGPT",
+            Provider::GenericMcp => "Generic MCP",
+        };
+        let method = match profile.method {
+            ConnectionMethod::Stdio => "stdio (not implemented)",
+            ConnectionMethod::LocalHttp => "Local HTTP",
+            ConnectionMethod::RemoteHttp => "Remote HTTPS",
+        };
+        let auth = match profile.auth {
+            AuthMethod::None => "None (not implemented)",
+            AuthMethod::BearerToken => "Bearer token",
+            AuthMethod::OAuth => "OAuth",
+        };
+        let status = if profile.provider == Provider::ChatGPT
+            && state.has_admin_access(&headers)
+            && state.chatgpt_authorized()
+        {
+            "OAuth authorization stored"
+        } else {
+            "Configured profile"
+        };
+        cards.push_str(&format!(
+            "<div class=\"card\"><span class=\"k\">{name}</span><span class=\"v\">{status}</span><p class=\"hint\">{method} · {auth}</p></div>"
+        ));
+    }
+    let chatgpt_section = if profiles
+        .iter()
+        .any(|profile| profile.provider == Provider::ChatGPT)
+    {
+        if state.consent_mode_name() == "paired" && state.public_chatgpt_dcr() {
+            let local_connect = format!("{}/connect", state.local_admin_url());
+            format!(
+                "<section class=\"section\"><h2>Activate ChatGPT</h2><p>Run the Jelly installer to create a short-lived, authorized setup link. Jelly's OAuth approval stays on this machine.</p><a class=\"button\" href=\"{}\">Local connection setup</a><p class=\"hint\">The installer must authorize activation first; visiting the page alone grants no access.</p></section>",
+                crate::mcp_auth::html_escape(&local_connect)
+            )
+        } else {
+            "<section class=\"section\"><h2>ChatGPT setup</h2><p>ChatGPT is configured, but local one-click activation requires paired OAuth consent and public ChatGPT DCR. Use the Jelly installer to configure the chosen remote connection method.</p></section>".to_owned()
+        }
+    } else {
+        String::new()
+    };
+    let generic_section = if profiles
+        .iter()
+        .any(|profile| profile.provider == Provider::GenericMcp)
+    {
+        "<section class=\"section\"><h2>Other MCP clients</h2><p>Configure your client with Jelly's HTTP MCP endpoint and a bearer token from your private Jelly environment. Do not publish that token or expose the local listener directly.</p><a class=\"button secondary\" href=\"/dashboard\">Dashboard</a></section>"
+    } else {
+        ""
+    };
+    let content = format!(
+        "<h1>Connections</h1><p>Connect Jelly to an AI assistant through MCP. Configured profiles do not imply an active authenticated connection.</p><div class=\"grid\">{cards}</div>{chatgpt_section}{generic_section}"
+    );
+    private_page(Html(crate::mcp_auth::oauth_page("Jelly connections", &content)).into_response())
 }
 
 async fn cleanup_inactive(State(state): State<AuthState>, headers: HeaderMap) -> Response {
@@ -333,7 +467,15 @@ async fn cleanup_inactive(State(state): State<AuthState>, headers: HeaderMap) ->
     Json(json!({"killed":killed,"count":killed.len()})).into_response()
 }
 
-async fn dashboard(State(state): State<AuthState>) -> Html<String> {
+async fn dashboard(State(state): State<AuthState>, headers: HeaderMap) -> Response {
+    if !state.has_admin_access(&headers) {
+        let content = "<h1>Dashboard authorization required</h1><p>Detailed process, browser and OAuth diagnostics are private. Pair this browser as Jelly's owner or use a local authorized API client.</p><div class=\"links\"><a class=\"button\" href=\"/pair\">Pair browser</a><a class=\"button secondary\" href=\"/connections\">Connections</a></div>";
+        return (
+            StatusCode::FORBIDDEN,
+            Html(crate::mcp_auth::oauth_page("Jelly dashboard", content)),
+        )
+            .into_response();
+    }
     let status = runtime_status(&state);
     let browser_ready = status["browser_ready"].as_bool().unwrap_or(false);
     let recording_active = status["recording_active"].as_bool().unwrap_or(false);
@@ -380,7 +522,7 @@ async fn dashboard(State(state): State<AuthState>) -> Html<String> {
 </section>
 <section class="section">
 <div class="section-head"><h2>Endpoints</h2><span class="section-note">machine-readable state</span></div>
-<div class="links"><a class="button" href="/health">health JSON</a><a class="button secondary" href="/ready">ready JSON</a><a class="button secondary" href="/status">status JSON</a></div>
+<div class="links"><a class="button" href="/health">health JSON</a><a class="button secondary" href="/ready">ready JSON</a><a class="button secondary" href="/status.json">status JSON</a></div>
 <p id="refresh-state" class="refresh-state">Auto-refreshing every 2 seconds.</p>
 </section>
 <script>
@@ -388,7 +530,7 @@ const setText=(id,value)=>{{const el=document.getElementById(id);if(el)el.textCo
 async function refreshDashboard(){{
   const state=document.getElementById('refresh-state');
   try{{
-    const response=await fetch('/status',{{cache:'no-store'}});
+    const response=await fetch('/status.json',{{cache:'no-store'}});
     if(!response.ok)throw new Error(`HTTP ${{response.status}}`);
     const data=await response.json();
     setText('service-status',data.status==='ok'?'online':data.status);
@@ -446,7 +588,7 @@ refreshDashboard();setInterval(refreshDashboard,2000);
         },
         runtime = crate::mcp_auth::html_escape(status["runtime_root"].as_str().unwrap_or("")),
     );
-    Html(crate::mcp_auth::oauth_page("Jelly dashboard", &content))
+    private_page(Html(crate::mcp_auth::oauth_page("Jelly dashboard", &content)).into_response())
 }
 
 async fn not_found() -> (StatusCode, Html<String>) {
