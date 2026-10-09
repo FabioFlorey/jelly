@@ -1,0 +1,52 @@
+name: Research
+description: Define a bounded investigation with an explicit decision or evidence output.
+title: "research: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when the answer is not known yet. Separate hypotheses from
+        evidence, and specify when the investigation should stop.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: State one answerable research question and why the answer matters.
+      placeholder: Does ... improve ... under ...?
+    validations:
+      required: true
+  - type: textarea
+    id: hypotheses
+    attributes:
+      label: Hypotheses
+      description: List competing, falsifiable explanations or candidate approaches. Include a null hypothesis when useful.
+      placeholder: |
+        - H1: ...
+        - H2: ...
+        - H0: No meaningful difference ...
+    validations:
+      required: true
+  - type: textarea
+    id: evaluation-criteria
+    attributes:
+      label: Evaluation criteria
+      description: Define the method, metrics, evidence quality, and thresholds for accepting or rejecting each hypothesis.
+      placeholder: Measure ... on ... with ... samples; decide using ...
+    validations:
+      required: true
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Deliverables
+      description: Identify the concrete output, such as a benchmark, design note, reproducible experiment, or go/no-go decision.
+      placeholder: A short report with results, reproducible steps, and a recommended decision.
+    validations:
+      required: true
+  - type: input
+    id: time-limit
+    attributes:
+      label: Time limit
+      description: Set a fixed timebox or deadline; define when to stop even if the answer remains uncertain.
+      placeholder: e.g. 2 working days, or by YYYY-MM-DD
+    validations:
+      required: true

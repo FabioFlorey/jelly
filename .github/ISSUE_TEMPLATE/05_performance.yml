@@ -1,0 +1,56 @@
+name: Performance
+description: Report a measured slowdown or propose a measurable optimization.
+title: "perf: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Prefer repeatable measurements over impressions. Avoid reporting performance
+        data containing session tokens, private URLs, or other sensitive browser data.
+  - type: textarea
+    id: baseline
+    attributes:
+      label: Baseline
+      description: Identify the current behavior, Jelly version/commit, workload size, and metric before any change.
+      placeholder: Current commit ..., operation ..., workload ..., baseline median/p95 ...
+    validations:
+      required: true
+  - type: textarea
+    id: measurements
+    attributes:
+      label: Measurements
+      description: Provide actual numbers with units, sample count, method, and variation. Distinguish measurements from estimates.
+      placeholder: |
+        Metric and units:
+        Samples / warmup:
+        Median / p95 / range:
+        Measurement method:
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, CPU, RAM, Chromium/Jelly versions, browser mode, and relevant test configuration.
+      placeholder: Hardware, OS, versions, headless/headed mode, load, and configuration ...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Give repeatable commands, fixture/data size, setup, and steps needed to obtain the measurements.
+      placeholder: |
+        1. Prepare a clean environment with ...
+        2. Execute ... for N runs.
+        3. Collect the metric using ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected-improvement
+    attributes:
+      label: Expected improvement
+      description: Define the target metric and a measurable success threshold, including any correctness constraints.
+      placeholder: Reduce p95 latency from ... to ... without changing ...
+    validations:
+      required: true

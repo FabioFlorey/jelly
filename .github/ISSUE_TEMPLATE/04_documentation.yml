@@ -1,0 +1,42 @@
+name: Documentation
+description: Report unclear, incorrect, outdated, or missing documentation.
+title: "docs: "
+labels:
+  - documentation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Link to the affected page or repository path. Do not paste secrets or private configuration.
+  - type: input
+    id: affected-document
+    attributes:
+      label: Affected document
+      description: Existing file path or URL; for missing documentation, specify the expected location.
+      placeholder: e.g. docs/getting-started/CONFIGURATION.md#section
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is incorrect, absent, confusing, or outdated? Explain the consequence for readers.
+      placeholder: The document says ... but the current behavior is ...
+    validations:
+      required: true
+  - type: textarea
+    id: suggested-correction
+    attributes:
+      label: Suggested correction
+      description: Describe the factual change, missing example, or proposed rewrite.
+      placeholder: Update the section to clarify ... and show ...
+    validations:
+      required: true
+  - type: input
+    id: target-audience
+    attributes:
+      label: Target audience
+      description: Who needs this information (e.g. new users, operators, contributors, MCP integrators)?
+      placeholder: e.g. first-time Jelly installers
+    validations:
+      required: true

@@ -1,0 +1,64 @@
+name: Architecture
+description: Propose a technical decision with explicit consequences and migration planning.
+title: "arch: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the decision and its implications before proposing a broad refactor.
+        Explain impacts on the Functional Core, Imperative Shell, and public interfaces when relevant.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What constraints, failure modes, or architectural forces make a decision necessary?
+      placeholder: The current boundary ... creates ... under ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-decision
+    attributes:
+      label: Proposed decision
+      description: State the decision precisely, including affected components and intended dependency direction.
+      placeholder: Adopt ... in ...; keep ... responsible for ...
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Compare at least the status quo and plausible alternative designs.
+      placeholder: |
+        - Keep current design: ...
+        - Alternative A: ...
+        - Proposed design: ...
+    validations:
+      required: true
+  - type: textarea
+    id: trade-offs
+    attributes:
+      label: Trade-offs
+      description: Explain benefits, costs, complexity, operational risk, and consequences of the decision.
+      placeholder: Gains ..., but increases ...; known risks ...
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility
+      description: Cover existing APIs, persisted formats, configuration, clients, and backward compatibility.
+      placeholder: Existing calls/data ... will remain valid or require ...
+    validations:
+      required: true
+  - type: textarea
+    id: migration
+    attributes:
+      label: Migration
+      description: Plan rollout, validation, rollback, and cleanup. State "Not applicable" for a new, independent component.
+      placeholder: |
+        1. Add characterization tests ...
+        2. Introduce the new boundary ...
+        3. Migrate callers and validate compatibility ...
+        4. Roll back by ...
+    validations:
+      required: true

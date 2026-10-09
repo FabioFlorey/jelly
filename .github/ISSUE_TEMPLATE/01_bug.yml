@@ -1,0 +1,75 @@
+name: Bug
+description: Report a reproducible defect in Jelly.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search for existing reports before submitting. **Do not post vulnerabilities publicly**;
+        follow [SECURITY.md](https://github.com/FabioFlorey/jelly/blob/main/SECURITY.md).
+        Remove tokens, cookies, credentials, personal data, and sensitive URLs from all examples.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Summarize the defect, the affected functionality, and its impact.
+      placeholder: What is broken, and how does it affect your workflow?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Reproduction steps
+      description: Provide minimal, numbered steps and sanitized inputs. For intermittent bugs, include frequency and triggers.
+      placeholder: |
+        1. Start Jelly with ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: Explain what should happen, including the expected output or state.
+      placeholder: Jelly should ...
+    validations:
+      required: true
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual behavior
+      description: Explain what happens instead, including any error message or incorrect state.
+      placeholder: Instead, Jelly ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Jelly release tag or exact Git commit SHA.
+      placeholder: e.g. release tag or git rev-parse --short HEAD
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS/architecture, Chromium version, deployment mode, and Rust toolchain if building from source.
+      placeholder: |
+        OS / architecture:
+        Chromium version:
+        Deployment (local, headless, MCP, etc.):
+        Rust toolchain (if relevant):
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Optional sanitized logs, traces, or screenshots. Never include secrets, cookies, profiles, or user data.
+      placeholder: Paste only the relevant, redacted error output or attach a sanitized file.
+    validations:
+      required: false

@@ -1,0 +1,62 @@
+name: Tracking
+description: Track a larger goal, its milestones, and associated issues.
+title: "tracking: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this issue to coordinate work rather than duplicate implementation details.
+        Link child issues with #123 and update milestones as work progresses.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: Define the outcome and why the work is being tracked together.
+      placeholder: Achieve ... for ... by ...
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: State the included workstreams, boundaries, and exclusions.
+      placeholder: |
+        Includes:
+        - ...
+
+        Excludes:
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: milestones
+    attributes:
+      label: Milestones
+      description: Specify ordered checkpoints with observable outcomes and optional target dates.
+      placeholder: |
+        - [ ] M1: ... (deliverable / target date)
+        - [ ] M2: ...
+        - [ ] M3: ...
+    validations:
+      required: true
+  - type: textarea
+    id: related-issues
+    attributes:
+      label: Related issues
+      description: "Link existing child, blocking, or associated issues using #123. Add links as they are created."
+      placeholder: |
+        - #123 — implementation
+        - #124 — dependency
+    validations:
+      required: false
+  - type: textarea
+    id: completion-criteria
+    attributes:
+      label: Completion criteria
+      description: Define verifiable conditions for closing this tracking issue, beyond merely closing child issues.
+      placeholder: |
+        - [ ] All required milestones are complete.
+        - [ ] End-to-end verification demonstrates ...
+        - [ ] Documentation and remaining risks are recorded.
+    validations:
+      required: true

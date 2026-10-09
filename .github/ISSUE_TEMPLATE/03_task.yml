@@ -1,0 +1,49 @@
+name: Task
+description: Define a bounded implementation, maintenance, or operational task.
+title: "task: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        State the outcome and boundaries, not just a proposed implementation.
+        Link relevant issues rather than repeating their full discussions.
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: Describe the specific result this task must achieve and why it matters.
+      placeholder: Deliver ... so that ...
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Clarify what is included and explicitly excluded to prevent scope creep.
+      placeholder: |
+        In scope:
+        - ...
+
+        Out of scope:
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: definition-of-done
+    attributes:
+      label: Definition of done
+      description: Specify concrete deliverables and how completion will be verified.
+      placeholder: |
+        - [ ] Implementation or change is complete.
+        - [ ] Relevant tests and checks pass.
+        - [ ] Required documentation is updated.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: "Optional prerequisite issues, decisions, external systems, or blockers. Use #123 for related issues."
+      placeholder: "Blocked by #...; depends on ...; or None."
+    validations:
+      required: false

@@ -1,0 +1,54 @@
+name: Feature
+description: Propose user-facing functionality or a meaningful capability improvement.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Focus on the user problem before the implementation. Check for related issues first.
+        Do not include credentials, private browser data, or security disclosures.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Explain the unmet need or limitation in the current behavior.
+      placeholder: Today, users cannot ...
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: Who needs this, under what conditions, and what workflow should it enable?
+      placeholder: As a Jelly user, when I ... I need to ... so that ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-behavior
+    attributes:
+      label: Proposed behavior
+      description: Describe the externally observable behavior, inputs, outputs, and error cases.
+      placeholder: Jelly should ...
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Optional workarounds or other approaches considered, including why they fall short.
+      placeholder: A workaround is ...; another option would be ...
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: List observable, verifiable conditions for considering this feature complete.
+      placeholder: |
+        - [ ] Given ..., when ..., then ...
+        - [ ] Invalid inputs produce ...
+        - [ ] Existing behavior remains compatible with ...
+    validations:
+      required: true
