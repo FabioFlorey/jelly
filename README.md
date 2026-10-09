@@ -32,33 +32,79 @@ Jelly starts or attaches to Chromium and exposes browser capabilities through a 
 
 **Put your AI to work on the real web.**
 
-**From research to action, Jelly gives AI agents the browser capabilities to get things done.**
+From research to action, Jelly gives AI agents a real Chromium browser to navigate dynamic websites, work with interactive applications, and verify results.
 
-Modern websites are interactive, dynamic, and often impossible to navigate through simple web requests. Jelly gives AI agents access to a real Chromium browser so they can explore websites, interact with applications, and complete complex tasks.
+<details name="use-case">
+  <summary><b>Browser Automation: Let AI handle the repetitive work.</b></summary>
+  <blockquote>
+    <p>Automate tasks across websites and business applications.</p>
+    <ul>
+      <li>Fill out forms and submit requests.</li>
+      <li>Update records and navigate dashboards.</li>
+      <li>Complete multi-step workflows across pages.</li>
+    </ul>
+  </blockquote>
+</details>
 
-**Browser Automation: Let AI handle the repetitive work.**
+<details name="use-case">
+  <summary><b>AI-Powered Research: Explore more than static web pages.</b></summary>
+  <blockquote>
+    <p>Research information on JavaScript-heavy websites, interactive dashboards, and dynamically loaded pages.</p>
+    <ul>
+      <li>Investigate markets and competitors.</li>
+      <li>Compare products, features, and pricing shown on websites.</li>
+      <li>Explore filters and gather findings from multiple sources.</li>
+    </ul>
+  </blockquote>
+</details>
 
-Automate everyday tasks across websites and business applications. Fill forms, update records, navigate dashboards, process requests, and complete multi-step workflows.
+<details name="use-case">
+  <summary><b>Browser Testing: Check real user journeys.</b></summary>
+  <blockquote>
+    <p>Test interactive websites using Chromium and inspect the results.</p>
+    <ul>
+      <li>Walk through navigation, forms, and interactive features.</li>
+      <li>Check whether expected elements and page states appear.</li>
+      <li>Capture screenshots to investigate failures.</li>
+    </ul>
+  </blockquote>
+</details>
 
-**AI-Powered Research: Explore the web beyond what search engines can see.**
+<details name="use-case">
+  <summary><b>Data Extraction: Collect information from complex websites.</b></summary>
+  <blockquote>
+    <p>Gather information from pages that require browser interaction.</p>
+    <ul>
+      <li>Read interactive tables and paginated results.</li>
+      <li>Apply filters and move between result pages.</li>
+      <li>Retrieve documents and collect data for further analysis.</li>
+    </ul>
+  </blockquote>
+</details>
 
-Give your AI access to JavaScript-heavy websites, interactive dashboards, and dynamically loaded content. Research competitors, compare products, investigate markets, and gather information from multiple sources.
+<details name="use-case">
+  <summary><b>Business Process Automation: Connect work across applications.</b></summary>
+  <blockquote>
+    <p>Carry out browser-based processes in tools that may not have a dedicated integration.</p>
+    <ul>
+      <li>Work with CRM systems and customer portals.</li>
+      <li>Update entries in back-office applications.</li>
+      <li>Navigate reporting tools and process routine requests.</li>
+    </ul>
+  </blockquote>
+</details>
 
-**Browser Testing: Test your website the way real people use it.**
-
-Automate user journeys in a real browser. Test forms, navigation, and interactive features, verify expected results, and capture screenshots to investigate problems.
-
-**Data Extraction: Turn complex websites into useful information.**
-
-Collect information from interactive tables, paginated results, and web applications. Navigate through pages, apply filters, retrieve documents, and organize the results for further analysis.
-
-**Business Process Automation: Connect the steps your business depends on.**
-
-Automate workflows across CRM systems, customer portals, reporting tools, and back-office applications. Reduce repetitive manual work without requiring a dedicated integration for every website.
-
-**AI Agents: Give your agents the ability to act, not just answer.**
-
-Connect Jelly through MCP to let AI agents navigate websites, interact with applications, verify outcomes, and execute multi-step browser workflows.
+<details name="use-case">
+  <summary><b>AI Agents: Give agents the ability to act, not just answer.</b></summary>
+  <blockquote>
+    <p>Connect an AI agent to Jelly through MCP to interact with websites and check the outcome.</p>
+    <ul>
+      <li>Open pages, inspect content, and interact with controls.</li>
+      <li>Execute multi-step browser workflows and verify results.</li>
+      <li>Request human input when a workflow needs approval or assistance.</li>
+    </ul>
+  </blockquote>
+</details>
 
 <div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>
 
