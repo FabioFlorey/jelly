@@ -8,4 +8,4 @@ For ordinary product defects, use [GitHub Issues](https://github.com/FabioFlorey
 
 **Security vulnerabilities must not be posted publicly.** Follow [SECURITY.md](./SECURITY.md) and contact the maintainer privately.
 
-For authorized development work, consult [docs/development/DEVELOPMENT.md](./docs/development/DEVELOPMENT.md), [docs/INDEX.md](./docs/INDEX.md), and [tests/INDEX.md](./tests/INDEX.md). Run `python3 scripts/check-docs.py` when changing project documentation. The Pages workflow publishes the static files directly from `site/`.
+For authorized development work, consult [docs/development/DEVELOPMENT.md](./docs/development/DEVELOPMENT.md), [docs/INDEX.md](./docs/INDEX.md), and [tests/INDEX.md](./tests/INDEX.md). Run `cargo run --locked --bin jelly-maint -- check docs` when changing project documentation. The Pages workflow publishes the static files directly from `site/`.

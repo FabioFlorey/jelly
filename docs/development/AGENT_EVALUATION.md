@@ -13,9 +13,9 @@ The [routing scenarios](../../tests/fixtures/agent-guidance-cases.json) cover sm
 Run the harness self-test and generate a *synthetic* reference response (not a measured agent result):
 
 ```bash
-python3 scripts/eval-agent-guidance.py --self-test
-python3 scripts/eval-agent-guidance.py --emit-reference /tmp/jelly-reference.json
-python3 scripts/eval-agent-guidance.py --predictions /tmp/jelly-reference.json --strict
+cargo run --locked --bin jelly-maint -- check agent-guidance --self-test
+cargo run --locked --bin jelly-maint -- check agent-guidance --emit-reference /tmp/jelly-reference.json
+cargo run --locked --bin jelly-maint -- check agent-guidance --predictions /tmp/jelly-reference.json --strict
 ```
 
 For a **real model evaluation**, give the cases' `intent` and `surface` to the model along with the actual server instructions and corresponding published `tools/list` schemas. Capture each decision as a JSON array of records:
@@ -34,7 +34,7 @@ For a **real model evaluation**, give the cases' `intent` and `surface` to the m
 Then run:
 
 ```bash
-python3 scripts/eval-agent-guidance.py --predictions /tmp/agent-decisions.json --report /tmp/jelly-routing-report.json
+cargo run --locked --bin jelly-maint -- check agent-guidance --predictions /tmp/agent-decisions.json --report /tmp/jelly-routing-report.json
 ```
 
 The scorer reports **tool-selection accuracy**, **slot-filling accuracy** (required argument subsets, gated on the correct tool), **verification-plan coverage**, and **combined plan accuracy**. Missing scenarios count as failures. Exact-match case expectations are intentionally narrow: report alternate but valid plans separately for human review. These scores measure *plans*, not successful execution; `task_outcome_success_rate` is `null` because no browser outcome is observed by this offline scorer. Do **not** publish synthetic reference scores as model results or call them OSR.

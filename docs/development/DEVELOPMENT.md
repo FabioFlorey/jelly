@@ -62,8 +62,8 @@ JELLY_FCIS_KEEP_SANDBOX=true scripts/check-fcis-isolated.sh
 The wrapper builds the **current working tree** (including untracked `src/core/`
 and `src/shell/`) inside a freshly created `/data/jelly-fcis-isolated-*`
 directory. It omits `.env`, rewrites **only the copied** `config/jelly.toml`
-and Cargo target directory, and compiles separate test binaries. The Python
-harness `tests/integration/fcis_isolated.py` refuses to run if its config,
+and Cargo target directory, and compiles separate test binaries. The Rust
+harness `src/bin/jelly-fcis-probe.rs` refuses to run if its config,
 `.env` or directory checks fail. Chromium uses disposable profiles and a
 loopback-only CDP endpoint, and the MCP server binds a temporary loopback
 port with synthetic credentials. The test driver terminates only the
@@ -81,7 +81,7 @@ HTTP, plus cache invalidation and reconnect to a replacement Chromium without
 restarting MCP. The on-disk Rust download test is marked `#[ignore]` and
 **refuses I/O** unless its compiled runtime root matches the explicit
 `JELLY_FCIS_ISOLATION_ROOT` sandbox opt-in. The wrapper additionally runs the
-Node/Chromium ranking fixture test when Node.js is available.
+Rust/Chromium ranking fixture tests without Node.js.
 
 These checks do **not** substitute for a real browser-originated CDP download
 notification sequence, genuine third-party HITL delivery, OAuth persistence
@@ -114,7 +114,7 @@ shared page template and local content-security policy (CSP).
 
 The MCP `initialize` response includes [`.agent/instructions/mcp.md`](../../.agent/instructions/mcp.md). Keep it concise and normative; detailed scenarios live in the [agent playbook](../guides/AGENT_PLAYBOOK.md). Update tool descriptions and argument schemas in the Rust registries alongside behavioral instructions, then regenerate the tool index.
 
-The [agent evaluation guide](./AGENT_EVALUATION.md) describes the offline routing/slot-filling scenarios and the separate browser-execution evidence needed for a valid overall success rate. Run `python3 scripts/eval-agent-guidance.py --self-test` as a deterministic harness check; it does not call an LLM or measure real agent success.
+The [agent evaluation guide](./AGENT_EVALUATION.md) describes the offline routing/slot-filling scenarios and the separate browser-execution evidence needed for a valid overall success rate. Run `cargo run --locked --bin jelly-maint -- check agent-guidance --self-test` as a deterministic harness check; it does not call an LLM or measure real agent success.
 
 ## Shell maintenance conventions
 
@@ -123,7 +123,7 @@ Jelly's shell entry points use Bash with `set -euo pipefail`; shared test functi
 After shell changes, run the offline safety checks and Bash parser across all tracked scripts:
 
 ```bash
-python3 scripts/check-shell-safety.py
+cargo run --locked --bin jelly-maint -- check security
 git ls-files '*.sh' | while IFS= read -r script; do bash -n "$script" || exit 1; done
 ```
 
@@ -140,7 +140,7 @@ The static website is maintained in the top-level [`site/`](../../site) director
 Before submitting documentation changes, run:
 
 ```bash
-python3 scripts/check-docs.py
+cargo run --locked --bin jelly-maint -- check docs
 ```
 
 The documentation checker verifies local links and anchors, the documentation index, fenced JSON/TOML examples, and basic Mermaid structure. The dedicated `.github/workflows/docs.yml` runs this check on documentation changes in CI. These checks validate syntax and navigation; they do **not** replace reviewing technical claims against the Rust implementation. Mermaid rendering in a browser is not part of this automated check.
@@ -196,7 +196,13 @@ The subsystem compatibility wrappers remain available when a focused historical 
 
 Performance conclusions should come from a purpose-built measurement for the change under review rather than a permanently maintained aggregate benchmark script.
 
-For the isolated DOM-ranking policy seam (`src/core/ranking.js`), run `node tests/unit/ranking.test.cjs` to check deterministic scoring and parity against the previous ordering without a browser. Run `node tests/unit/ranking.test.cjs --browser` to launch **separate headless Chromium processes with disposable profiles** against the semantic, Shadow DOM and large ranking fixtures. The latter compares the current runtime with frozen pre-migration version 19 and prints per-run median search timings; the numbers are **diagnostic**, not stable performance thresholds. Neither command uses Jelly's CDP endpoint, profile, state directory or live service. The full semantic/ranking integration suite remains the authoritative regression path once an isolated Jelly runtime environment is available.
+For the isolated DOM-ranking policy seam (`src/core/ranking.js`), run
+`cargo run --locked --bin jelly-maint -- test ranking`. The Rust harness uses
+Chromium itself to evaluate the JavaScript policies and compare the current
+runtime with the frozen pre-migration version 19 on semantic, Shadow DOM, and
+large fixtures. It uses disposable browser profiles, no Jelly service, and
+requires no Node.js. Timing benchmarks should be performed separately with
+controlled loads; this harness tests correctness, not production latency.
 
 ### Interactive target resolution
 

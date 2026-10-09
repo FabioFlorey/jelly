@@ -161,16 +161,16 @@ check_core_requirements() {
   check_command base64 "base64" || true
 
   local utility missing_utility=false
-  for utility in cp mv chmod mktemp grep sed awk date base64 python3; do
+  for utility in cp mv chmod mktemp grep sed awk date base64; do
     if ! command -v "$utility" >/dev/null 2>&1; then
       missing_utility=true
       break
     fi
   done
   if [[ "$missing_utility" == "false" ]]; then
-    check_ok "core setup utilities (including base64 and python3)"
+    check_ok "core setup utilities (including base64)"
   else
-    check_missing "core setup utilities (including base64 and python3)"
+    check_missing "core setup utilities (including base64)"
   fi
 
   if command -v systemctl >/dev/null 2>&1 && systemctl --user is-system-running >/dev/null 2>&1; then
@@ -261,7 +261,7 @@ check_selected_requirements() {
 load_env() {
   [[ -f "$ENV_FILE" ]] || return 0
   local rows key encoded value
-  rows="$(python3 "$ROOT/scripts/env-data.py" read "$ENV_FILE")" || return 2
+  rows="$(jelly_maint env read "$ENV_FILE")" || return 2
   while IFS=$'\t' read -r key encoded; do
     [[ -n "$key" ]] || continue
     value="$(printf '%s' "$encoded" | base64 --decode)" || return 2
@@ -400,8 +400,7 @@ write_env() {
   for key in "${!CFG[@]}"; do
     [[ "$key" == JELLY_* ]] || continue
     printf '%s\t%s\n' "$key" "$(printf '%s' "${CFG[$key]}" | base64 | tr -d '\n')"
-  done | python3 -c 'import base64,json,sys;print(json.dumps({k:base64.b64decode(v).decode() for k,v in (line.rstrip("\n").split("\t",1) for line in sys.stdin)}))' \
-    | python3 "$ROOT/scripts/env-data.py" write "$ENV_FILE"
+  done | jelly_maint env write-rows "$ENV_FILE"
 }
 
 [[ -t 0 ]] || echo "Warning: quickstart is intended for an interactive terminal." >&2

@@ -15,8 +15,14 @@ while IFS= read -r _jelly_name; do
   _JELLY_ENV_OVERRIDES["$_jelly_name"]="${!_jelly_name}"
 done < <(compgen -A variable JELLY_)
 
+# The Rust configuration helper is built from the already required toolchain.
+# Do not source/execute .env values as shell code.
+jelly_maint() {
+  cargo run --quiet --locked --manifest-path "$REPO_ROOT/Cargo.toml" --bin jelly-maint -- "$@"
+}
+
 if [[ -f "$REPO_ROOT/.env" ]]; then
-  _jelly_rows="$(python3 "$REPO_ROOT/scripts/env-data.py" read "$REPO_ROOT/.env")" || return 2 2>/dev/null || exit 2
+  _jelly_rows="$(jelly_maint env read "$REPO_ROOT/.env")" || return 2 2>/dev/null || exit 2
   while IFS=$'\t' read -r _jelly_name _jelly_encoded; do
     [[ -n "$_jelly_name" ]] || continue
     _jelly_value="$(printf '%s' "$_jelly_encoded" | base64 --decode)" || return 2 2>/dev/null || exit 2
@@ -34,33 +40,7 @@ unset _jelly_name _JELLY_ENV_OVERRIDES
 
 jelly_config_set() {
   local section="$1" key="$2" value="$3"
-  python3 - "$CONFIG_FILE" "$section" "$key" "$value" <<'PY'
-from pathlib import Path
-import json, re, sys
-path, section, key, value = Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
-lines = path.read_text().splitlines()
-if value in {"true", "false"} or re.fullmatch(r"-?\d+", value):
-    rendered = value
-else:
-    rendered = json.dumps(value)
-section_line = f"[{section}]"
-inside = False
-found_section = False
-for index, line in enumerate(lines):
-    stripped = line.strip()
-    if stripped.startswith("[") and stripped.endswith("]"):
-        inside = stripped == section_line
-        found_section = found_section or inside
-        continue
-    if inside and re.match(rf"^\s*{re.escape(key)}\s*=", line):
-        lines[index] = f"{key} = {rendered}"
-        path.write_text("\n".join(lines) + "\n")
-        break
-else:
-    if not found_section:
-        raise SystemExit(f"missing [{section}] in {path}")
-    raise SystemExit(f"missing {section}.{key} in {path}")
-PY
+  jelly_maint config set "$CONFIG_FILE" "$section" "$key" "$value"
 }
 
 config_value() {

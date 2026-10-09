@@ -19,9 +19,9 @@ on:
       - 'src/agent/browser_call/schema.rs'
       - '.agent/instructions/**'
       - 'tests/fixtures/agent-guidance-cases.json'
-      - 'scripts/eval-agent-guidance.py'
+      - 'scripts/maintenance/**'
       - '.agent/tools/index.md'
-      - 'scripts/check-docs.py'
+      - 'src/bin/jelly-maint.rs'
       - 'config/jelly.toml'
       - 'config/cargo.toml'
       - 'scripts/clean-runtime.sh'
@@ -41,9 +41,9 @@ on:
       - 'src/agent/browser_call/schema.rs'
       - '.agent/instructions/**'
       - 'tests/fixtures/agent-guidance-cases.json'
-      - 'scripts/eval-agent-guidance.py'
+      - 'scripts/maintenance/**'
       - '.agent/tools/index.md'
-      - 'scripts/check-docs.py'
+      - 'src/bin/jelly-maint.rs'
       - 'config/jelly.toml'
       - 'config/cargo.toml'
       - 'scripts/clean-runtime.sh'
@@ -60,6 +60,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check Markdown links, examples, structure and configuration drift
-        run: python3 scripts/check-docs.py
+        run: cargo run --quiet --locked --bin jelly-maint -- check docs
       - name: Validate agent-guidance evaluation harness
-        run: python3 scripts/eval-agent-guidance.py --self-test
+        run: cargo run --quiet --locked --bin jelly-maint -- check agent-guidance --self-test

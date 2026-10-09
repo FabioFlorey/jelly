@@ -38,7 +38,7 @@ quality_tool_index() {
 }
 
 quality_cleanup_architecture() {
-  python3 scripts/check-cleanup-architecture.py
+  cargo run --quiet --locked --bin jelly-maint -- check architecture
 }
 
 quality_mcp_build_root() {
@@ -69,7 +69,7 @@ quality_suite_shell_syntax() {
 }
 
 quality_shell_safety() {
-  python3 scripts/check-shell-safety.py
+  cargo run --quiet --locked --bin jelly-maint -- check security
 }
 
 quality_suite_lock() {
@@ -147,7 +147,7 @@ quality_agent_guidance() {
     || jt_fail 'agent startup instructions must contain a tool-selection decision table'
   grep -Fq '### Final task check' .agent/instructions/mcp.md \
     || jt_fail 'agent startup instructions must verify user outcomes before reporting success'
-  python3 scripts/eval-agent-guidance.py --self-test
+  cargo run --quiet --locked --bin jelly-maint -- check agent-guidance --self-test
 }
 
 quality_raw_cdp_boundary_docs() {
@@ -272,9 +272,9 @@ jt_register "QLT-012" "quality" "Discovery-layer documentation boundary" "Verify
 jt_register "QLT-013" "quality" "Raw CDP authorization documentation boundary" "Verify the raw-CDP documentation states the current process-wide authorization model, restart semantics, and a single reliability contract." "SECURITY.md, docs/reference/MCP.md, docs/guides/RELIABILITY.md, and .env.example are readable." "Inspect process-wide/single-scope/restart wording and ensure the reliability contract is not duplicated." "Raw CDP is documented as deployment-wide under the current jelly OAuth scope, configuration changes require MCP restart, and Reliability contains one canonical contract paragraph." "quality" quality_raw_cdp_boundary_docs
 jt_register "QLT-014" "quality" "Auxiliary Rust lockfile alignment" "Verify Rust test probes that depend on Jelly resolve the exact same registry package versions/checksums as the root build." "Cargo.lock and the event/Agent API probe lockfiles are readable; the Rust tooling wrapper builds." "Compare the complete registry package tuple set (name, version, source, checksum) in each probe lock against Cargo.lock." "Both probe lockfiles have exactly the same registry dependency resolution as the root lock; probe Cargo commands run with --locked." "quality" quality_aux_lock_alignment
 jt_register "QLT-015" "quality" "Small-surface MCP budget" "Verify the small-surface MCP Agent API remains materially smaller than large-surface using the real tools/list projection." "Agent API probe builds with the root-aligned lockfile; jq is available." "Measure large-surface, small-surface raw-off, and small-surface raw-on tools/list JSON using jelly::mcp::mcp_tools in isolated subprocesses." "Small-surface preserves the intended binding distribution and system-tool count while keeping total tools/list, input/output schemas, and descriptions materially smaller than large-surface." "quality" quality_mcp_surface_budget
-jt_register "QLT-016" "quality" "Cleanup architecture guardrails" "Verify cleanup-established architecture conventions cannot silently regress." "Python 3 and repository sources are available." "Run scripts/check-cleanup-architecture.py against primitive errors, MCP surface naming, and lib.rs module visibility." "Primitive failures remain explicitly typed, only canonical MCP surface names appear in production surface code, and implementation modules remain private." "quality" quality_cleanup_architecture
+jt_register "QLT-016" "quality" "Cleanup architecture guardrails" "Verify cleanup-established architecture conventions cannot silently regress." "Rust/Cargo and repository sources are available." "Run jelly-maint check architecture against primitive errors, MCP surface naming, and lib.rs module visibility." "Primitive failures remain explicitly typed, only canonical MCP surface names appear in production surface code, and implementation modules remain private." "quality" quality_cleanup_architecture
 jt_register "QLT-017" "quality" "Canonical MCP build root" "Verify MCP install/hosting/runtime scripts consume the shared Cargo build root instead of deriving a second target directory." "scripts/config.sh exposes CONFIG_BUILD_ROOT and MCP service scripts are readable." "Inspect install, hosting, nip.io, and cleanup scripts for BUILD_DIR resolution." "All MCP service scripts resolve BUILD_DIR from CONFIG_BUILD_ROOT and the installer contains no separate .jelly-build derivation." "quality" quality_mcp_build_root
 
-jt_register "QLT-018" "quality" "Agent routing guidance evaluation" "Validate the compact MCP decision table, final-outcome gate, and routing/slot/verification scoring harness with negative controls."   ".agent/instructions/mcp.md and agent-guidance fixtures are readable; Python 3 available."   "Check bootstrap rules and run scripts/eval-agent-guidance.py --self-test."   "All deterministic reference cases and mutation negatives behave correctly without model or browser calls." "quality" quality_agent_guidance
+jt_register "QLT-018" "quality" "Agent routing guidance evaluation" "Validate the compact MCP decision table, final-outcome gate, and routing/slot/verification scoring harness with negative controls."   ".agent/instructions/mcp.md and agent-guidance fixtures are readable; Rust/Cargo available."   "Check bootstrap rules and run jelly-maint check agent-guidance --self-test."   "All deterministic reference cases and mutation negatives behave correctly without model or browser calls." "quality" quality_agent_guidance
 
-jt_register "QLT-019" "quality" "Shell environment and cleanup safety" "Verify untrusted dotenv values stay inert, environment files are private, and unsafe deletion targets are rejected." "Python 3, Bash and coreutils available." "Run isolated dotenv and cleanup-guard regression fixtures without modifying runtime state." "Hostile values round-trip as data and broad or non-Jelly deletion paths fail closed." "quality" quality_shell_safety
+jt_register "QLT-019" "quality" "Shell environment and cleanup safety" "Verify untrusted dotenv values stay inert, environment files are private, and unsafe deletion targets are rejected." "Rust/Cargo, Bash and coreutils available." "Run isolated dotenv and cleanup-guard regression fixtures without modifying runtime state." "Hostile values round-trip as data and broad or non-Jelly deletion paths fail closed." "quality" quality_shell_safety

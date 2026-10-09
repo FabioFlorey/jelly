@@ -55,7 +55,7 @@ Browser/build runtime state likewise stays outside the repository.
 
 ## Agent-routing evaluation
 
-[`fixtures/agent-guidance-cases.json`](./fixtures/agent-guidance-cases.json) contains deterministic intent-to-tool cases for the [offline evaluator](../scripts/eval-agent-guidance.py). Run `python3 scripts/eval-agent-guidance.py --self-test` to check its scoring contract without starting a browser. Real agent decisions can be evaluated with `--predictions`, but verified end-to-end browser task success requires a separate execution run. See [Agent Guidance Evaluation](../docs/development/AGENT_EVALUATION.md).
+[`fixtures/agent-guidance-cases.json`](./fixtures/agent-guidance-cases.json) contains deterministic intent-to-tool cases for the [offline evaluator](../scripts/maintenance/guidance.rs). Run `cargo run --locked --bin jelly-maint -- check agent-guidance --self-test` to check its scoring contract without starting a browser. Real agent decisions can be evaluated with `--predictions`, but verified end-to-end browser task success requires a separate execution run. See [Agent Guidance Evaluation](../docs/development/AGENT_EVALUATION.md).
 
 ## Test groups
 

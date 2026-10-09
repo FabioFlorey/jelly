@@ -10,7 +10,8 @@ browser_state_server_start() {
   local port_file log_file pid port
   port_file="$(mktemp)"
   log_file="/tmp/jelly-browser-state-server-$$-${#BST_SERVER_PIDS[@]}.log"
-  python3 tests/fixtures/browser-state-server.py "$port_file" >"$log_file" 2>&1 &
+  [[ -x "$BIN_DIR/jelly-fixture-server" ]] || cargo build --locked --quiet --bin jelly-fixture-server
+  "$BIN_DIR/jelly-fixture-server" "$port_file" >"$log_file" 2>&1 &
   pid=$!
   for _ in {1..80}; do
     if [[ -s "$port_file" ]]; then

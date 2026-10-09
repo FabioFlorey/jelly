@@ -30,18 +30,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-read -r MCP_PORT ADMIN_PORT < <(python3 - <<'PY'
-import socket
-sockets = [socket.socket(), socket.socket()]
-try:
-    for sock in sockets:
-        sock.bind(('127.0.0.1', 0))
-    print(*(sock.getsockname()[1] for sock in sockets))
-finally:
-    for sock in sockets:
-        sock.close()
-PY
-)
+read -r MCP_PORT ADMIN_PORT < <(jelly_maint ports)
 export JELLY_MCP_ADDR="127.0.0.1:$MCP_PORT"
 export JELLY_MCP_ADMIN_ADDR="127.0.0.1:$ADMIN_PORT"
 export JELLY_PUBLIC_URL="https://jelly.invalid"
