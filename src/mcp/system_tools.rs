@@ -1,5 +1,6 @@
-use super::{browser_session::reset_mcp_browser_session, dispatch::ToolFailure};
+use super::dispatch::ToolFailure;
 use crate::ErrorKind;
+use crate::shell::session::reset_mcp_browser_session;
 use serde_json::{Map, Value};
 use std::{env, process::Command};
 

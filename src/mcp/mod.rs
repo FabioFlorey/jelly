@@ -12,7 +12,6 @@ use axum::{
 };
 use serde_json::{Value, json};
 
-mod browser_session;
 mod dispatch;
 mod protocol;
 mod system_tools;

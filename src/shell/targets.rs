@@ -1,3 +1,6 @@
+use crate::core::targets::{
+    TargetEvent, classify_target_event, plan_label_removal, plan_label_upsert, tab_number,
+};
 use crate::{Error, ErrorKind, jelly_error};
 use serde_json::{Map, Value, json};
 use std::{
@@ -245,53 +248,34 @@ impl TargetRegistry {
         state_path: &str,
         lock_path: &str,
     ) -> Result<(), Error> {
-        match method {
-            "Target.targetCreated" | "Target.targetInfoChanged" => {
-                if let Some(target_info) = params.get("targetInfo") {
-                    self.upsert_target_info_persisted(
-                        target_info,
-                        main_target_hint,
-                        state_path,
-                        lock_path,
-                    )?;
+        match classify_target_event(method, params) {
+            TargetEvent::Upsert {
+                info,
+                attached_session,
+            } => {
+                self.upsert_target_info_persisted(info, main_target_hint, state_path, lock_path)?;
+                // As before, persist the logical target before binding the in-memory
+                // CDP session. A non-page target never acquires a session binding.
+                if let (Some(target_id), Some(session_id)) = (
+                    info.get("targetId").and_then(Value::as_str),
+                    attached_session,
+                ) && self.get_by_target_id(target_id).is_some()
+                {
+                    self.set_session(target_id, session_id.to_owned())?;
                 }
             }
-            "Target.attachedToTarget" => {
-                if let Some(target_info) = params.get("targetInfo") {
-                    self.upsert_target_info_persisted(
-                        target_info,
-                        main_target_hint,
-                        state_path,
-                        lock_path,
-                    )?;
-                    if let (Some(target_id), Some(session_id)) = (
-                        target_info.get("targetId").and_then(Value::as_str),
-                        params.get("sessionId").and_then(Value::as_str),
-                    ) && self.get_by_target_id(target_id).is_some()
-                    {
-                        self.set_session(target_id, session_id.to_owned())?;
-                    }
-                }
+            TargetEvent::Remove(target_id) => {
+                self.remove_target_persisted(target_id, state_path, lock_path)?;
             }
-            "Target.targetDestroyed" => {
-                if let Some(target_id) = params.get("targetId").and_then(Value::as_str) {
-                    self.remove_target_persisted(target_id, state_path, lock_path)?;
-                }
+            TargetEvent::ClearSessionForTarget(target_id) => {
+                self.clear_session_for_target(target_id);
             }
-            "Target.detachedFromTarget" => {
-                if let Some(target_id) = params.get("targetId").and_then(Value::as_str) {
-                    self.clear_session_for_target(target_id);
-                } else if let Some(session_id) = params.get("sessionId").and_then(Value::as_str) {
-                    self.clear_session_by_id(session_id);
-                }
+            TargetEvent::ClearSessionById(session_id) => {
+                self.clear_session_by_id(session_id);
             }
-            "Target.targetCrashed" => {
-                if let Some(target_id) = params.get("targetId").and_then(Value::as_str) {
-                    self.clear_session_for_target(target_id);
-                }
-            }
-            _ => {}
+            TargetEvent::Ignore => {}
         }
+
         Ok(())
     }
 
@@ -368,31 +352,12 @@ impl TargetRegistry {
         let page = parse_page_target(target_info)?;
         let _lock = RegistryFileLock::acquire(lock_path)?;
         let base = read_snapshot(state_path)?.unwrap_or_else(|| self.persistence_value());
-        let (mut labels, mut next_tab_number) = parse_snapshot(&base)?;
+        let (labels, next_tab_number) = parse_snapshot(&base)?;
 
-        let label = if let Some(label) = labels.get(&page.target_id) {
-            label.clone()
-        } else {
-            let used = labels.values().cloned().collect::<HashSet<_>>();
-            let label =
-                if main_target_hint == Some(page.target_id.as_str()) && !used.contains("main") {
-                    "main".to_owned()
-                } else {
-                    loop {
-                        let candidate = format!("tab-{next_tab_number}");
-                        next_tab_number = next_tab_number.saturating_add(1);
-                        if !used.contains(&candidate) {
-                            break candidate;
-                        }
-                    }
-                };
-            labels.insert(page.target_id.clone(), label.clone());
-            label
-        };
-
-        if let Some(number) = tab_number(&label) {
-            next_tab_number = next_tab_number.max(number.saturating_add(1));
-        }
+        let planned = plan_label_upsert(labels, next_tab_number, &page.target_id, main_target_hint);
+        let label = planned.label;
+        let labels = planned.labels;
+        let next_tab_number = planned.next_tab_number;
         write_snapshot_atomic(state_path, &snapshot_value(&labels, next_tab_number))?;
 
         if let Some(existing) = self
@@ -425,8 +390,8 @@ impl TargetRegistry {
     ) -> Result<(), Error> {
         let _lock = RegistryFileLock::acquire(lock_path)?;
         let base = read_snapshot(state_path)?.unwrap_or_else(|| self.persistence_value());
-        let (mut labels, next_tab_number) = parse_snapshot(&base)?;
-        labels.remove(target_id);
+        let (labels, next_tab_number) = parse_snapshot(&base)?;
+        let labels = plan_label_removal(labels, target_id);
         write_snapshot_atomic(state_path, &snapshot_value(&labels, next_tab_number))?;
 
         self.targets.retain(|target| target.target_id != target_id);
@@ -548,14 +513,6 @@ fn validate_logical_label(label: &str) -> Result<(), Error> {
     Err(internal(format!(
         "unsupported persisted logical target label: {label}"
     )))
-}
-
-fn tab_number(label: &str) -> Option<u64> {
-    label
-        .strip_prefix("tab-")?
-        .parse::<u64>()
-        .ok()
-        .filter(|n| *n >= 2)
 }
 
 fn logical_target_order(left: &LogicalTarget, right: &LogicalTarget) -> std::cmp::Ordering {

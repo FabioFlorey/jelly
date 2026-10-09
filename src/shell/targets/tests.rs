@@ -445,3 +445,124 @@ fn non_page_targets_do_not_enter_the_registry() {
     assert_eq!(registry.targets().len(), 1);
     assert!(registry.get_by_target_id("worker").is_none());
 }
+
+#[test]
+fn non_page_notification_removes_known_page_and_its_persisted_label() {
+    let nonce = TEMP_FILE_NONCE.fetch_add(1, Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!(
+        "jelly-target-nonpage-{}-{nonce}",
+        std::process::id()
+    ));
+    let state = dir
+        .join("logical_targets.json")
+        .to_string_lossy()
+        .into_owned();
+    let lock = dir
+        .join("logical_targets.lock")
+        .to_string_lossy()
+        .into_owned();
+    let mut registry = TargetRegistry::reconcile_persisted(
+        &pages(&[
+            ("a", "Main", "https://main.test"),
+            ("b", "Extra", "https://extra.test"),
+        ]),
+        Some("a"),
+        &state,
+        &lock,
+    )
+    .unwrap();
+    let removed_label = registry.label_for_target_id("b").unwrap().to_owned();
+
+    registry
+        .apply_target_notification_persisted(
+            "Target.targetInfoChanged",
+            &json!({"targetInfo":{"type":"service_worker","targetId":"b"}}),
+            Some("a"),
+            &state,
+            &lock,
+        )
+        .unwrap();
+    assert!(registry.get_by_target_id("b").is_none());
+    let saved: Value = serde_json::from_slice(&fs::read(&state).unwrap()).unwrap();
+    assert!(saved["labels"].get("b").is_none());
+    assert_eq!(saved["labels"]["a"], "main");
+    assert_eq!(registry.get("main").unwrap().target_id(), "a");
+    assert_eq!(removed_label, "tab-2");
+    assert_eq!(saved["next_tab_number"], 3);
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn detach_by_session_only_changes_memory_without_writing_files() {
+    let nonce = TEMP_FILE_NONCE.fetch_add(1, Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!(
+        "jelly-target-memory-only-{}-{nonce}",
+        std::process::id()
+    ));
+    let state = dir
+        .join("logical_targets.json")
+        .to_string_lossy()
+        .into_owned();
+    let lock = dir
+        .join("logical_targets.lock")
+        .to_string_lossy()
+        .into_owned();
+    let mut registry = TargetRegistry::reconcile(
+        &pages(&[("a", "Main", "https://main.test")]),
+        Some("a"),
+        None,
+    )
+    .unwrap();
+    registry.set_session("a", "session-a".into()).unwrap();
+
+    registry
+        .apply_target_notification_persisted(
+            "Target.detachedFromTarget",
+            &json!({"sessionId":"session-a"}),
+            Some("a"),
+            &state,
+            &lock,
+        )
+        .unwrap();
+    assert!(registry.session_id_for_target("a").is_none());
+    assert_eq!(registry.label_for_target_id("a"), Some("main"));
+    assert!(!dir.exists(), "detach must not create a lock or snapshot");
+}
+
+#[test]
+fn malformed_upsert_is_rejected_before_persistence_or_registry_mutation() {
+    let nonce = TEMP_FILE_NONCE.fetch_add(1, Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!(
+        "jelly-target-invalid-{}-{nonce}",
+        std::process::id()
+    ));
+    let state = dir
+        .join("logical_targets.json")
+        .to_string_lossy()
+        .into_owned();
+    let lock = dir
+        .join("logical_targets.lock")
+        .to_string_lossy()
+        .into_owned();
+    let mut registry = TargetRegistry::reconcile(
+        &pages(&[("a", "Main", "https://main.test")]),
+        Some("a"),
+        None,
+    )
+    .unwrap();
+
+    let error = registry.apply_target_notification_persisted(
+        "Target.targetInfoChanged",
+        &json!({"targetInfo":{"type":"page","title":"No ID"}}),
+        Some("a"),
+        &state,
+        &lock,
+    );
+    assert!(error.is_err());
+    assert_eq!(registry.targets().len(), 1);
+    assert_eq!(registry.label_for_target_id("a"), Some("main"));
+    assert!(
+        !dir.exists(),
+        "invalid input must not initiate filesystem I/O"
+    );
+}

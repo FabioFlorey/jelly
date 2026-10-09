@@ -291,3 +291,136 @@ fn refresh_replay_revokes_only_its_token_family() {
     assert!(store.tokens.contains_key("access-family-b"));
     assert!(store.refresh_tokens.contains_key("refresh-family-b"));
 }
+
+#[test]
+fn rejected_authorization_code_cannot_be_reused_after_consume() {
+    use super::storage::{AuthStore, CodeGrant};
+    use crate::core::oauth::{CodeExchange, CodeGrantView, valid_code_grant};
+
+    // Isolated in-memory simulation of the production ordering. No persist_store.
+    let mut store = AuthStore::default();
+    store.codes.insert(
+        "one-time-code".into(),
+        CodeGrant {
+            client_id: "client-a".into(),
+            redirect_uri: "https://app.test/redirect".into(),
+            resource: "https://jelly.test/mcp".into(),
+            code_challenge: pkce_challenge("correct-verifier"),
+            scope: SCOPE.into(),
+            expires_at: 200,
+        },
+    );
+    let grant = store.codes.remove("one-time-code").unwrap();
+    assert!(!valid_code_grant(
+        &CodeGrantView {
+            client_id: &grant.client_id,
+            redirect_uri: &grant.redirect_uri,
+            resource: &grant.resource,
+            code_challenge: &grant.code_challenge,
+            expires_at: grant.expires_at,
+        },
+        &CodeExchange {
+            client_id: "client-a",
+            redirect_uri: "https://app.test/redirect",
+            resource: "https://jelly.test/mcp",
+            expected_resource: "https://jelly.test/mcp",
+            verifier: "wrong-verifier",
+            current: 100,
+        },
+    ));
+    assert!(store.codes.remove("one-time-code").is_none());
+}
+
+#[test]
+fn replay_decision_and_revocation_preserve_consumed_marker_and_other_families() {
+    use super::storage::{AccessGrant, AuthStore, ConsumedRefreshGrant, RefreshGrant};
+    use crate::core::oauth::{RefreshDecision, RefreshExchange, decide_refresh};
+
+    let mut store = AuthStore::default();
+    for family in ["family-a", "family-b"] {
+        store.tokens.insert(
+            format!("access-{family}"),
+            AccessGrant {
+                resource: "https://jelly.test/mcp".into(),
+                scope: SCOPE.into(),
+                expires_at: 1000,
+                family_id: Some(family.into()),
+            },
+        );
+        store.refresh_tokens.insert(
+            format!("refresh-{family}"),
+            RefreshGrant {
+                client_id: format!("client-{family}"),
+                resource: "https://jelly.test/mcp".into(),
+                scope: SCOPE.into(),
+                family_id: family.into(),
+                expires_at: 1000,
+            },
+        );
+    }
+    store.consumed_refresh_tokens.insert(
+        "old-refresh".into(),
+        ConsumedRefreshGrant {
+            family_id: "family-a".into(),
+            expires_at: 1000,
+        },
+    );
+    let decision = decide_refresh(
+        store
+            .consumed_refresh_tokens
+            .get("old-refresh")
+            .map(|g| g.family_id.as_str()),
+        None,
+        &RefreshExchange {
+            client_id: "wrong-client",
+            resource: Some("wrong-resource"),
+            scope: Some("wrong-scope"),
+            expected_resource: "https://jelly.test/mcp",
+            current: 100,
+        },
+    );
+    assert_eq!(decision, RefreshDecision::RevokeFamily("family-a".into()));
+    if let RefreshDecision::RevokeFamily(family) = decision {
+        revoke_refresh_family(&mut store, &family);
+    }
+    assert!(!store.tokens.contains_key("access-family-a"));
+    assert!(!store.refresh_tokens.contains_key("refresh-family-a"));
+    assert!(store.tokens.contains_key("access-family-b"));
+    assert!(store.refresh_tokens.contains_key("refresh-family-b"));
+    assert!(store.consumed_refresh_tokens.contains_key("old-refresh"));
+}
+
+#[test]
+fn expired_replay_markers_are_pruned_before_decision_and_cannot_revoke_family() {
+    use super::storage::{AuthStore, ConsumedRefreshGrant};
+    use crate::core::oauth::{RefreshDecision, RefreshExchange, decide_refresh, unexpired};
+
+    let mut store = AuthStore::default();
+    store.consumed_refresh_tokens.insert(
+        "expired-marker".into(),
+        ConsumedRefreshGrant {
+            family_id: "family-a".into(),
+            expires_at: 200,
+        },
+    );
+    store
+        .consumed_refresh_tokens
+        .retain(|_, g| unexpired(g.expires_at, 200));
+    assert_eq!(
+        decide_refresh(
+            store
+                .consumed_refresh_tokens
+                .get("expired-marker")
+                .map(|g| g.family_id.as_str()),
+            None,
+            &RefreshExchange {
+                client_id: "client",
+                resource: None,
+                scope: None,
+                expected_resource: "https://jelly.test/mcp",
+                current: 200,
+            },
+        ),
+        RefreshDecision::InvalidOrExpired
+    );
+}

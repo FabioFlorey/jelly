@@ -1,9 +1,5 @@
-use super::{
-    browser_session::{
-        map_browser_failure, persistent_mcp_session_enabled, with_mcp_browser_session,
-    },
-    system_tools::execute_mcp_system_tool,
-};
+use super::system_tools::execute_mcp_system_tool;
+use crate::shell::session::{persistent_mcp_session_enabled, with_mcp_browser_session};
 use crate::{
     AgentBuiltinExecution, AgentToolBinding, AgentToolCatalog, ErrorKind, active_agent_catalog,
     agent_catalog_from_config, classify_error, error_details, execute_named_browser_primitive,
@@ -149,6 +145,7 @@ pub(super) async fn call_tool(params: &Value) -> Result<Value, (i64, String)> {
 
 fn execute_mcp_browser_primitive(name: &str, arguments: &Value) -> Result<String, ToolFailure> {
     with_mcp_browser_session(|browser| execute_named_browser_primitive(browser, name, arguments))
+        .map_err(ToolFailure::from_error)
 }
 
 fn execute_tool(name: &str, arguments: &Value) -> Result<String, ToolFailure> {
@@ -192,7 +189,9 @@ pub(super) fn execute_tool_from_catalog(
         }
         AgentToolBinding::SystemTool(spec) => execute_mcp_system_tool(spec.name, object),
         AgentToolBinding::Builtin(builtin) => {
-            builtin.preflight(arguments).map_err(map_browser_failure)?;
+            builtin
+                .preflight(arguments)
+                .map_err(ToolFailure::from_error)?;
             if builtin_requires_persistent_mcp_session(builtin) && !persistent_mcp_session_enabled()
             {
                 return Err(ToolFailure::new(
@@ -204,9 +203,10 @@ pub(super) fn execute_tool_from_catalog(
             match builtin.execution() {
                 AgentBuiltinExecution::Stateless => builtin
                     .execute_stateless(arguments)
-                    .map_err(map_browser_failure),
+                    .map_err(ToolFailure::from_error),
                 AgentBuiltinExecution::Browser => {
                     with_mcp_browser_session(|browser| builtin.execute_browser(browser, arguments))
+                        .map_err(ToolFailure::from_error)
                 }
             }
         }

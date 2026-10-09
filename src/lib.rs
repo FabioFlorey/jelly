@@ -12,7 +12,7 @@ pub mod browser_launcher;
 pub mod config;
 /// Provider-independent MCP connection profiles and onboarding presets.
 pub mod connection;
-mod downloads;
+mod core;
 mod error;
 mod execution;
 /// MCP HTTP/JSON-RPC server integration.
@@ -23,6 +23,7 @@ mod primitives;
 pub mod recording;
 /// Routine execution entrypoint used by the `agent-call-routine` binary.
 pub mod routine;
+mod shell;
 
 pub(crate) use agent::active_agent_catalog;
 /// Agent-facing catalog types and semantic execution entrypoints.
@@ -42,9 +43,9 @@ pub use artifacts::{
 };
 pub(crate) use artifacts::{register_download_with_context, register_recording, sanitize_url};
 
-pub(crate) use downloads::start_download_tracker;
+pub(crate) use shell::downloads::start_download_tracker;
 /// First-class browser download lifecycle records and operations.
-pub use downloads::{
+pub use shell::downloads::{
     DownloadRecord, cancel_download, download_record, download_records, finalize_download,
     wait_download,
 };

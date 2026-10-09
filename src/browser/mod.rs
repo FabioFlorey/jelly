@@ -4,9 +4,10 @@ mod runtime;
 mod session;
 mod target;
 mod target_manager;
-mod targets;
 mod transport;
 
+pub use crate::shell::targets::LogicalTarget;
+pub(crate) use crate::shell::targets::TargetRegistry;
 pub(crate) use events::EventState;
 pub use events::{
     CdpEvent, CdpEventCursor, CdpEventFilter, CdpEventPoll, CdpEventRingStats,
@@ -19,8 +20,6 @@ pub(crate) use runtime::{
 pub use session::BrowserSession;
 pub use target::Target;
 pub(crate) use target_manager::TargetManager;
-pub use targets::LogicalTarget;
-pub(crate) use targets::TargetRegistry;
 
 use crate::config::{RuntimePath, RuntimePathKind};
 

@@ -4,6 +4,13 @@ use super::storage::{
     AccessGrant, AuthStore, CodeGrant, ConsumedRefreshGrant, RefreshGrant, persist_store,
 };
 use super::{OWNER_COOKIE, SCOPE};
+#[cfg(test)]
+pub(super) use crate::core::oauth::pkce_challenge;
+use crate::core::oauth::{
+    CodeExchange, CodeGrantView, RefreshDecision, RefreshExchange, RefreshGrantView,
+    decide_refresh, retain_other_family, unexpired, valid_code_grant,
+};
+pub(super) use crate::core::oauth::{constant_time_eq, token_hash};
 use axum::{
     Form, Json,
     extract::{Query, State},
@@ -13,7 +20,6 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rand::RngCore;
 use serde_json::json;
-use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     time::{SystemTime, UNIX_EPOCH},
@@ -361,16 +367,26 @@ fn authorization_code_token(state: &AuthState, params: &HashMap<String, String>)
         );
     };
 
-    if grant.expires_at <= now()
-        || grant.client_id != *client_id
-        || grant.redirect_uri != *redirect_uri
-        || grant.resource != *resource
-        || grant.resource != state.resource_url()
-        || !constant_time_eq(
-            pkce_challenge(verifier).as_bytes(),
-            grant.code_challenge.as_bytes(),
-        )
-    {
+    // The code has already been consumed. Keep that one-time-use ordering:
+    // invalid requests must never restore a consumed authorization code.
+    let expected_resource = state.resource_url();
+    if !valid_code_grant(
+        &CodeGrantView {
+            client_id: &grant.client_id,
+            redirect_uri: &grant.redirect_uri,
+            resource: &grant.resource,
+            code_challenge: &grant.code_challenge,
+            expires_at: grant.expires_at,
+        },
+        &CodeExchange {
+            client_id,
+            redirect_uri,
+            resource,
+            expected_resource: &expected_resource,
+            verifier,
+            current: now(),
+        },
+    ) {
         return oauth_json_error(
             StatusCode::BAD_REQUEST,
             "invalid_grant",
@@ -442,63 +458,85 @@ fn refresh_token(state: &AuthState, params: &HashMap<String, String>) -> Respons
     let presented_hash = token_hash(presented);
     let current = now();
     let mut store = state.store_guard();
-    store.tokens.retain(|_, grant| grant.expires_at > current);
+    // Expired records are purged before replay lookup, exactly as before.
+    store
+        .tokens
+        .retain(|_, grant| unexpired(grant.expires_at, current));
     store
         .refresh_tokens
-        .retain(|_, grant| grant.expires_at > current);
+        .retain(|_, grant| unexpired(grant.expires_at, current));
     store
         .consumed_refresh_tokens
-        .retain(|_, grant| grant.expires_at > current);
+        .retain(|_, grant| unexpired(grant.expires_at, current));
 
-    if let Some(consumed) = store.consumed_refresh_tokens.get(&presented_hash).cloned() {
-        let family_id = consumed.family_id;
-        revoke_refresh_family(&mut store, &family_id);
-        if let Err(error) = persist_store(&store) {
-            return oauth_json_error(StatusCode::INTERNAL_SERVER_ERROR, "server_error", &error);
+    let grant = store.refresh_tokens.get(&presented_hash).cloned();
+    let claims = grant.as_ref().map(|grant| RefreshGrantView {
+        client_id: &grant.client_id,
+        resource: &grant.resource,
+        scope: &grant.scope,
+        expires_at: grant.expires_at,
+    });
+    let expected_resource = state.resource_url();
+    let decision = decide_refresh(
+        store
+            .consumed_refresh_tokens
+            .get(&presented_hash)
+            .map(|consumed| consumed.family_id.as_str()),
+        claims.as_ref(),
+        &RefreshExchange {
+            client_id,
+            resource: params.get("resource").map(String::as_str),
+            scope: params.get("scope").map(String::as_str),
+            expected_resource: &expected_resource,
+            current,
+        },
+    );
+    let grant = match decision {
+        RefreshDecision::RevokeFamily(family_id) => {
+            // Persist revocation while holding the existing store mutex.
+            revoke_refresh_family(&mut store, &family_id);
+            if let Err(error) = persist_store(&store) {
+                return oauth_json_error(StatusCode::INTERNAL_SERVER_ERROR, "server_error", &error);
+            }
+            return oauth_json_error(
+                StatusCode::BAD_REQUEST,
+                "invalid_grant",
+                "refresh token replay detected; token family revoked",
+            );
         }
-        return oauth_json_error(
-            StatusCode::BAD_REQUEST,
-            "invalid_grant",
-            "refresh token replay detected; token family revoked",
-        );
-    }
-
-    let Some(grant) = store.refresh_tokens.get(&presented_hash).cloned() else {
-        return oauth_json_error(
-            StatusCode::BAD_REQUEST,
-            "invalid_grant",
-            "refresh token is invalid or expired",
-        );
+        RefreshDecision::InvalidOrExpired => {
+            return oauth_json_error(
+                StatusCode::BAD_REQUEST,
+                "invalid_grant",
+                "refresh token is invalid or expired",
+            );
+        }
+        RefreshDecision::InvalidGrant => {
+            return oauth_json_error(
+                StatusCode::BAD_REQUEST,
+                "invalid_grant",
+                "refresh token validation failed",
+            );
+        }
+        RefreshDecision::InvalidTarget => {
+            return oauth_json_error(
+                StatusCode::BAD_REQUEST,
+                "invalid_target",
+                "refresh token resource does not match",
+            );
+        }
+        RefreshDecision::InvalidScope => {
+            return oauth_json_error(
+                StatusCode::BAD_REQUEST,
+                "invalid_scope",
+                "refresh token cannot broaden or change scope",
+            );
+        }
+        RefreshDecision::Rotate => {
+            // The grant was observed under the same mutex and is still live.
+            grant.expect("validated refresh grant remains in locked store")
+        }
     };
-
-    if grant.client_id != *client_id || grant.expires_at <= current {
-        return oauth_json_error(
-            StatusCode::BAD_REQUEST,
-            "invalid_grant",
-            "refresh token validation failed",
-        );
-    }
-    if params
-        .get("resource")
-        .is_some_and(|resource| resource != &grant.resource)
-        || grant.resource != state.resource_url()
-    {
-        return oauth_json_error(
-            StatusCode::BAD_REQUEST,
-            "invalid_target",
-            "refresh token resource does not match",
-        );
-    }
-    if params
-        .get("scope")
-        .is_some_and(|scope| scope != &grant.scope)
-    {
-        return oauth_json_error(
-            StatusCode::BAD_REQUEST,
-            "invalid_scope",
-            "refresh token cannot broaden or change scope",
-        );
-    }
 
     let replacement = random_token(32);
     let replacement_hash = token_hash(&replacement);
@@ -619,21 +657,13 @@ pub(super) fn bearer(headers: &HeaderMap) -> Option<&str> {
         .strip_prefix("Bearer ")
 }
 
-pub(super) fn pkce_challenge(verifier: &str) -> String {
-    URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
-}
-
-pub(super) fn token_hash(token: &str) -> String {
-    URL_SAFE_NO_PAD.encode(Sha256::digest(token.as_bytes()))
-}
-
 pub(super) fn revoke_refresh_family(store: &mut AuthStore, family_id: &str) {
     store
         .refresh_tokens
-        .retain(|_, grant| grant.family_id != family_id);
+        .retain(|_, grant| retain_other_family(Some(&grant.family_id), family_id));
     store
         .tokens
-        .retain(|_, grant| grant.family_id.as_deref() != Some(family_id));
+        .retain(|_, grant| retain_other_family(grant.family_id.as_deref(), family_id));
 }
 
 pub(super) fn random_token(bytes: usize) -> String {
@@ -647,15 +677,4 @@ pub(super) fn now() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
-}
-
-pub(super) fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
-    if left.len() != right.len() {
-        return false;
-    }
-    let mut diff = 0u8;
-    for (a, b) in left.iter().zip(right.iter()) {
-        diff |= a ^ b;
-    }
-    diff == 0
 }

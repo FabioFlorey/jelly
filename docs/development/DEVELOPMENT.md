@@ -48,6 +48,48 @@ The legacy `scripts/check-*.sh` commands remain as compatibility wrappers into t
 
 Deterministic browser fixtures live in `tests/fixtures/` for delayed images, DOM rerenders, visibility, cookie/origin storage, download lifecycle/cancellation, performance, semantic targeting, highlighting, and Shadow DOM behavior. Network-dependent React/Selenium/Porsche cases are kept in the `network` batch because external deployments can change independently of Jelly and should not be treated as deterministic local regressions.
 
+### Isolated Functional Core / Imperative Shell integration
+
+The FC/IS migration can be exercised without using Jelly's installed systemd
+browser service or touching `/data/jelly-runtime`:
+
+```bash
+scripts/check-fcis-isolated.sh
+# To retain the generated sandbox and its reports for troubleshooting:
+JELLY_FCIS_KEEP_SANDBOX=true scripts/check-fcis-isolated.sh
+```
+
+The wrapper builds the **current working tree** (including untracked `src/core/`
+and `src/shell/`) inside a freshly created `/data/jelly-fcis-isolated-*`
+directory. It omits `.env`, rewrites **only the copied** `config/jelly.toml`
+and Cargo target directory, and compiles separate test binaries. The Python
+harness `tests/integration/fcis_isolated.py` refuses to run if its config,
+`.env` or directory checks fail. Chromium uses disposable profiles and a
+loopback-only CDP endpoint, and the MCP server binds a temporary loopback
+port with synthetic credentials. The test driver terminates only the
+subprocess groups it started; it does **not** invoke `systemctl`, Jelly's
+browser launcher, the installed service, or any cleanup against the active
+runtime. The wrapper removes its own sandbox afterward unless retention is
+explicitly requested.
+
+Integration checks cover Agent API batches and target/session behavior over
+real CDP, ranking via the actual CLI, routine graph decisions and state
+suspend/resume (the external HITL delivery adapter is **stubbed in the
+sandbox**), download records/artifacts/collision policies on isolated disk,
+OAuth code grants, refresh rotation/replay and persisted OAuth reload via
+HTTP, plus cache invalidation and reconnect to a replacement Chromium without
+restarting MCP. The on-disk Rust download test is marked `#[ignore]` and
+**refuses I/O** unless its compiled runtime root matches the explicit
+`JELLY_FCIS_ISOLATION_ROOT` sandbox opt-in. The wrapper additionally runs the
+Node/Chromium ranking fixture test when Node.js is available.
+
+These checks do **not** substitute for a real browser-originated CDP download
+notification sequence, genuine third-party HITL delivery, OAuth persistence
+fault injection, or a full deterministic Jelly suite against a separately
+installed service. The canonical suite's browser helpers call the installed
+`jelly-browser.service`, so do not run those helpers directly on a shared
+active Jelly installation merely to validate this migration.
+
 ### Jelly web UI smoke test
 
 For the shared human-facing Jelly design (home, connections, local activation,
@@ -153,6 +195,8 @@ tests/suite/run.sh --batch deterministic
 The subsystem compatibility wrappers remain available when a focused historical command is convenient (`scripts/check-page-runtime.sh`, `scripts/check-ref-semantics.sh`, and the other `scripts/check-*.sh` entries), but they delegate to the stable-ID suite.
 
 Performance conclusions should come from a purpose-built measurement for the change under review rather than a permanently maintained aggregate benchmark script.
+
+For the isolated DOM-ranking policy seam (`src/core/ranking.js`), run `node tests/unit/ranking.test.cjs` to check deterministic scoring and parity against the previous ordering without a browser. Run `node tests/unit/ranking.test.cjs --browser` to launch **separate headless Chromium processes with disposable profiles** against the semantic, Shadow DOM and large ranking fixtures. The latter compares the current runtime with frozen pre-migration version 19 and prints per-run median search timings; the numbers are **diagnostic**, not stable performance thresholds. Neither command uses Jelly's CDP endpoint, profile, state directory or live service. The full semantic/ranking integration suite remains the authoritative regression path once an isolated Jelly runtime environment is available.
 
 ### Interactive target resolution
 

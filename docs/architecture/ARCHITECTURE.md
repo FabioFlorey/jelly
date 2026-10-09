@@ -72,11 +72,23 @@ src/
 │   ├── session.rs
 │   ├── target.rs
 │   ├── target_manager.rs
-│   ├── targets.rs
 │   └── transport.rs
+├── core/
+│   ├── mod.rs
+│   ├── downloads.rs
+│   ├── oauth.rs
+│   ├── ranking.js           # pure browser-side ranking (injected by Rust)
+│   ├── routines.rs
+│   ├── session.rs
+│   └── targets.rs
+├── shell/
+│   ├── mod.rs
+│   ├── downloads.rs
+│   ├── routines.rs
+│   ├── session.rs
+│   └── targets.rs
 ├── mcp/
 │   ├── mod.rs
-│   ├── browser_session.rs
 │   ├── dispatch.rs
 │   ├── protocol.rs
 │   └── system_tools.rs
@@ -110,12 +122,33 @@ src/
 ├── artifacts.rs
 ├── browser_launcher.rs
 ├── connection.rs
-├── downloads.rs
 ├── error.rs
 ├── recording.rs
-├── routine.rs
+├── routine.rs                 # public compatibility entrypoint
 └── lib.rs
 ```
+
+## Functional core and imperative shell (incremental migration)
+
+The `src/core/` boundary holds side-effect-free decisions and data: session cache policy, download-state transitions, download materialization/collision plans, finalization/wait decisions, routine parsing, template/guard evaluation, graph validation, node planning, tool-outcome planning, logical-target label/notification decisions, OAuth authorization-code/refresh-grant validation and replay-revocation policy, and the pure browser-side semantic ranking rules in `core/ranking.js`. Core functions receive observed inputs explicitly (such as timestamps, filesystem-derived paths, or an observed tool result), rather than opening browsers, reading files, taking locks, or accessing global runtime configuration.
+
+The `src/shell/` boundary owns the corresponding effects: CDP session caching and target synchronization in `shell/session.rs`; download tracking, persistent records, filesystem-based source selection, `fail`/`overwrite`/`uniquify` copies, artifact registration, browser process probes, and the polling clock in `shell/downloads.rs`; routine subprocess/browser execution, HITL, clock-based budgets, suspension, persistence and cleanup in `shell/routines.rs`; logical-target reconciliation, CDP session bindings, snapshot file locking and atomic persistence in `shell/targets.rs`. The routine's public entrypoint remains `jelly::routine::run_from_env` via the compatibility module `src/routine.rs`. The dependency direction is **shell → core**, never the reverse. `browser/mod.rs` continues to re-export `LogicalTarget` and the crate-internal `TargetRegistry` from the shell adapter, preserving the browser-facing interface. The public `jelly::DownloadRecord` and download API are re-exported unchanged from the library root. The MCP dispatcher calls the session adapter and translates its errors into MCP tool failures. Download file operations can be exercised with explicit temporary directories without opening the managed Jelly download root; artifact finalization continues to require its persistent store and has **not** been end-to-end tested as part of this extraction.
+
+OAuth remains a security-sensitive adapter in `mcp_auth/oauth.rs` and `mcp_auth/storage.rs` rather than moving HTTP handlers or persistence between directories. The adapter consumes one-time authorization codes, reads the clock, generates random tokens, holds the store lock while pruning/rotating/revoking refresh grants, and persists the store. It calls side-effect-free grant/PKCE policy in `core/oauth.rs` using observed facts. **No handler, lock scope, or persistence ordering has been intentionally changed.** Security regression tests for this seam run in memory; HTTP token exchange and durability under write failure are not yet integration-tested against an isolated store. This is a functional boundary within the existing `mcp_auth` folder, not a claim that every shell adapter has been physically moved into `shell/`.
+
+**In-page semantic ranking** is an intentional cross-language core boundary: `src/core/ranking.js` only compares normalized text and already-observed candidate fields (`match`, `disabled`, `offscreen`, document order). `src/browser/runtime.rs` injects that same source into both the optimized `search`/`resolveText` and the rollback `legacy_search_expression`; the page runtime still owns DOM and open-Shadow-DOM traversal, accessibility-name observation, layout visibility, mutation invalidation, refs and the sorted result's serialization. The runtime version is **20**, so a page with version 19 will reinstall the updated ranking code. These operations remain entirely **inside one page-side script evaluation**, with no per-candidate CDP roundtrip. The pre-migration version-19 runtime is frozen in `tests/fixtures/page-runtime-v19.js` for isolated browser comparisons. To exercise the policies without running Jelly services, see `tests/unit/ranking.test.cjs` (Node-only) and `node tests/unit/ranking.test.cjs --browser` (a disposable Chromium profile; requires Chromium). Single-machine microbenchmarks are only diagnostics and do not establish production latency equivalence.
+
+This is a **partial** migration: `browser/`, `primitives/`, `mcp/`, `mcp_auth/`, and parts of `shell/routines.rs` and `shell/targets.rs` still contain application-specific decisions mixed with effects where necessary or not yet extracted. The core deliberately retains the existing semantics of legacy routine text interpolation and graph validation; neither has been redesigned. Do not relocate the entire tree solely to conform to folder names. The baseline evidence, change log, and remaining migration plan are in the untracked root `EVIDENCE.md`.
+
+The migrated boundaries now have a **separate integration harness** at
+`tests/integration/fcis_isolated.py`, launched via
+`scripts/check-fcis-isolated.sh`. It compiles a sanitized working-tree copy
+with its own runtime and binaries, drives Chromium CDP and MCP HTTP using
+loopback-only processes, and checks OAuth persistence, routine state,
+download artifact finalization, and browser-session recovery. The real CDP
+download tracker, persistence fault injection, and external HITL delivery
+still require dedicated isolated tests; passing the harness does not
+establish complete behavioral equivalence under those failure modes.
 
 ## Connection and authentication boundaries
 

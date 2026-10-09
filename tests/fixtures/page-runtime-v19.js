@@ -1,16 +1,18 @@
-use std::sync::OnceLock;
+(() => {
+    const key = '__jellyRuntimeV1';
+    const version = 19;
+    if (globalThis[key]?.version === version) return true;
+    globalThis[key]?.dispose?.();
+    document.querySelectorAll('[data-jelly-ref]').forEach(e => {
+        if (/^e\d+$/.test(e.getAttribute('data-jelly-ref') || '')) {
+            e.removeAttribute('data-jelly-ref');
+        }
+    });
 
-// Bump the runtime version so an already-injected page replaces its old ranking logic.
-pub const PAGE_RUNTIME_VERSION: u32 = 20;
-
-// Keep the same pure scoring rules in the optimized and rollback JS paths.
-// This file is also tested in isolation using Node without a browser or CDP.
-const RANKING_SOURCE: &str = include_str!("../core/ranking.js");
-
-const INTERACTIVE_ROLES_SOURCE: &str = "['button','link','textbox','checkbox','radio','combobox','option','tab','menuitem','switch','slider','spinbutton','treeitem']";
-const INTERACTIVE_SELECTOR_SOURCE: &str = "'a,button,input,textarea,select,[role],[tabindex],[contenteditable=true],[draggable=true],[onclick]'";
-pub(super) const NORMALIZE_SOURCE: &str = r#"value => (value || '').replace(/\s+/g, ' ').trim()"#;
-const IS_INTERACTIVE_SOURCE: &str = r#"element => {
+    const interactiveRoles = new Set(['button','link','textbox','checkbox','radio','combobox','option','tab','menuitem','switch','slider','spinbutton','treeitem']);
+    const selector = 'a,button,input,textarea,select,[role],[tabindex],[contenteditable=true],[draggable=true],[onclick]';
+    const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
+    const isInteractive = element => {
     const role = element.getAttribute('role');
     return ['A','BUTTON','INPUT','TEXTAREA','SELECT'].includes(element.tagName) ||
         interactiveRoles.has(role) ||
@@ -18,8 +20,8 @@ const IS_INTERACTIVE_SOURCE: &str = r#"element => {
         element.isContentEditable ||
         element.draggable ||
         !!element.onclick;
-}"#;
-pub(super) const MEASURE_SOURCE: &str = r#"element => {
+};
+    const measure = element => {
     if (!element?.isConnected) return null;
     const rect = element.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return null;
@@ -30,8 +32,8 @@ pub(super) const MEASURE_SOURCE: &str = r#"element => {
         style.opacity === '0'
     ) return null;
     return rect;
-}"#;
-const INFER_ROLE_SOURCE: &str = r#"element => element.getAttribute('role') || ({
+};
+    const inferRole = element => element.getAttribute('role') || ({
     A:'link',
     BUTTON:'button',
     INPUT:(element.type === 'checkbox'
@@ -41,32 +43,12 @@ const INFER_ROLE_SOURCE: &str = r#"element => element.getAttribute('role') || ({
             : 'textbox'),
     TEXTAREA:'textbox',
     SELECT:'combobox'
-})[element.tagName] || (element.draggable ? 'draggable' : '')"#;
-pub(super) const IN_VIEWPORT_SOURCE: &str = r#"rect =>
+})[element.tagName] || (element.draggable ? 'draggable' : '');
+    const inViewport = rect =>
     rect.bottom > 0 &&
     rect.right > 0 &&
     rect.top < innerHeight &&
-    rect.left < innerWidth"#;
-
-const PAGE_RUNTIME_TEMPLATE: &str = r#"(() => {
-    const key = '__jellyRuntimeV1';
-    const version = __JELLY_RUNTIME_VERSION__;
-    if (globalThis[key]?.version === version) return true;
-    globalThis[key]?.dispose?.();
-    document.querySelectorAll('[data-jelly-ref]').forEach(e => {
-        if (/^e\d+$/.test(e.getAttribute('data-jelly-ref') || '')) {
-            e.removeAttribute('data-jelly-ref');
-        }
-    });
-
-    const interactiveRoles = new Set(__JELLY_INTERACTIVE_ROLES__);
-    const selector = __JELLY_INTERACTIVE_SELECTOR__;
-    const normalize = __JELLY_NORMALIZE_FN__;
-    const isInteractive = __JELLY_IS_INTERACTIVE_FN__;
-    const measure = __JELLY_MEASURE_FN__;
-    const inferRole = __JELLY_INFER_ROLE_FN__;
-    const inViewport = __JELLY_IN_VIEWPORT_FN__;
-    const ranking = __JELLY_RANKING_FN__;
+    rect.left < innerWidth;
     const collectRoots = () => {
         const roots = [document];
         const seen = new Set(roots);
@@ -312,7 +294,7 @@ const PAGE_RUNTIME_TEMPLATE: &str = r#"(() => {
                 if (item.valueSensitive) add(item);
             }
 
-            candidates.sort(ranking.compareActionability);
+            candidates.sort((a, b) => a.disabled - b.disabled || a.offscreen - b.offscreen || a.order - b.order);
             return candidates[0]?.e || null;
         },
 
@@ -372,8 +354,11 @@ const PAGE_RUNTIME_TEMPLATE: &str = r#"(() => {
                 const item = this.cache[order];
                 const name = normalize(this.currentName(item)).toLowerCase();
                 if (!name) continue;
-                const match = ranking.matchQuality(name, q);
-                if (match < 0) continue;
+                let match = 99;
+                if (name === q) match = 0;
+                else if (name.startsWith(q)) match = 1;
+                else if (name.includes(q)) match = 2;
+                else continue;
                 const described = this.describe(item);
                 if (!described) continue;
                 ranked.push({
@@ -384,7 +369,12 @@ const PAGE_RUNTIME_TEMPLATE: &str = r#"(() => {
                     value:described
                 });
             }
-            ranked.sort(ranking.compareSearch);
+            ranked.sort((a, b) =>
+                a.match - b.match ||
+                a.disabled - b.disabled ||
+                a.offscreen - b.offscreen ||
+                a.order - b.order
+            );
             const start = Math.max(0, offset);
             return ranked.slice(start, start + Math.max(1, limit)).map(entry => entry.value);
         }
@@ -412,261 +402,4 @@ const PAGE_RUNTIME_TEMPLATE: &str = r#"(() => {
         enumerable: false
     });
     return true;
-})()"#;
-
-pub fn page_runtime_bootstrap() -> &'static str {
-    static SOURCE: OnceLock<String> = OnceLock::new();
-    SOURCE
-        .get_or_init(|| {
-            PAGE_RUNTIME_TEMPLATE
-                .replace(
-                    "__JELLY_RUNTIME_VERSION__",
-                    &PAGE_RUNTIME_VERSION.to_string(),
-                )
-                .replace("__JELLY_INTERACTIVE_ROLES__", INTERACTIVE_ROLES_SOURCE)
-                .replace(
-                    "__JELLY_INTERACTIVE_SELECTOR__",
-                    INTERACTIVE_SELECTOR_SOURCE,
-                )
-                .replace("__JELLY_NORMALIZE_FN__", NORMALIZE_SOURCE)
-                .replace("__JELLY_IS_INTERACTIVE_FN__", IS_INTERACTIVE_SOURCE)
-                .replace("__JELLY_MEASURE_FN__", MEASURE_SOURCE)
-                .replace("__JELLY_INFER_ROLE_FN__", INFER_ROLE_SOURCE)
-                .replace("__JELLY_IN_VIEWPORT_FN__", IN_VIEWPORT_SOURCE)
-                .replace("__JELLY_RANKING_FN__", RANKING_SOURCE)
-        })
-        .as_str()
-}
-
-pub fn legacy_snapshot_expression(limit: usize, offset: usize) -> String {
-    format!(
-        r#"(() => {{
-            const limit = {limit};
-            const offset = {offset};
-            const interactiveRoles = new Set({roles});
-            const selector = {selector};
-            const normalize = {normalize};
-            const isInteractive = {is_interactive};
-            const measure = {measure};
-            const inferRole = {infer_role};
-
-            document.querySelectorAll('[data-jelly-ref]').forEach(element =>
-                element.removeAttribute('data-jelly-ref')
-            );
-
-            const elements = [...document.querySelectorAll(selector)]
-                .filter(element => isInteractive(element) && measure(element));
-            elements.forEach((element, index) =>
-                element.setAttribute('data-jelly-ref', 'e' + (index + 1))
-            );
-
-            const end = limit > 0
-                ? Math.min(elements.length, offset + limit)
-                : elements.length;
-            const out = [];
-            for (let index = Math.min(offset, elements.length); index < end; index++) {{
-                const element = elements[index];
-                const ref = 'e' + (index + 1);
-                const rect = element.getBoundingClientRect();
-                const role = inferRole(element);
-                const name = normalize(
-                    element.getAttribute('aria-label') ||
-                    element.innerText ||
-                    element.value ||
-                    element.placeholder ||
-                    element.alt ||
-                    ''
-                ).slice(0, 160);
-                out.push({{
-                    ref:'@' + ref,
-                    tag:element.tagName.toLowerCase(),
-                    role,
-                    name,
-                    disabled:!!element.disabled,
-                    checked:element.checked ?? null,
-                    draggable:!!element.draggable,
-                    x:Math.round(rect.x),
-                    y:Math.round(rect.y),
-                    width:Math.round(rect.width),
-                    height:Math.round(rect.height)
-                }});
-            }}
-            return out;
-        }})()"#,
-        roles = INTERACTIVE_ROLES_SOURCE,
-        selector = INTERACTIVE_SELECTOR_SOURCE,
-        normalize = NORMALIZE_SOURCE,
-        is_interactive = IS_INTERACTIVE_SOURCE,
-        measure = MEASURE_SOURCE,
-        infer_role = INFER_ROLE_SOURCE,
-    )
-}
-
-pub fn legacy_search_expression(query: &str, limit: usize, offset: usize) -> String {
-    let query = serde_json::to_string(query).expect("query serialization");
-    format!(
-        r#"(() => {{
-            const query = {query};
-            const max = {limit};
-            const offset = {offset};
-            const interactiveRoles = new Set({roles});
-            const selector = {selector};
-            const normalize = {normalize};
-            const isInteractive = {is_interactive};
-            const measure = {measure};
-            const inferRole = {infer_role};
-            const inViewport = {in_viewport};
-            const ranking = {ranking};
-
-            document.querySelectorAll('[data-jelly-ref]').forEach(element =>
-                element.removeAttribute('data-jelly-ref')
-            );
-            const all = [...document.querySelectorAll(selector)].filter(isInteractive);
-            all.forEach((element, index) =>
-                element.setAttribute('data-jelly-ref', 'e' + (index + 1))
-            );
-
-            const needle = normalize(query).toLowerCase();
-            const rows = [];
-            for (let index = 0; index < all.length; index++) {{
-                const element = all[index];
-                const rect = measure(element);
-                if (!rect) continue;
-
-                const name = normalize(
-                    element.getAttribute('aria-label') ||
-                    element.textContent ||
-                    element.value ||
-                    element.placeholder ||
-                    element.alt ||
-                    element.getAttribute('title') ||
-                    ''
-                );
-                const normalized = name.toLowerCase();
-                const match = ranking.matchQuality(normalized, needle);
-                if (match < 0) continue;
-
-                const role = inferRole(element);
-                const visibleInViewport = inViewport(rect);
-                rows.push({{
-                    match,
-                    disabled:element.disabled ? 1 : 0,
-                    offscreen:visibleInViewport ? 0 : 1,
-                    order:index,
-                    value:{{
-                        ref:'@e' + (index + 1),
-                        tag:element.tagName.toLowerCase(),
-                        role,
-                        name:name.slice(0, 160),
-                        disabled:!!element.disabled,
-                        checked:element.checked ?? null,
-                        draggable:!!element.draggable,
-                        shadow:false,
-                        in_viewport:visibleInViewport,
-                        x:Math.round(rect.x),
-                        y:Math.round(rect.y),
-                        width:Math.round(rect.width),
-                        height:Math.round(rect.height)
-                    }}
-                }});
-            }}
-            rows.sort(ranking.compareSearch);
-            return rows.slice(offset, offset + max).map(row => row.value);
-        }})()"#,
-        roles = INTERACTIVE_ROLES_SOURCE,
-        selector = INTERACTIVE_SELECTOR_SOURCE,
-        normalize = NORMALIZE_SOURCE,
-        is_interactive = IS_INTERACTIVE_SOURCE,
-        measure = MEASURE_SOURCE,
-        infer_role = INFER_ROLE_SOURCE,
-        in_viewport = IN_VIEWPORT_SOURCE,
-        ranking = RANKING_SOURCE,
-    )
-}
-
-pub fn snapshot_expression(limit: usize, offset: usize) -> String {
-    format!(
-        "globalThis.__jellyRuntimeV1?.version==={PAGE_RUNTIME_VERSION}?globalThis.__jellyRuntimeV1.snapshot({limit},{offset}):null"
-    )
-}
-
-pub fn search_expression(query: &str, limit: usize, offset: usize) -> String {
-    let query = serde_json::to_string(query).expect("query serialization");
-    format!(
-        "globalThis.__jellyRuntimeV1?.version==={PAGE_RUNTIME_VERSION}?globalThis.__jellyRuntimeV1.search({query},{limit},{offset}):null"
-    )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn search_expression_serializes_untrusted_query_text() {
-        let expression = search_expression("Save \"draft\"\nnow", 12, 4);
-        assert!(expression.contains("Save \\\"draft\\\"\\nnow"));
-        assert!(expression.contains(".search(\"Save \\\"draft\\\"\\nnow\",12,4)"));
-    }
-
-    #[test]
-    fn runtime_keeps_visibility_live_and_names_invalidatable() {
-        let source = page_runtime_bootstrap();
-        assert!(source.contains("getBoundingClientRect"));
-        assert!(source.contains("aria-labelledby"));
-        assert!(source.contains("assignedNodes({flatten:true})"));
-        assert!(source.contains("MutationObserver"));
-        assert!(source.contains("attachShadowHook"));
-        assert!(source.contains("this.dirty = true"));
-        assert!(!source.contains("__JELLY_"));
-    }
-
-    #[test]
-    fn optimized_and_legacy_paths_embed_exact_same_pure_ranking_code() {
-        let runtime = page_runtime_bootstrap();
-        let legacy = legacy_search_expression("save", 20, 0);
-        for source in [runtime, legacy.as_str()] {
-            assert!(source.contains(RANKING_SOURCE));
-            assert!(source.contains("ranking.matchQuality"));
-            assert!(source.contains("ranking.compareSearch"));
-        }
-        assert!(runtime.contains("ranking.compareActionability"));
-        assert!(!runtime.contains("__JELLY_RANKING_FN__"));
-    }
-
-    #[test]
-    fn rust_and_page_runtime_versions_stay_in_sync() {
-        assert!(
-            page_runtime_bootstrap().contains(&format!("const version = {PAGE_RUNTIME_VERSION};"))
-        );
-    }
-
-    #[test]
-    fn runtime_and_legacy_paths_share_core_dom_helpers() {
-        let runtime = page_runtime_bootstrap();
-        let snapshot = legacy_snapshot_expression(10, 2);
-        let search = legacy_search_expression("save", 5, 1);
-
-        for helper in [
-            INTERACTIVE_ROLES_SOURCE,
-            INTERACTIVE_SELECTOR_SOURCE,
-            NORMALIZE_SOURCE,
-            IS_INTERACTIVE_SOURCE,
-            MEASURE_SOURCE,
-            INFER_ROLE_SOURCE,
-        ] {
-            assert!(runtime.contains(helper));
-            assert!(snapshot.contains(helper));
-            assert!(search.contains(helper));
-        }
-        assert!(runtime.contains(IN_VIEWPORT_SOURCE));
-        assert!(search.contains(IN_VIEWPORT_SOURCE));
-    }
-
-    #[test]
-    fn legacy_search_expression_serializes_untrusted_query_text() {
-        let expression = legacy_search_expression("Save \"draft\"\nnow", 12, 4);
-        assert!(expression.contains("Save \\\"draft\\\"\\nnow"));
-        assert!(expression.contains("const max = 12"));
-        assert!(expression.contains("const offset = 4"));
-    }
-}
+})()

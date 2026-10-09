@@ -160,7 +160,7 @@ pub fn run_from_env() -> rustwright::Result<()> {
             }
             browser.close()?;
             let download_state_error =
-                crate::downloads::interrupt_downloads_on_browser_stop().err();
+                crate::shell::downloads::interrupt_downloads_on_browser_stop().err();
             for stale in [
                 ENDPOINT,
                 PAGE_TARGET,
