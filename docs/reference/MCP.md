@@ -43,24 +43,24 @@ Service, operational, and OAuth endpoints are also exposed:
 The interactive configurator is the supported setup path:
 
 ```bash
-./quickstart.sh
+./scripts/dev.sh setup
 ```
 
 Preview the full wizard without changing the machine:
 
 ```bash
-./quickstart.sh --dry-run
+./scripts/dev.sh setup --dry-run
 ```
 
 Check only the core prerequisites:
 
 ```bash
-./quickstart.sh --check
+./scripts/dev.sh doctor
 ```
 
 Dry-run mode performs the dependency audit, asks the normal configuration questions, validates mode-specific requirements, and prints a redacted summary. It does not write `.env`, create backups, build binaries, or touch systemd. Normal mode preserves existing values when rerun, generates strong local secrets when requested, backs up an existing `.env`, writes the resulting file with mode `0600`, and can immediately build/install the user services.
 
-The configurator uses a honey/yellow ANSI palette with compact Unicode symbols chosen for predictable terminal rendering. Green and red are reserved for success/failure states. Set `NO_COLOR=1` to disable ANSI color or `[ui].icons = false` to use ASCII fallback markers. The full header artwork is loaded from `assets/quickstart-full-logo.txt` and rendered in the honey accent color. Keep each line at 100 characters or fewer. Set `[ui].logo = "path/to/logo.txt"` to use a different file without editing the script.
+The CLI's honey palette, Unicode/ASCII icons, and logo path are defined in `config/dev.config.sh`; its ASCII artwork is in `config/brand/full-logo.txt`. Set `NO_COLOR=1` to disable ANSI styling or set `DEV_UI_ICONS=false` in the trusted developer configuration for ASCII markers. The `[ui]` values in `config/jelly.toml` remain available to existing Rust/Cargo tooling but are not a second source for the CLI palette. `./scripts/dev.sh doctor` checks prerequisites without compiling Jelly or reading `.env`.
 
 ### Manual startup and profile validation
 
@@ -310,7 +310,7 @@ For `quick-tunnel`, the MCP service owns both the temporary tunnel and MCP child
 Inspect them with:
 
 ```bash
-scripts/status-mcp-services.sh
+./scripts/dev.sh status
 ```
 
 **Warning:** `scripts/clean-runtime.sh` stops the services and deletes OAuth tokens, browser profiles and cookies, artifacts, custom extensions/userscripts **and the Cargo build directory**, even without `--build`. Read the complete [destructive cleanup contract](./RUNTIME.md#destructive-cleanup) before using it.

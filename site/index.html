@@ -301,7 +301,7 @@
                 Configure and start
               </h3>
               <p>
-                Install Rust 1.98.1, Chromium and the Linux user services; run <code>./quickstart.sh</code>. The installer
+                Install Rust 1.98.1, Chromium and the Linux user services; run <code>./scripts/dev.sh setup</code>. The installer
                 configures authentication and hosting.
               </p>
               <a href="./getting-started.html">Installation procedure →</a>
@@ -443,13 +443,13 @@
               </div>
               <pre><span class="prompt">$</span> git clone https://github.com/FabioFlorey/jelly.git
 <span class="prompt">$</span> cd jelly
-<span class="prompt">$</span> ./quickstart.sh --check
+<span class="prompt">$</span> ./scripts/dev.sh doctor
 
 <span class="dim"># preview setup without changing services or secrets</span>
-<span class="prompt">$</span> ./quickstart.sh --dry-run
+<span class="prompt">$</span> ./scripts/dev.sh setup --dry-run
 
 <span class="dim"># run the interactive setup</span>
-<span class="prompt">$</span> ./quickstart.sh</pre>
+<span class="prompt">$</span> ./scripts/dev.sh setup</pre>
             </div>
           </div>
 

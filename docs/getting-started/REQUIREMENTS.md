@@ -2,7 +2,7 @@
 
 # Requirements
 
-**Audience:** Developers and operators preparing to install Jelly on Linux. For an end-to-end first run, follow [Getting Started](./QUICKSTART.md).
+**Audience:** Developers and operators preparing to install Jelly on Linux. For an end-to-end first run, follow [Getting Started](./QUICKSTART.md) using `./scripts/dev.sh setup`.
 
 Jelly has a small core dependency set plus a few optional tools used by specific integrations. The small-surface MCP Agent API is the default surface and requires no additional runtime dependency beyond the normal Jelly stack; large-surface remains available as the explicit individual-tool compatibility mode.
 

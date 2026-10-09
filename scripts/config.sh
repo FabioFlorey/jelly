@@ -8,35 +8,47 @@
 CONFIG_FILE="$REPO_ROOT/config/jelly.toml"
 CARGO_CONFIG_FILE="$REPO_ROOT/config/cargo.toml"
 
-# Keep caller-supplied environment values authoritative over .env secrets/deployment values.
-declare -A _JELLY_ENV_OVERRIDES=()
-while IFS= read -r _jelly_name; do
-  [[ -n "$_jelly_name" ]] || continue
-  _JELLY_ENV_OVERRIDES["$_jelly_name"]="${!_jelly_name}"
-done < <(compgen -A variable JELLY_)
-
-# The Rust configuration helper is built from the already required toolchain.
-# Do not source/execute .env values as shell code.
+# A sourced library must be inert: callers load .env explicitly when needed.
+# The Rust helper treats entries strictly as data, never as shell expressions.
 jelly_maint() {
   cargo run --quiet --locked --manifest-path "$REPO_ROOT/Cargo.toml" --bin jelly-maint -- "$@"
 }
 
-if [[ -f "$REPO_ROOT/.env" ]]; then
-  _jelly_rows="$(jelly_maint env read "$REPO_ROOT/.env")" || return 2 2>/dev/null || exit 2
+jelly_load_env() {
+  [[ -f "$REPO_ROOT/.env" ]] || return 0
+  local _jelly_rows _jelly_name _jelly_encoded _jelly_value
+  local -A _jelly_overrides=()
+  while IFS= read -r _jelly_name; do
+    [[ -n "$_jelly_name" ]] || continue
+    _jelly_overrides["$_jelly_name"]="${!_jelly_name}"
+  done < <(compgen -A variable JELLY_)
+  if [[ "${1:-}" == --existing-bin ]]; then
+    local existing_bin="$CONFIG_BUILD_ROOT/debug/jelly-maint"
+    if [[ ! -x "$existing_bin" ]]; then
+      existing_bin="$CONFIG_BUILD_ROOT/release/jelly-maint"
+    fi
+    if [[ ! -x "$existing_bin" ]]; then
+      echo 'Jelly status: no built maintenance parser; .env values not loaded (no build performed).' >&2
+      return 0
+    fi
+    _jelly_rows="$("$existing_bin" env read "$REPO_ROOT/.env")" || return 2
+  elif (($# == 0)); then
+    _jelly_rows="$(jelly_maint env read "$REPO_ROOT/.env")" || return 2
+  else
+    echo 'usage: jelly_load_env [--existing-bin]' >&2
+    return 2
+  fi
   while IFS=$'\t' read -r _jelly_name _jelly_encoded; do
     [[ -n "$_jelly_name" ]] || continue
-    _jelly_value="$(printf '%s' "$_jelly_encoded" | base64 --decode)" || return 2 2>/dev/null || exit 2
+    _jelly_value="$(printf '%s' "$_jelly_encoded" | base64 --decode)" || return 2
     printf -v "$_jelly_name" '%s' "$_jelly_value"
     export "$_jelly_name"
   done <<< "$_jelly_rows"
-  unset _jelly_rows _jelly_encoded _jelly_value
-fi
-
-for _jelly_name in "${!_JELLY_ENV_OVERRIDES[@]}"; do
-  printf -v "$_jelly_name" '%s' "${_JELLY_ENV_OVERRIDES[$_jelly_name]}"
-  export "$_jelly_name"
-done
-unset _jelly_name _JELLY_ENV_OVERRIDES
+  for _jelly_name in "${!_jelly_overrides[@]}"; do
+    printf -v "$_jelly_name" '%s' "${_jelly_overrides[$_jelly_name]}"
+    export "$_jelly_name"
+  done
+}
 
 jelly_config_set() {
   local section="$1" key="$2" value="$3"

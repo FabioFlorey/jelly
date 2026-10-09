@@ -13,6 +13,28 @@
 - Runtime state and build artifacts stay outside the repository.
 - Browser test runs should leave no stray Chromium processes behind.
 
+## Unified developer CLI
+
+`./scripts/dev.sh --help` documents the single supported public command interface.
+`./scripts/dev.sh doctor` is a read-only, build-free prerequisite audit; `setup`
+replaces the former quickstart wizard and preserves hosting, OAuth, secret
+backups, Telegram HITL, dry-run, and optional service installation.
+`status` inspects installed services, and `start`/`stop` explicitly control them.
+`build`, `format`, `lint`, `check`, `test` and `ci` reuse Cargo and Rust
+maintenance tools. `test --isolated` runs the disposable MCP/Chromium suite;
+`test --suite` **explicitly targets the installed Jelly service** and should
+only run in a dedicated testing environment. `clean` previews its destructive
+scope by default and requires `--yes` before invoking the existing
+service-stop/runtime-removal implementation. No Python, Node.js or new shell
+framework dependencies are required.
+
+Branding is configured in trusted `config/dev.config.sh` and the canonical
+`config/brand/full-logo.txt` asset. `scripts/lib/runtime.sh` and `ui.sh` expose
+shared Bash helpers without compiling software, loading `.env` or modifying
+services. `scripts/config.sh` is also inert when sourced; commands that require
+private deployment values must explicitly invoke `jelly_load_env`, which uses
+the safe Rust data-only parser and preserves exported overrides.
+
 ## Tests
 
 The test-system entry point is [`tests/INDEX.md`](../../tests/INDEX.md). The canonical behavioral suite lives in `tests/suite/`. Every test has a stable ID plus name, description, preconditions, input, expected output, and execution status. Every run receives a unique run ID and writes an auditable report under `/data/jelly-runtime/test-runs/<RUN_ID>/`.
@@ -20,26 +42,26 @@ The test-system entry point is [`tests/INDEX.md`](../../tests/INDEX.md). The can
 Run the deterministic suite:
 
 ```bash
-tests/suite/run.sh
+./scripts/dev.sh test --suite
 # equivalent:
-tests/suite/run.sh --batch deterministic
+./scripts/dev.sh test --suite --batch deterministic
 ```
 
 Run one test, one group, a named batch, or every enabled test:
 
 ```bash
-tests/suite/run.sh --test SEM-005
-tests/suite/run.sh --group highlight
-tests/suite/run.sh --batch network
-tests/suite/run.sh --all
+./scripts/dev.sh test --suite --test SEM-005
+./scripts/dev.sh test --suite --group highlight
+./scripts/dev.sh test --suite --batch network
+./scripts/dev.sh test --suite --all
 ```
 
 Inspect the executable catalog and activation state:
 
 ```bash
-tests/suite/run.sh --list
-tests/suite/run.sh --catalog
-tests/suite/run.sh --catalog --json
+./scripts/dev.sh test --suite --list
+./scripts/dev.sh test --suite --catalog
+./scripts/dev.sh test --suite --catalog --json
 ```
 
 Tests/groups can be persistently disabled through `tests/suite/config/disabled-tests.txt` and `disabled-groups.txt`; `--include-disabled` overrides those files for an explicit diagnostic run. Batch definitions live in `tests/suite/config/batches.tsv`. See `tests/INDEX.md` for the group/batch map and `tests/suite/README.md` for the harness rationale, metadata contract, result schema, and selection rules.
@@ -54,9 +76,9 @@ The FC/IS migration can be exercised without using Jelly's installed systemd
 browser service or touching `/data/jelly-runtime`:
 
 ```bash
-scripts/check-fcis-isolated.sh
+./scripts/dev.sh test --isolated
 # To retain the generated sandbox and its reports for troubleshooting:
-JELLY_FCIS_KEEP_SANDBOX=true scripts/check-fcis-isolated.sh
+JELLY_FCIS_KEEP_SANDBOX=true ./scripts/dev.sh test --isolated
 ```
 
 The wrapper builds the **current working tree** (including untracked `src/core/`
@@ -189,7 +211,7 @@ Use the deterministic suite plus the focused runtime profiler when investigating
 
 ```bash
 scripts/profile-browser-runtime.sh
-tests/suite/run.sh --batch deterministic
+./scripts/dev.sh test --suite --batch deterministic
 ```
 
 The subsystem compatibility wrappers remain available when a focused historical command is convenient (`scripts/check-page-runtime.sh`, `scripts/check-ref-semantics.sh`, and the other `scripts/check-*.sh` entries), but they delegate to the stable-ID suite.

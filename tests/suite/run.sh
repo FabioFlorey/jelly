@@ -69,6 +69,12 @@ while (($#)); do
   esac
 done
 
+# Catalog and listing are read-only; do not build the Rust parser or load
+# deployment secrets until an actual execution run has been requested.
+if ! $MODE_LIST && ! $MODE_CATALOG; then
+  jelly_load_env
+fi
+
 read_set_file() {
   local file="$1"
   [[ -f "$file" ]] || return 0

@@ -71,8 +71,8 @@ Run the interactive setup:
 ```bash
 git clone https://github.com/FabioFlorey/jelly.git
 cd jelly
-./quickstart.sh --check
-./quickstart.sh
+./scripts/dev.sh doctor
+./scripts/dev.sh setup
 ```
 
 Follow the wizard to configure credentials, hosting, and service startup.
@@ -84,7 +84,7 @@ See [Getting Started](./docs/getting-started/QUICKSTART.md) for the configuratio
 Verify the server in another terminal:
 
 ```bash
-scripts/status-mcp-services.sh
+./scripts/dev.sh status
 curl --fail --silent --show-error http://127.0.0.1:8787/health
 ```
 
@@ -138,6 +138,7 @@ With the server running and the local token available in the current shell, disc
 ```bash
 # Load environment values without evaluating the .env file as shell code.
 source ./scripts/config.sh
+jelly_load_env
 
 curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
   -H "Authorization: Bearer $JELLY_MCP_TOKEN" \

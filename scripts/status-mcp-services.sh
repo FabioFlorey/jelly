@@ -6,15 +6,15 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/config.sh"
 ENV_FILE="$ROOT/.env"
 
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
-  C_GREEN=$'\033[32m'; C_RED=$'\033[31m'; C_HONEY=$'\033[38;2;255;193;7m'
-else
-  C_RESET=''; C_BOLD=''; C_DIM=''; C_GREEN=''; C_RED=''; C_HONEY=''
-fi
+# shellcheck source=lib/runtime.sh
+source "$ROOT/scripts/lib/runtime.sh"
+dev::ui_init
+# Prefer an already-built Rust parser; a status check must never trigger Cargo.
+jelly_load_env --existing-bin
 
 state="$(systemctl --user is-active jelly-mcp.service 2>/dev/null || true)"
 enabled="$(systemctl --user is-enabled jelly-mcp.service 2>/dev/null || true)"
+browser_state="$(systemctl --user is-active jelly-browser.service 2>/dev/null || true)"
 hosting="${JELLY_HOSTING_MODE:-local}"
 consent="${JELLY_OAUTH_CONSENT_MODE:-browser}"
 local_url="http://${JELLY_MCP_ADDR:-127.0.0.1:8787}"
@@ -35,7 +35,8 @@ elif [[ "$hosting" == "nip-io" ]]; then
 fi
 
 printf '%b◇  Jelly system%b\n' "$C_HONEY$C_BOLD" "$C_RESET"
-printf '  Service         %s (%s)\n' "$state" "$enabled"
+printf '  MCP service     %s (%s)\n' "$state" "$enabled"
+printf '  Browser service %s\n' "$browser_state"
 printf '  Health          %s\n' "$health"
 printf '  Hosting         %s\n' "$hosting"
 printf '  Local MCP       %s/mcp\n' "$local_url"

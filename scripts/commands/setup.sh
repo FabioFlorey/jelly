@@ -1,59 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=scripts/config.sh
+DEV_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$DEV_ROOT"
+# shellcheck source=../lib/runtime.sh
+source "$ROOT/scripts/lib/runtime.sh"
+MODE=run
+case "${1:-}" in
+  '') ;;
+  --dry-run) MODE=dry-run; shift ;;
+  *) dev::error 'usage: ./scripts/dev.sh setup [--dry-run]'; exit 2 ;;
+esac
+(($# == 0)) || { dev::error 'unexpected setup arguments'; exit 2; }
+# Check prerequisites BEFORE loading technical config or private .env data.
+dev::doctor
+# shellcheck source=../config.sh
 source "$ROOT/scripts/config.sh"
 ENV_FILE="$ROOT/.env"
 ENV_EXAMPLE="$ROOT/.env.example"
-LOGO_FILE="$ROOT/$CONFIG_UI_LOGO"
-LOGO_WIDTH=100
-
-MODE="run"
-case "${1:-}" in
-  "") ;;
-  --dry-run) MODE="dry-run" ;;
-  --check) MODE="check" ;;
-  -h|--help)
-    cat <<'EOF'
-Usage: ./quickstart.sh [--dry-run|--check]
-
-  --dry-run  Run the full configuration wizard and validation without writing files,
-             building binaries, or touching systemd.
-  --check    Check only the core machine prerequisites and exit.
-EOF
-    exit 0
-    ;;
-  *)
-    echo "unknown option: $1" >&2
-    echo "usage: ./quickstart.sh [--dry-run|--check]" >&2
-    exit 2
-    ;;
-esac
+LOGO_FILE="$ROOT/$DEV_BRAND_LOGO"
+LOGO_WIDTH="$DEV_UI_MAX_WIDTH"
+dev::ui_init
 
 declare -A CFG=()
-
-# Terminal presentation. Colors are emitted only for interactive terminals and
-# honor the NO_COLOR convention. Nerd Font glyphs can be disabled explicitly.
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  C_RESET=$'\033[0m'
-  C_BOLD=$'\033[1m'
-  C_DIM=$'\033[2m'
-  C_RED=$'\033[31m'
-  C_GREEN=$'\033[32m'
-  C_YELLOW=$'\033[33m'
-  C_HONEY=$'\033[38;2;255;193;7m'
-else
-  C_RESET=''; C_BOLD=''; C_DIM=''; C_RED=''; C_GREEN=''; C_YELLOW=''; C_HONEY=''
-fi
-
-if [[ "$CONFIG_UI_ICONS" == "false" ]]; then
-  I_BRAND='*'; I_OK='+'; I_FAIL='x'; I_INFO='>'; I_SECTION='>'; I_LOCK='>'; I_NET='>'
-else
-  # Deliberately use ordinary Unicode here, not Nerd Font PUA glyphs. These
-  # symbols have predictable widths across common terminal fonts.
-  I_BRAND='◆'; I_OK='✓'; I_FAIL='✕'; I_INFO='›'; I_SECTION='◇'; I_LOCK='♦'; I_NET='↗'
-fi
 
 banner() {
   local -a logo=()
@@ -87,7 +56,6 @@ banner() {
 
   case "$MODE" in
     dry-run) mode_label="dry run · no changes will be written" ;;
-    check) mode_label="prerequisite check only" ;;
   esac
   if [[ -n "$mode_label" ]]; then
     pad=0
@@ -97,39 +65,15 @@ banner() {
   printf '\n'
 }
 
-prompt_label() {
-  printf '%b%s%b  %s' "$C_HONEY$C_BOLD" "$I_INFO" "$C_RESET" "$1"
-}
-
-section() {
-  local icon="$1" title="$2"
-  printf '%b%s  %s%b\n' "$C_HONEY$C_BOLD" "$icon" "$title" "$C_RESET"
-}
-
-note() {
-  printf '%b%s  %s%b\n' "$C_HONEY" "$I_INFO" "$1" "$C_RESET"
-}
-
-explain() {
-  printf '   %b%s%b\n' "$C_DIM" "$1" "$C_RESET"
-}
-
-warn() {
-  printf '%b%s  %s%b\n' "$C_YELLOW" "$I_INFO" "$1" "$C_RESET" >&2
-}
-
+# Setup-specific vocabulary delegates formatting to the shared UI helpers.
+prompt_label() { printf '%b%s%b  %s' "$C_HONEY$C_BOLD" "$I_INFO" "$C_RESET" "$1"; }
+section() { printf '%b%s  %s%b\n' "$C_HONEY$C_BOLD" "$1" "$2" "$C_RESET"; }
+note() { printf '%b%s  %s%b\n' "$C_HONEY" "$I_INFO" "$1" "$C_RESET"; }
+explain() { printf '   %b%s%b\n' "$C_DIM" "$1" "$C_RESET"; }
+warn() { dev::warning "$1"; }
 CHECK_FAILURES=0
-
-check_ok() {
-  printf '  %b%s%b  %s
-' "$C_GREEN$C_BOLD" "$I_OK" "$C_RESET" "$1"
-}
-
-check_missing() {
-  printf '  %b%s%b  %b%s%b
-' "$C_RED$C_BOLD" "$I_FAIL" "$C_RESET" "$C_RED" "$1" "$C_RESET"
-  CHECK_FAILURES=$((CHECK_FAILURES + 1))
-}
+check_ok() { dev::check_ok "$1"; }
+check_missing() { dev::check_missing "$1"; CHECK_FAILURES=$((CHECK_FAILURES + 1)); }
 
 check_command() {
   local command="$1" label="$2"
@@ -139,51 +83,6 @@ check_command() {
   fi
   check_missing "$label"
   return 1
-}
-
-check_core_requirements() {
-  local before="$CHECK_FAILURES"
-  section "$I_SECTION" "Prerequisite check"
-
-  check_command git "Git" || true
-  check_command rustc "Rust compiler" || true
-  check_command cargo "Cargo" || true
-
-  if [[ -x /usr/bin/chromium ]]; then
-    check_ok "Chromium (/usr/bin/chromium)"
-  else
-    check_missing "Chromium (/usr/bin/chromium)"
-  fi
-
-  check_command systemctl "systemctl" || true
-  check_command systemd-run "systemd-run" || true
-  check_command bash "bash" || true
-  check_command base64 "base64" || true
-
-  local utility missing_utility=false
-  for utility in cp mv chmod mktemp grep sed awk date base64; do
-    if ! command -v "$utility" >/dev/null 2>&1; then
-      missing_utility=true
-      break
-    fi
-  done
-  if [[ "$missing_utility" == "false" ]]; then
-    check_ok "core setup utilities (including base64)"
-  else
-    check_missing "core setup utilities (including base64)"
-  fi
-
-  if command -v systemctl >/dev/null 2>&1 && systemctl --user is-system-running >/dev/null 2>&1; then
-    check_ok "systemd user manager"
-  else
-    check_missing "systemd user manager"
-  fi
-
-  if (( CHECK_FAILURES > before )); then
-    printf '\n%b%s  Missing required dependencies. See docs/getting-started/REQUIREMENTS.md before continuing.%b\n' "$C_RED$C_BOLD" "$I_FAIL" "$C_RESET" >&2
-    exit 2
-  fi
-  printf '\n'
 }
 
 resolve_cloudflared_for_check() {
@@ -261,7 +160,16 @@ check_selected_requirements() {
 load_env() {
   [[ -f "$ENV_FILE" ]] || return 0
   local rows key encoded value
-  rows="$(jelly_maint env read "$ENV_FILE")" || return 2
+  if [[ "$MODE" == dry-run ]]; then
+    local prebuilt="$CONFIG_BUILD_ROOT/debug/jelly-maint"
+    if [[ ! -x "$prebuilt" ]]; then
+      note 'Preview mode: existing .env is not read until jelly-maint is already built.'
+      return 0
+    fi
+    rows="$("$prebuilt" env read "$ENV_FILE")" || return 2
+  else
+    rows="$(jelly_maint env read "$ENV_FILE")" || return 2
+  fi
   while IFS=$'\t' read -r key encoded; do
     [[ -n "$key" ]] || continue
     value="$(printf '%s' "$encoded" | base64 --decode)" || return 2
@@ -403,17 +311,12 @@ write_env() {
   done | jelly_maint env write-rows "$ENV_FILE"
 }
 
-[[ -t 0 ]] || echo "Warning: quickstart is intended for an interactive terminal." >&2
+[[ -t 0 ]] || echo "Warning: setup is intended for an interactive terminal." >&2
 [[ -f "$ENV_EXAMPLE" ]] || { echo "missing $ENV_EXAMPLE" >&2; exit 2; }
 
 load_env
 
 banner
-check_core_requirements
-if [[ "$MODE" == "check" ]]; then
-  printf '%b%s%b  Core prerequisites are satisfied.\n' "$C_GREEN$C_BOLD" "$I_OK" "$C_RESET"
-  exit 0
-fi
 if [[ -f "$ENV_FILE" ]]; then
   note "Existing .env detected. Press Enter to keep existing values."
   echo
@@ -534,4 +437,4 @@ if [[ "${CFG[JELLY_INSTALL_NOW]}" == "true" ]]; then
 fi
 
 printf '\n%b%s  Configuration complete%b\n' "$C_GREEN$C_BOLD" "$I_OK" "$C_RESET"
-printf '  Start later with: %bscripts/install-mcp-services.sh%b\n' "$C_HONEY" "$C_RESET"
+printf '  Start later with: %b./scripts/dev.sh install%b\n' "$C_HONEY" "$C_RESET"

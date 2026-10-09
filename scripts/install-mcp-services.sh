@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=scripts/config.sh
 source "$ROOT/scripts/config.sh"
+jelly_load_env
 USER_UNITS="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 ENV_FILE="$ROOT/.env"
 
@@ -59,12 +60,9 @@ if [[ "$hosting_mode" == "cloudflare-fixed" ]]; then
   fi
 fi
 
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
-  C_GREEN=$'\033[32m'; C_RED=$'\033[31m'; C_HONEY=$'\033[38;2;255;193;7m'
-else
-  C_RESET=''; C_BOLD=''; C_DIM=''; C_GREEN=''; C_RED=''; C_HONEY=''
-fi
+# shellcheck source=lib/runtime.sh
+source "$ROOT/scripts/lib/runtime.sh"
+dev::ui_init
 
 cd "$ROOT"
 BUILD_DIR="$CONFIG_BUILD_ROOT"

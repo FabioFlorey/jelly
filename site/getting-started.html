@@ -61,8 +61,8 @@
         </h2>
         <pre><code>git clone https://github.com/FabioFlorey/jelly.git
 cd jelly
-./quickstart.sh --check
-./quickstart.sh --dry-run</code></pre>
+./scripts/dev.sh doctor
+./scripts/dev.sh setup --dry-run</code></pre>
         <p>
           The first command checks dependencies. The dry run previews configuration without saving <code>.env</code>,
           building binaries or starting services. Fix reported failures before proceeding.
@@ -90,7 +90,7 @@ cd jelly
         <h2>
           4. Set credentials and start services
         </h2>
-        <pre><code>./quickstart.sh</code></pre>
+        <pre><code>./scripts/dev.sh setup</code></pre>
         <p>
           Answer the hosting and authentication prompts. Select installation/startup of the user services. The wizard
           writes local secrets to the ignored <code>.env</code> file with restricted permissions and installs the
@@ -105,11 +105,10 @@ cd jelly
         <h2>
           5. Verify service and MCP tool call
         </h2>
-        <pre><code>scripts/status-mcp-services.sh
+        <pre><code>./scripts/dev.sh status
 curl --fail --silent --show-error http://127.0.0.1:8787/health
-set -a
-source ./.env
-set +a
+source ./scripts/config.sh
+jelly_load_env
 curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
   -H "Authorization: Bearer $JELLY_MCP_TOKEN" \
   -H 'Content-Type: application/json' \

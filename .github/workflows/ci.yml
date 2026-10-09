@@ -43,20 +43,16 @@ jobs:
             ${{ runner.os }}-cargo-
       - name: Toolchain
         run: rustc --version && cargo --version
-      - name: Format
-        run: cargo fmt --all -- --check
-      - name: Rust maintenance checks (no Python or Node.js)
-        run: |
-          cargo run --quiet --locked --bin jelly-maint -- check security
-          cargo run --quiet --locked --bin jelly-maint -- check architecture
-          cargo run --quiet --locked --bin jelly-maint -- check agent-guidance --self-test
+      - name: Unified developer checks
+        run: ./scripts/dev.sh check
       - name: Compile Rust-only fixture and integration tools
         run: cargo check --quiet --locked --bin jelly-fcis-probe --bin jelly-fixture-server
       - name: Tool index
         run: scripts/check-tool-index.sh
-      - name: Test
+      - name: Offline Rust tests
         run: |
-          cargo test --lib \
+          ./scripts/dev.sh test
+          cargo test --locked \
             --bin jelly-maint \
             --bin agent-call-routine \
             --bin agent-profile-import \

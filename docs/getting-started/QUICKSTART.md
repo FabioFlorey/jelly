@@ -22,8 +22,8 @@ If you already have a checkout, enter that directory instead of cloning it.
 ## 2. Check dependencies and preview setup
 
 ```bash
-./quickstart.sh --check
-./quickstart.sh --dry-run
+./scripts/dev.sh doctor
+./scripts/dev.sh setup --dry-run
 ```
 
 The first command reports missing core dependencies, if any. The dry run asks the normal setup questions and prints a redacted summary without writing `.env`, building binaries, or changing services. Resolve any missing dependencies before continuing.
@@ -40,7 +40,7 @@ For profile rules and security implications, see [Configuration](./CONFIGURATION
 ## 4. Install and start Jelly
 
 ```bash
-./quickstart.sh
+./scripts/dev.sh setup
 ```
 
 Follow the prompts for hosting, OAuth consent and local secrets. The wizard can install/start user services, rebuilding release binaries as required. Choose service installation/startup to complete this tutorial.
@@ -50,7 +50,7 @@ The wizard writes `.env` locally; do not commit it or paste its secret values in
 ## 5. Verify the service
 
 ```bash
-scripts/status-mcp-services.sh
+./scripts/dev.sh status
 curl --fail --silent --show-error http://127.0.0.1:8787/health
 curl --fail --silent --show-error http://127.0.0.1:8787/ready
 ```
@@ -62,6 +62,7 @@ To verify the authenticated MCP tool list, load the local secret in a shell (wit
 ```bash
 # Load environment values without evaluating the .env file as shell code.
 source ./scripts/config.sh
+jelly_load_env
 curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
   -H "Authorization: Bearer $JELLY_MCP_TOKEN" \
   -H 'Content-Type: application/json' \
