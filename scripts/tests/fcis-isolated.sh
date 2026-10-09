@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Disposable, Rust-driven integration. Never operates on installed Jelly services.
+# Isolated MCP/CDP integration tests.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 for required in cargo rustc chromium tar mktemp sed; do

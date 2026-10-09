@@ -15,25 +15,22 @@
 
 ## Unified developer CLI
 
-`./scripts/dev.sh --help` documents the single supported public command interface.
-`./scripts/dev.sh doctor` is a read-only, build-free prerequisite audit; `setup`
-replaces the former quickstart wizard and preserves hosting, OAuth, secret
-backups, Telegram HITL, dry-run, and optional service installation.
-`status` inspects installed services, and `start`/`stop` explicitly control them.
-`build`, `format`, `lint`, `check`, `test` and `ci` reuse Cargo and Rust
-maintenance tools. `test --isolated` runs the disposable MCP/Chromium suite;
-`test --suite` **explicitly targets the installed Jelly service** and should
-only run in a dedicated testing environment. `clean` previews its destructive
-scope by default and requires `--yes` before invoking the existing
-service-stop/runtime-removal implementation. No Python, Node.js or new shell
-framework dependencies are required.
+Run `./scripts/dev.sh --help` for the command reference. The CLI provides
+setup, service management, builds, formatting, checks, and tests.
 
-Branding is configured in trusted `config/dev.config.sh` and the canonical
-`config/brand/full-logo.txt` asset. `scripts/lib/runtime.sh` and `ui.sh` expose
-shared Bash helpers without compiling software, loading `.env` or modifying
-services. `scripts/lib/config.sh` is also inert when sourced; commands that require
-private deployment values must explicitly invoke `jelly_load_env`, which uses
-the safe Rust data-only parser and preserves exported overrides.
+`doctor` checks prerequisites without building binaries. `setup` configures
+hosting, OAuth and integrations, and can install user services. `status` reports
+service health; `start` and `stop` control the installed services.
+
+`test --isolated` uses disposable Chromium and MCP processes. **`test --suite`
+operates on the installed browser and services**; run it only in a dedicated
+test environment. `clean` shows the directories it would delete and requires
+`--yes` to execute.
+
+The CLI palette is configured in `config/dev.config.sh`, with artwork in
+`config/brand/full-logo.txt`. Shared Bash functions live in `scripts/lib/`.
+Source `scripts/lib/config.sh` to access configuration helpers; call
+`jelly_load_env` explicitly to load `.env` values through the Rust parser.
 
 ## Tests
 
@@ -66,14 +63,11 @@ Inspect the executable catalog and activation state:
 
 Tests/groups can be persistently disabled through `tests/suite/config/disabled-tests.txt` and `disabled-groups.txt`; `--include-disabled` overrides those files for an explicit diagnostic run. Batch definitions live in `tests/suite/config/batches.tsv`. See `tests/INDEX.md` for the group/batch map and `tests/suite/README.md` for the harness rationale, metadata contract, result schema, and selection rules.
 
-The historical four-line `scripts/check-*.sh` forwarders have been removed. Use `./scripts/dev.sh test --suite --group NAME`, `--batch NAME`, or `--test ID` to select the same stable-ID tests. Unlike `test --isolated`, `test --suite` may interact with installed Jelly services.
-
 Deterministic browser fixtures live in `tests/fixtures/` for delayed images, DOM rerenders, visibility, cookie/origin storage, download lifecycle/cancellation, performance, semantic targeting, highlighting, and Shadow DOM behavior. Network-dependent React/Selenium/Porsche cases are kept in the `network` batch because external deployments can change independently of Jelly and should not be treated as deterministic local regressions.
 
 ### Isolated Functional Core / Imperative Shell integration
 
-The FC/IS migration can be exercised without using Jelly's installed systemd
-browser service or touching `/data/jelly-runtime`:
+Run the MCP/Chromium integration tests in a separate sandbox:
 
 ```bash
 ./scripts/dev.sh test --isolated
@@ -81,8 +75,7 @@ browser service or touching `/data/jelly-runtime`:
 JELLY_FCIS_KEEP_SANDBOX=true ./scripts/dev.sh test --isolated
 ```
 
-The wrapper builds the **current working tree** (including untracked `src/core/`
-and `src/shell/`) inside a freshly created `/data/jelly-fcis-isolated-*`
+The test harness builds the working tree in a new `/data/jelly-fcis-isolated-*`
 directory. It omits `.env`, rewrites **only the copied** `config/jelly.toml`
 and Cargo target directory, and compiles separate test binaries. The Rust
 harness `src/bin/jelly-fcis-probe.rs` refuses to run if its config,
@@ -103,14 +96,14 @@ HTTP, plus cache invalidation and reconnect to a replacement Chromium without
 restarting MCP. The on-disk Rust download test is marked `#[ignore]` and
 **refuses I/O** unless its compiled runtime root matches the explicit
 `JELLY_FCIS_ISOLATION_ROOT` sandbox opt-in. The wrapper additionally runs the
-Rust/Chromium ranking fixture tests without Node.js.
+Chromium ranking fixture tests.
 
 These checks do **not** substitute for a real browser-originated CDP download
 notification sequence, genuine third-party HITL delivery, OAuth persistence
 fault injection, or a full deterministic Jelly suite against a separately
 installed service. The canonical suite's browser helpers call the installed
 `jelly-browser.service`, so do not run those helpers directly on a shared
-active Jelly installation merely to validate this migration.
+active Jelly installation.
 
 ### Jelly web UI smoke test
 
@@ -138,26 +131,24 @@ The MCP `initialize` response includes [`.agent/instructions/mcp.md`](../../.age
 
 The [agent evaluation guide](./AGENT_EVALUATION.md) describes the offline routing/slot-filling scenarios and the separate browser-execution evidence needed for a valid overall success rate. Run `cargo run --locked --bin jelly-maint -- check agent-guidance --self-test` as a deterministic harness check; it does not call an LLM or measure real agent success.
 
-## Script organization and service compatibility
+## Script organization
 
-`./scripts/dev.sh` is the single documented CLI. `scripts/commands/` contains
-installation and service operations; `scripts/lib/` contains sourced Bash
-configuration and UI helpers; `scripts/tests/` contains real isolated harnesses;
-`scripts/diagnostics/` contains opt-in live-browser benchmarks; and
-`scripts/maintenance/` contains the Rust support modules. The three top-level
-`run-*.sh` scripts are intentional **systemd entrypoints**: installed unit files
-reference `scripts/run-mcp-hosting.sh` and `scripts/run-cloudflare-tunnel.sh`,
-so their paths must not be changed without a managed unit migration. The
-`run-nip-io.sh` helper is invoked by the hosting launcher.
+`scripts/commands/` contains service operations and setup; `scripts/lib/`
+contains shared configuration and UI functions; `scripts/tests/` contains
+integration harnesses; `scripts/diagnostics/` contains browser benchmarks;
+and `scripts/maintenance/` contains Rust tooling modules.
 
-There are no separate Bash scripts for each semantic test group. The stable
-IDs/groups and their runner live under `tests/suite/`. CLI changes require
-`./scripts/dev.sh check`, which includes shell dispatch/security tests. Do
-not create an additional wrapper for a command already exposed in `dev.sh`.
+The top-level `run-mcp-hosting.sh` and `run-cloudflare-tunnel.sh` are referenced
+by installed systemd units. Preserve these paths unless the unit files are
+updated as part of the same deployment. The hosting launcher also calls
+`run-nip-io.sh`.
+
+Test groups and stable IDs are defined under `tests/suite/`. Run
+`./scripts/dev.sh check` after changing the CLI or its Bash libraries.
 
 ## Shell maintenance conventions
 
-Jelly's shell entry points use Bash with `set -euo pipefail`; shared test functions are sourced by the strict suite runner. Keep paths and command arguments quoted, avoid executing `.env` as Bash, validate deletion targets **before** stopping services, and only terminate processes owned by the current invocation. Preserve active browser profiles and only remove router mappings created by the current launcher. Prefer temporary files and atomic replacement for persistent configuration or service files. Do not reintroduce forwarding `check-*.sh` scripts: the CLI dispatches directly into the canonical test suite.
+Jelly's shell entry points use Bash with `set -euo pipefail`; shared test functions are sourced by the strict suite runner. Keep paths and command arguments quoted, avoid executing `.env` as Bash, validate deletion targets **before** stopping services, and only terminate processes owned by the current invocation. Preserve active browser profiles and only remove router mappings created by the current launcher. Prefer temporary files and atomic replacement for persistent configuration or service files.
 
 After shell changes, run the offline safety checks and Bash parser across all tracked scripts:
 
@@ -166,7 +157,7 @@ cargo run --locked --bin jelly-maint -- check security
 git ls-files '*.sh' | while IFS= read -r script; do bash -n "$script" || exit 1; done
 ```
 
-The executable `QLT-019` test covers the data-only environment parser and deletion guards. ShellCheck and shfmt may be used separately when installed; they are not required by the Pages deployment.
+The `QLT-019` test covers environment parsing and cleanup path validation.
 
 ## Project website and GitHub Pages
 
@@ -205,7 +196,7 @@ CI performs the same freshness check. The [documentation validation](#documentat
 Browser performance changes are independently reversible while they are being evaluated:
 
 - `[diagnostics].perf_log = true` writes opt-in CDP/connect timing events to the runtime log directory.
-- `[mcp].surface = "large-surface"` selects the expanded MCP browser surface with individual browser primitives. The checked-in configuration selects `small-surface`; the required selector cannot be omitted from the TOML file. This mode replaces individual browser primitives with `browser-schema`, `browser-call`, and `browser-events` while retaining the exact same ordered system-tool set and bindings. System-tool aggregation/exposure changes are intentionally a separate migration.
+- `[mcp].surface = "large-surface"` selects the expanded MCP browser surface with individual browser primitives. The checked-in configuration selects `small-surface`; the required selector cannot be omitted from the TOML file. This mode replaces individual browser primitives with `browser-schema`, `browser-call`, and `browser-events` while retaining the exact same ordered system-tool set and bindings. System tools are exposed in both surface modes.
 - `[mcp].persistent_session = false` restores one CDP connection/attach per MCP browser primitive/builtin.
 - `[page].runtime = false` restores the legacy `snapshot-interactive` DOM scan and DOM-backed `data-jelly-ref` references.
 - `[page].snapshot_limit = <n>` bounds interactive snapshots by default in both runtime and legacy rollback paths. `0` keeps the compatibility behavior of returning all visible interactive elements.
@@ -231,17 +222,16 @@ Use the deterministic suite plus the focused runtime profiler when investigating
 ./scripts/dev.sh test --suite --batch deterministic
 ```
 
-Browser profiling and surface benchmarking require explicit `--live` because they attach to the installed browser; they are not run by `dev.sh check` or offline CI. To target one historical subsystem, use `./scripts/dev.sh test --suite --group runtime`, `--group refs`, or any group listed by `--list`.
+Browser profiling and surface benchmarking attach to the installed browser
+and require `--live`. To run a specific test group, use
+`./scripts/dev.sh test --suite --group NAME`; list groups with `--list`.
 
 Performance conclusions should come from a purpose-built measurement for the change under review rather than a permanently maintained aggregate benchmark script.
 
-For the isolated DOM-ranking policy seam (`src/core/ranking.js`), run
-`cargo run --locked --bin jelly-maint -- test ranking`. The Rust harness uses
-Chromium itself to evaluate the JavaScript policies and compare the current
-runtime with the frozen pre-migration version 19 on semantic, Shadow DOM, and
-large fixtures. It uses disposable browser profiles, no Jelly service, and
-requires no Node.js. Timing benchmarks should be performed separately with
-controlled loads; this harness tests correctness, not production latency.
+Run `./scripts/dev.sh test --ranking` to check `src/core/ranking.js` in
+Chromium against the version 19 reference fixture. The test covers semantic
+ranking, Shadow DOM and large pages in disposable browser profiles.
+Use controlled benchmarks to measure performance; these tests check correctness.
 
 ### Interactive target resolution
 

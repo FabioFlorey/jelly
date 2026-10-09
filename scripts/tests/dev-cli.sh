@@ -15,6 +15,7 @@ if "$CLI" nonexistent > "$TMP/stdout" 2> "$TMP/stderr"; then fail 'unknown comma
 grep -Fq 'unknown command' "$TMP/stderr" || fail 'unknown command error missing'
 if "$CLI" test --invalid > "$TMP/stdout" 2> "$TMP/stderr"; then fail 'invalid test selection succeeded'; fi
 if "$CLI" setup --nonsense > "$TMP/stdout" 2> "$TMP/stderr"; then fail 'invalid setup option succeeded'; fi
+if "$CLI" setup --check > "$TMP/stdout" 2> "$TMP/stderr"; then fail 'unsupported setup option succeeded'; fi
 if "$CLI" clean --nonsense > "$TMP/stdout" 2> "$TMP/stderr"; then fail 'invalid cleanup option succeeded'; fi
 if "$CLI" benchmark surface > "$TMP/stdout" 2> "$TMP/stderr"; then fail 'live benchmark ran without explicit --live'; fi
 if "$CLI" benchmark unknown --live > "$TMP/stdout" 2> "$TMP/stderr"; then fail 'unknown benchmark succeeded'; fi

@@ -1,4 +1,4 @@
-//! Offline Markdown/documentation checks without external runtimes or network calls.
+//! Offline Markdown and documentation validation.
 use super::Result;
 use std::{
     collections::{HashMap, HashSet},

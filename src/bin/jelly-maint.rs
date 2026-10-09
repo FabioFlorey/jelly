@@ -1,4 +1,4 @@
-//! Consolidated Rust-only maintenance tooling. No Python or Node.js dependency.
+//! Configuration and repository maintenance commands.
 #[path = "../../scripts/maintenance/architecture.rs"]
 mod architecture;
 #[path = "../../scripts/maintenance/docs.rs"]

@@ -1,4 +1,4 @@
-//! Real Chromium execution, without Node.js or a JavaScript host outside the browser.
+//! Browser-side ranking regression tests.
 use super::Result;
 use serde_json::json;
 use std::{

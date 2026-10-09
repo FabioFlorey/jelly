@@ -65,7 +65,7 @@ banner() {
   printf '\n'
 }
 
-# Setup-specific vocabulary delegates formatting to the shared UI helpers.
+# Setup prompts and formatting.
 prompt_label() { printf '%b%s%b  %s' "$C_HONEY$C_BOLD" "$I_INFO" "$C_RESET" "$1"; }
 section() { printf '%b%s  %s%b\n' "$C_HONEY$C_BOLD" "$1" "$2" "$C_RESET"; }
 note() { printf '%b%s  %s%b\n' "$C_HONEY" "$I_INFO" "$1" "$C_RESET"; }

@@ -1,5 +1,4 @@
 //! Loopback-only HTTP fixture server for browser-state tests.
-//! Replacement for tests/fixtures/browser-state-server.py.
 use std::{
     fs,
     io::{Read, Write},

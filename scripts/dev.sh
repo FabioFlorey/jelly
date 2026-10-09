@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Jelly's single documented CLI: setup, operations, and developer workflows.
 set -Eeuo pipefail
 DEV_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/runtime.sh
@@ -12,31 +11,28 @@ Jelly CLI
 Usage: ./scripts/dev.sh <command> [arguments]
 
 Installation and operations:
-  setup [--dry-run]   Complete interactive setup, including hosting, OAuth and optional installation
-  doctor              Read-only prerequisite audit; never builds or reads .env
-  status              Read-only service and MCP status
-  install             Build/install/update Jelly user services (explicitly state-changing)
-  start               Start installed Jelly browser and MCP services
-  stop                Stop installed Jelly MCP and browser services
-  logs [--follow]     Show recent MCP journal entries or follow them
-  clean [--build] [--yes]  Preview destructive cleanup; execute only with --yes
-  uninstall [--yes]  Preview removal of Jelly MCP user services; execute with --yes
+  setup [--dry-run]           Configure Jelly and optionally install services
+  doctor                      Check system prerequisites
+  status                      Show Jelly service and MCP status
+  install                     Build and install Jelly services
+  start                       Start installed Jelly browser and MCP services
+  stop                        Stop installed Jelly MCP and browser services
+  logs [--follow]             Show recent MCP journal entries or follow them
+  clean [--build] [--yes]     Preview or remove runtime and build data
+  uninstall [--yes]          Preview or uninstall Jelly MCP services
 
 Development:
-  check               Format, lint, docs, security, architecture and guidance checks
-  format [--check]    Format Rust code, or only verify formatting
-  lint                Run Rust Clippy with warnings denied
+  check                       Run project checks
+  format [--check]            Format Rust code or check formatting
+  lint                        Run Clippy
   test [--isolated|--ranking|--web-ui|--suite [ARGS...]]
-                     Default: offline Rust tests; --isolated uses disposable Chromium/MCP
-                     --suite explicitly targets the installed browser/service (use with care)
-  build [--release]   Compile Jelly binaries
-  tools [--check|--generate]  Verify or regenerate the internal tool index
-  benchmark <surface|browser> --live  Run diagnostics against the installed browser
-  ci                  Run local static checks and offline Rust tests
-  help                Show this message
-
-Compatibility: setup --check acts like doctor; setup --dry-run never installs or writes secrets.
-No Python, Node.js, Gum, Bats, ShellCheck, or shfmt required for normal use.
+                     Run Rust, browser, or integration tests
+                     --suite uses the installed browser and services
+  build [--release]           Compile Jelly binaries
+  tools [--check|--generate]  Verify or regenerate the tool index
+  benchmark <surface|browser> --live  Profile the installed browser
+  ci                          Run checks and Rust tests
+  help                        Show command help
 USAGE
 }
 
@@ -44,13 +40,7 @@ cmd="${1:-help}"
 if (($#)); then shift; fi
 case "$cmd" in
   help|-h|--help) (($# == 0)) || { dev::error 'help takes no arguments'; exit 2; }; usage ;;
-  setup)
-    if [[ "${1:-}" == --check && $# == 1 ]]; then
-      dev::doctor
-    else
-      exec "$DEV_ROOT/scripts/commands/setup.sh" "$@"
-    fi
-    ;;
+  setup) exec "$DEV_ROOT/scripts/commands/setup.sh" "$@" ;;
   doctor)
     (($# == 0)) || { dev::error 'doctor takes no arguments'; exit 2; }
     dev::doctor ;;

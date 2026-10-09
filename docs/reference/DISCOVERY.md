@@ -64,7 +64,7 @@ Then execute the discovered semantic operation through `browser-call`.
 
 In **large-surface** mode, individual browser primitives are published directly. Their schemas come from `tools/list`.
 
-System tools remain top-level in both rollout surfaces during the current browser API migration.
+System tools are exposed at the top level in both MCP surface modes.
 
 ## Layer boundary
 
