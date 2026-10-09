@@ -130,13 +130,41 @@ src/
 
 ## Functional core and imperative shell
 
-The `src/core/` boundary holds side-effect-free decisions and data: session cache policy, download-state transitions, download materialization/collision plans, finalization/wait decisions, routine parsing, template/guard evaluation, graph validation, node planning, tool-outcome planning, logical-target label/notification decisions, OAuth authorization-code/refresh-grant validation and replay-revocation policy, and the pure browser-side semantic ranking rules in `core/ranking.js`. Core functions receive observed inputs explicitly (such as timestamps, filesystem-derived paths, or an observed tool result), rather than opening browsers, reading files, taking locks, or accessing global runtime configuration.
+The dependency direction is **shell → core**. Core functions receive observed values
+as arguments and make decisions without opening browsers, reading files, or
+accessing global runtime configuration.
 
-The `src/shell/` boundary owns the corresponding effects: CDP session caching and target synchronization in `shell/session.rs`; download tracking, persistent records, filesystem-based source selection, `fail`/`overwrite`/`uniquify` copies, artifact registration, browser process probes, and the polling clock in `shell/downloads.rs`; routine subprocess/browser execution, HITL, clock-based budgets, suspension, persistence and cleanup in `shell/routines.rs`; logical-target reconciliation, CDP session bindings, snapshot file locking and atomic persistence in `shell/targets.rs`. The routine's public entrypoint remains `jelly::routine::run_from_env` via the compatibility module `src/routine.rs`. The dependency direction is **shell → core**, never the reverse. `browser/mod.rs` continues to re-export `LogicalTarget` and the crate-internal `TargetRegistry` from the shell adapter, preserving the browser-facing interface. The public `jelly::DownloadRecord` and download API are re-exported unchanged from the library root. The MCP dispatcher calls the session adapter and translates its errors into MCP tool failures. Download file operations can be exercised with explicit temporary directories without opening the managed Jelly download root; artifact finalization requires a persistent store.
+| Area | Core decision (`src/core/`) | Effectful adapter (`src/shell/`) |
+| --- | --- | --- |
+| Browser sessions and targets | Cache and logical-target policy | `session.rs` maintains CDP sessions; `targets.rs` reconciles targets and persists labels. |
+| Downloads and artifacts | Lifecycle transitions, collision plans, finalization decisions | `downloads.rs` observes browser events, manages files, and registers artifacts. |
+| Routines | Graph validation, guards, node and tool-outcome planning | `routines.rs` runs subprocesses, manages browser calls, human approval, clocks and persistence. |
+| OAuth | Authorization-code, PKCE and refresh/replay policy | `mcp_auth/oauth.rs` and `storage.rs` manage tokens, locks and durable grants. |
+| Page-side ranking | `core/ranking.js` compares normalized candidates | `browser/runtime.rs` observes the DOM and injects the ranking code. |
 
-OAuth remains a security-sensitive adapter in `mcp_auth/oauth.rs` and `mcp_auth/storage.rs` rather than moving HTTP handlers or persistence between directories. The adapter consumes one-time authorization codes, reads the clock, generates random tokens, holds the store lock while pruning/rotating/revoking refresh grants, and persists the store. It calls side-effect-free grant/PKCE policy in `core/oauth.rs` using observed facts. Security regression tests include in-memory policy checks and isolated HTTP token exchange with durable-store reload. Persist-failure fault injection remains untested.
+Some public APIs remain exported from their established modules:
+`jelly::routine::run_from_env` through `src/routine.rs`, `LogicalTarget` and
+`TargetRegistry` through `browser/mod.rs`, and `jelly::DownloadRecord` through
+the library root. The MCP dispatcher uses the session adapter and translates
+errors into MCP tool failures. Download file operations can use explicit temporary
+directories; artifact finalization requires the persistent store.
 
-**In-page semantic ranking** is an intentional cross-language core boundary: `src/core/ranking.js` only compares normalized text and already-observed candidate fields (`match`, `disabled`, `offscreen`, document order). `src/browser/runtime.rs` injects that same source into both the optimized `search`/`resolveText` and the rollback `legacy_search_expression`; the page runtime still owns DOM and open-Shadow-DOM traversal, accessibility-name observation, layout visibility, mutation invalidation, refs and the sorted result's serialization. The runtime version is **20**, so a page with version 19 will reinstall the updated ranking code. These operations remain entirely **inside one page-side script evaluation**, with no per-candidate CDP roundtrip. The version 19 runtime fixture is stored in `tests/fixtures/page-runtime-v19.js` for browser comparisons. Run `./scripts/dev.sh test --ranking` to exercise these policies in disposable Chromium profiles. Single-machine microbenchmarks are only diagnostics and do not establish production latency equivalence.
+OAuth handlers remain in `mcp_auth/`: the adapter reads the clock, generates
+tokens, locks and persists the store, and applies the grant/PKCE rules from
+`core/oauth.rs`. Tests cover policy decisions, HTTP token exchange and durable
+store reload. Persistence fault injection is not covered.
+
+**In-page semantic ranking** compares candidate match quality, disabled state,
+viewport visibility, and document order in `src/core/ranking.js`. Both
+`search`/`resolveText` and the rollback `legacy_search_expression` use this
+ranking logic. DOM and open-Shadow-DOM traversal, accessibility names,
+mutation invalidation, and element references remain in `src/browser/runtime.rs`.
+
+The page runtime is version **20** and reinstalls itself when an older version
+is detected. Comparison fixtures for version 19 live in
+`tests/fixtures/page-runtime-v19.js`. Run `./scripts/dev.sh test --ranking`
+to check behavior in disposable Chromium profiles. These tests do not establish
+production latency equivalence.
 
 The functional core/shell separation is not exhaustive. `browser/`, `primitives/`, `mcp/`, `mcp_auth/`, and parts of `shell/routines.rs` and `shell/targets.rs` contain decisions alongside effects. Routine text interpolation and graph validation retain their existing semantics.
 

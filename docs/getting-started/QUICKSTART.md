@@ -8,7 +8,7 @@
 
 Install the software listed in [Requirements](./REQUIREMENTS.md): Git, Rust/Cargo, Chromium, Bash, common shell utilities, and a working `systemd --user` manager. For remote ChatGPT access through a temporary HTTPS tunnel, also install `cloudflared`. Jelly currently expects Chromium at `/usr/bin/chromium`.
 
-The commands below run from the repository root. They assume the default MCP loopback address `127.0.0.1:8787`; use your configured `JELLY_MCP_ADDR` if different.
+Run commands from the repository root. Endpoint examples use the default MCP listener at `127.0.0.1:8787`; substitute your configured address if different.
 
 ## 1. Get the source
 
@@ -26,7 +26,7 @@ If you already have a checkout, enter that directory instead of cloning it.
 ./scripts/dev.sh setup --dry-run
 ```
 
-The first command reports missing core dependencies, if any. The dry run asks the normal setup questions and prints a redacted summary without writing `.env`, building binaries, or changing services. Resolve any missing dependencies before continuing.
+`doctor` reports missing prerequisites. `setup --dry-run` asks configuration questions and prints a redacted summary. It does not write `.env`, compile binaries, or modify services. With an existing `.env`, the dry run loads saved settings only if a maintenance binary has already been built; otherwise it starts with defaults and asks you to supply values.
 
 ## 3. Choose the hosting mode
 
@@ -73,15 +73,14 @@ Expect a JSON-RPC result containing a `tools` array. The current small MCP surfa
 
 ## 6. Perform a browser operation
 
-From the repository root:
+**The following commands use Jelly’s shared browser.** Opening a URL changes its active page and may affect other clients using the same browser. Run them on a dedicated Jelly installation or when no other workflow is active.
 
 ```bash
 cargo run --quiet --bin agent-run -- open-browser https://example.com
 cargo run --quiet --bin agent-run -- read-page
-cargo run --quiet --bin agent-run -- close-browser
 ```
 
-The first command starts/attaches Chromium; the second returns page content; the last closes the browser. If a command fails, inspect the reported error before retrying a state-changing action.
+The first command opens or attaches the browser at the example page; the second reads its content. `close-browser` stops the shared browser, so do not use it as routine cleanup while other clients may be connected. For tests that do not use the installed browser, run `./scripts/dev.sh test --isolated`.
 
 ## Troubleshooting
 
@@ -91,6 +90,6 @@ The first command starts/attaches Chromium; the second returns page content; the
 - **Browser commands fail:** Verify Chromium exists at `/usr/bin/chromium` and the user service manager works. A healthy MCP server does not mean the browser is running.
 - **Quick Tunnel URL changes:** Reconnect the ChatGPT MCP client; an authorization bound to the old public origin cannot be reused.
 
-For detailed transport, OAuth and operational behavior, see [MCP Server](../reference/MCP.md). For destructive cleanup consequences, read [Runtime Layout](../reference/RUNTIME.md#destructive-cleanup) before executing cleanup scripts.
+For connection and OAuth details, see [MCP Server](../reference/MCP.md). Review [Runtime Layout](../reference/RUNTIME.md#destructive-cleanup) before removing runtime data.
 
 <div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

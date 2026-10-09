@@ -90,14 +90,15 @@ curl --fail --silent --show-error http://127.0.0.1:8787/health
 
 Expect JSON with `"status":"ok"` from `/health`.
 
-You can also use the local Rust CLI directly:
+To try browser operations on a dedicated Jelly installation:
 
 ```bash
 cargo run --quiet --bin agent-run -- open-browser https://example.com
 cargo run --quiet --bin agent-run -- read-page
 cargo run --quiet --bin agent-run -- snapshot-interactive
-cargo run --quiet --bin agent-run -- close-browser
 ```
+
+These commands use the shared browser session. Opening a URL can change the page seen by other clients; `close-browser` stops that shared browser. For disposable tests, use `./scripts/dev.sh test --isolated`.
 
 See the [step-by-step setup guide](./docs/getting-started/QUICKSTART.md) for client credentials, browser verification, and troubleshooting.
 

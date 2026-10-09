@@ -158,12 +158,11 @@ curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
         <p>
           <strong>Expected result:</strong> A JSON-RPC result containing <code>structuredContent.ok: true</code> and
           per-call data if Chromium opened and the page was read. The exact page text and JSON payload depend on Chromium
-          and the network. Do not treat this as an end-to-end test result from a clean environment; the request and
-          argument shapes are derived from the current Rust schemas.
+          and the network. Results vary with page state and network conditions; inspect the actual response and use
+          <code>browser-schema</code> to verify operation arguments.
         </p>
         <p>
-          Close the browser when finished by calling <code>close-browser</code> with empty arguments. A failed browser
-          launch returns a structured error (such as <code>browser_unavailable</code>).
+          The browser session is shared. Only call <code>close-browser</code> when you intend to stop it for every connected client. A failed browser launch returns a structured error (such as <code>browser_unavailable</code>).
         </p>
       </section>
       <section id="video">

@@ -34,13 +34,14 @@ Source `scripts/lib/config.sh` to access configuration helpers; call
 
 ## Tests
 
-The test-system entry point is [`tests/INDEX.md`](../../tests/INDEX.md). The canonical behavioral suite lives in `tests/suite/`. Every test has a stable ID plus name, description, preconditions, input, expected output, and execution status. Every run receives a unique run ID and writes an auditable report under `/data/jelly-runtime/test-runs/<RUN_ID>/`.
+The test catalog is documented in [`tests/INDEX.md`](../../tests/INDEX.md), with implementations in `tests/suite/`. Each executed test records its results under the configured runtime root (`test-runs/<RUN_ID>/`).
 
-Run the deterministic suite:
+**The commands below operate on the installed Jelly browser and services.** Use a dedicated test installation; these tests may navigate pages, change browser state, or stop the managed browser. To test with disposable processes instead, use `./scripts/dev.sh test --isolated`.
+
+Run the configured default batch:
 
 ```bash
 ./scripts/dev.sh test --suite
-# equivalent:
 ./scripts/dev.sh test --suite --batch deterministic
 ```
 
@@ -95,8 +96,7 @@ OAuth code grants, refresh rotation/replay and persisted OAuth reload via
 HTTP, plus cache invalidation and reconnect to a replacement Chromium without
 restarting MCP. The on-disk Rust download test is marked `#[ignore]` and
 **refuses I/O** unless its compiled runtime root matches the explicit
-`JELLY_FCIS_ISOLATION_ROOT` sandbox opt-in. The wrapper additionally runs the
-Chromium ranking fixture tests.
+`JELLY_FCIS_ISOLATION_ROOT` sandbox opt-in. The harness also runs Chromium ranking fixture tests.
 
 These checks do **not** substitute for a real browser-originated CDP download
 notification sequence, genuine third-party HITL delivery, OAuth persistence
@@ -148,7 +148,7 @@ Test groups and stable IDs are defined under `tests/suite/`. Run
 
 ## Shell maintenance conventions
 
-Jelly's shell entry points use Bash with `set -euo pipefail`; shared test functions are sourced by the strict suite runner. Keep paths and command arguments quoted, avoid executing `.env` as Bash, validate deletion targets **before** stopping services, and only terminate processes owned by the current invocation. Preserve active browser profiles and only remove router mappings created by the current launcher. Prefer temporary files and atomic replacement for persistent configuration or service files.
+Jelly’s Bash entry points use `set -euo pipefail`, and the test runner sources shared functions. Keep paths and command arguments quoted, avoid executing `.env` as Bash, validate deletion targets **before** stopping services, and only terminate processes owned by the current invocation. Preserve active browser profiles and only remove router mappings created by the current launcher. Prefer temporary files and atomic replacement for persistent configuration or service files.
 
 After shell changes, run the offline safety checks and Bash parser across all tracked scripts:
 
@@ -235,13 +235,15 @@ Use controlled benchmarks to measure performance; these tests check correctness.
 
 ### Interactive target resolution
 
-When the page runtime is enabled, interactive elements receive document-scoped in-memory refs and pragmatic semantic names derived from element text plus relevant labeling attributes. A ref remains stable while the same connected DOM element survives rebuilds; replacement nodes receive new refs, and navigation or runtime reinstall creates a fresh ref namespace. Tokenized runtime refs resolve only through the in-memory runtime and never fall through to legacy `data-jelly-ref` attributes. Legacy numeric refs remain available only in rollback mode.
+See [Reliability](../guides/RELIABILITY.md#evidence-and-transitions) for element
+reference lifetimes, logical targets and stale-target recovery. The
+[architecture reference](../architecture/ARCHITECTURE.md#functional-core-and-imperative-shell)
+explains where the DOM ranking and browser session responsibilities live.
 
-Semantic naming includes associated labels, a conservative immediate-sibling label heuristic for otherwise unlabeled form controls, live value-derived names, and text projected through `<slot>` elements in open Shadow DOM. `find-interactive` and exact interactive text targeting use deterministic priorities: semantic match quality, enabled before disabled, in-viewport before offscreen, then document order. If no interactive target matches, Jelly retains a generic non-interactive text fallback for compatibility. That fallback normalizes whitespace and uses a cheap text prefilter before the slower exact visibility/layout pass.
-
-The runtime traverses normal DOM plus open Shadow DOM roots, including open roots attached after runtime installation. Nested slotted controls are resolved through their actual inner interactive element, while closed shadow roots remain opaque to normal Jelly DOM traversal. `[page].runtime = false` disposes the page runtime when the legacy snapshot/search path is used and restores DOM-backed refs. Re-enabling the runtime removes legacy refs and creates a fresh runtime namespace.
-
-Limit/offset pagination is positional rather than snapshot-isolated. If structural mutations occur between page requests, offsets can shift; restart at offset 0 after such changes. Stable pagination across mutations would require a future cursor/snapshot token. Invalid or negative limits/offsets are rejected rather than silently expanding the result set.
+`find-interactive` orders matches by semantic quality, enabled state, viewport
+visibility and document order. Pagination uses offsets, not immutable snapshots;
+a DOM mutation between pages can shift results. Restart at offset zero after
+material changes. Open Shadow DOM is traversed, while closed roots are opaque.
 
 ## Runtime cleanup
 

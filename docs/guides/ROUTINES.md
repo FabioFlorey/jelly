@@ -45,13 +45,12 @@ JSON routines are guarded workflow graphs, not fixed pipelines. Nodes can loop, 
 }
 ```
 
-**Prerequisites:** Chromium is available and the browser is open on a page containing the target element. Save the JSON above as `.agent/routines/inspect-capture.json` (the filename is the routine name), then run from the repository root:
+**Prerequisites:** Chromium is available. Save the JSON above as `.agent/routines/inspect-capture.json` (the filename is the routine name). The following commands change the shared browser page, so use a dedicated Jelly installation or wait until other browser workflows have finished:
 
 ```bash
 cargo run --quiet --bin agent-run -- open-browser https://example.com
 cargo run --quiet --bin agent-run -- \
   call-routine inspect-capture target=css:body
-cargo run --quiet --bin agent-run -- close-browser
 ```
 
 **Expected result:** The routine checks the target, captures an artifact, and reaches the `success` terminal node. If inspection fails, its error path may retry scrolling up to the node visit limit before returning a failure. The graph is an example, not a substitute for verifying the required target on the actual page.

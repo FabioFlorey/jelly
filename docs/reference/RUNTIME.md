@@ -54,6 +54,22 @@ Imported Chromium session data is copied into `profiles/headed/`. Profile data a
 
 Cargo output lives separately under `config/cargo.toml` `build.target-dir` (currently `/data/.jelly-build`).
 
+## Service operations
+
+From the repository root:
+
+| Command | Effect |
+| --- | --- |
+| `./scripts/dev.sh status` | Inspect installed service and MCP status. |
+| `./scripts/dev.sh start` | Start the browser and MCP user services. |
+| `./scripts/dev.sh stop` | Stop the MCP and browser services; any shared browser session is interrupted. |
+| `./scripts/dev.sh logs` | Show recent MCP journal entries. |
+| `./scripts/dev.sh uninstall` | Preview removal of MCP/tunnel user service units. |
+| `./scripts/dev.sh uninstall --yes` | Stop, disable and remove MCP/tunnel unit files. Browser profiles and runtime data are not removed. |
+
+`install`, `start`, and `stop` affect the installed user services. Use them only
+when you intend to change the running Jelly environment.
+
 ## Destructive cleanup
 
 > [!WARNING]

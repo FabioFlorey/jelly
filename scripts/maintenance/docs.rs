@@ -68,7 +68,7 @@ fn anchors(text: &str) -> HashSet<String> {
 fn links(text: &str) -> Vec<String> {
     let mut result = vec![];
     // Extract Markdown destinations and HTML hrefs, preserving fragments.
-    for (prefix, end) in [("](", ")"), ("href=\"", "\"")] {
+    for (prefix, end) in [("](", ")"), ("href=\"", "\""), ("src=\"", "\"")] {
         let mut rest = text;
         while let Some(pos) = rest.find(prefix) {
             rest = &rest[pos + prefix.len()..];
@@ -128,6 +128,64 @@ fn snippets(source: &str) -> Vec<(String, String)> {
     }
     snippets
 }
+fn site_references(root: &Path, failed: &mut Vec<String>) -> Result<usize> {
+    let site = root.join("site");
+    let mut pages = HashMap::new();
+    for entry in fs::read_dir(&site)? {
+        let path = entry?.path();
+        if path.extension().is_some_and(|ext| ext == "html") {
+            pages.insert(path.clone(), fs::read_to_string(path)?);
+        }
+    }
+    let mut checked = 0;
+    for (page, html) in &pages {
+        for reference in links(html) {
+            if reference.contains("://")
+                || reference.starts_with("mailto:")
+                || reference.starts_with("tel:")
+                || reference.starts_with("data:")
+                || reference.starts_with("//")
+            {
+                continue;
+            }
+            let (relative, fragment) = reference.split_once('#').unwrap_or((&reference, ""));
+            let relative = relative.split('?').next().unwrap_or(relative);
+            let target = if let Some(relative) = relative.strip_prefix("/jelly/") {
+                site.join(relative)
+            } else if relative.starts_with('/') {
+                continue;
+            } else if relative.is_empty() {
+                page.clone()
+            } else {
+                page.parent().unwrap().join(relative)
+            };
+            let target = if target.is_dir() {
+                target.join("index.html")
+            } else {
+                target
+            };
+            checked += 1;
+            if !target.exists() {
+                failed.push(format!(
+                    "{}: missing website asset {reference}",
+                    page.display()
+                ));
+            } else if !fragment.is_empty()
+                && target.extension().is_some_and(|ext| ext == "html")
+                && pages
+                    .get(&target)
+                    .is_some_and(|target_html| !target_html.contains(&format!("id=\"{fragment}\"")))
+            {
+                failed.push(format!(
+                    "{}: missing website anchor {reference}",
+                    page.display()
+                ));
+            }
+        }
+    }
+    Ok(checked)
+}
+
 fn bash_syntax(source: &str) -> Result<bool> {
     let mut child = Command::new("bash")
         .args(["-n", "-c", source])
@@ -278,6 +336,7 @@ pub fn check(root: &Path) -> Result<()> {
             *examples.entry(lang).or_insert(0usize) += 1;
         }
     }
+    let website_references = site_references(root, &mut failed)?;
     for file in &files {
         if file != &index && !indexed.contains(file) {
             failed.push(format!("docs index doesn't list {}", file.display()))
@@ -304,7 +363,7 @@ pub fn check(root: &Path) -> Result<()> {
         failed.push("runtime cleanup documentation misses warnings".into())
     }
     println!(
-        "Checked {} documents and README.md, {local_links} local links, {} JSON, {} TOML, {} Mermaid blocks, and {} Bash syntax checks",
+        "Checked {} documents and README.md, {local_links} document links, {website_references} website references, {} JSON, {} TOML, {} Mermaid blocks, and {} Bash syntax checks",
         files.len(),
         examples.get("json").copied().unwrap_or(0),
         examples.get("toml").copied().unwrap_or(0),
@@ -316,4 +375,44 @@ pub fn check(root: &Path) -> Result<()> {
     }
     println!("PASS: Documentation structure, links, anchors and examples (Rust).");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn website_links_detect_missing_files_and_fragments() {
+        let root = std::env::temp_dir().join(format!("jelly-site-links-{}", std::process::id()));
+        let site = root.join("site");
+        fs::create_dir_all(&site).unwrap();
+        fs::write(
+            site.join("index.html"),
+            "<a href=\"./missing.html\">Missing</a><img src=\"./lost.png\">",
+        )
+        .unwrap();
+        let mut errors = vec![];
+        assert_eq!(site_references(&root, &mut errors).unwrap(), 2);
+        assert_eq!(errors.len(), 2);
+
+        fs::write(
+            site.join("index.html"),
+            "<a href=\"./manual.html#details\">Details</a>",
+        )
+        .unwrap();
+        fs::write(site.join("manual.html"), "<section id=\"other\"></section>").unwrap();
+        errors.clear();
+        site_references(&root, &mut errors).unwrap();
+        assert_eq!(errors.len(), 1);
+
+        fs::write(
+            site.join("manual.html"),
+            "<section id=\"details\"></section>",
+        )
+        .unwrap();
+        errors.clear();
+        site_references(&root, &mut errors).unwrap();
+        assert!(errors.is_empty());
+        fs::remove_dir_all(root).unwrap();
+    }
 }

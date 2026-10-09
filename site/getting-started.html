@@ -126,10 +126,9 @@ curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
           6. First browser operation and next steps
         </h2>
         <pre><code>cargo run --quiet --bin agent-run -- open-browser https://example.com
-cargo run --quiet --bin agent-run -- read-page
-cargo run --quiet --bin agent-run -- close-browser</code></pre>
+cargo run --quiet --bin agent-run -- read-page</code></pre>
         <p>
-          These are local CLI browser operations, distinct from the MCP request above. A healthy MCP server alone does not
+          These commands use the shared Jelly browser; opening a page can affect other clients. Do not run them while another browser workflow is active. The <code>close-browser</code> command stops the shared browser. A healthy MCP server alone does not
           imply an active browser. Next, read <a href="./examples.html">MCP request examples</a>, <a
           href="./tools.html">the tool catalog</a>, or <a href="./troubleshooting.html">failure diagnostics</a>. The <a
           href="https://github.com/FabioFlorey/jelly/blob/main/docs/getting-started/QUICKSTART.md">repository setup

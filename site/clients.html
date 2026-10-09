@@ -108,11 +108,12 @@
       <section id="cli">
         <h2>Rust CLI</h2>
 
-        <p>From the Jelly repository, open Chromium, inspect a page, and close the browser:</p>
+        <p>Run these commands on a dedicated Jelly browser or while other workflows are idle. Opening a URL changes the shared browser page:</p>
 
         <pre><code>cargo run --quiet --bin agent-run -- open-browser https://example.com
-cargo run --quiet --bin agent-run -- read-page
-cargo run --quiet --bin agent-run -- close-browser</code></pre>
+cargo run --quiet --bin agent-run -- read-page</code></pre>
+
+        <p><code>close-browser</code> stops the shared browser for all connected clients.</p>
 
         <p>Discover browser operations:</p>
 

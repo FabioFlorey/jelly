@@ -36,37 +36,25 @@ Service, operational, and OAuth endpoints are also exposed:
 
 `POST /admin/cleanup-inactive` is the destructive operational exception and requires a valid paired-owner session cookie, so it is actionable only when `JELLY_OAUTH_CONSENT_MODE=paired`. On Linux it revalidates candidate PIDs against the running Jelly MCP executable and sends `SIGTERM` only to same-executable Jelly MCP processes that have no listening socket; non-Linux process discovery yields no cleanup candidates.
 
-## Quickstart
+## Setup
 
-**Audience:** Developers and operators connecting an MCP client. For a complete installation and verification procedure, follow [Getting Started](../getting-started/QUICKSTART.md).
-
-The interactive configurator is the supported setup path:
-
-```bash
-./scripts/dev.sh setup
-```
-
-Preview the full wizard without changing the machine:
-
-```bash
-./scripts/dev.sh setup --dry-run
-```
-
-Check only the core prerequisites:
+For installation, first-run configuration, verification, and troubleshooting, follow
+[Getting Started](../getting-started/QUICKSTART.md).
 
 ```bash
 ./scripts/dev.sh doctor
+./scripts/dev.sh setup
 ```
 
-Dry-run mode performs the dependency audit, asks the normal configuration questions, validates mode-specific requirements, and prints a redacted summary. It does not write `.env`, create backups, build binaries, or touch systemd. Normal mode preserves existing values when rerun, generates strong local secrets when requested, backs up an existing `.env`, writes the resulting file with mode `0600`, and can immediately build/install the user services.
-
-The CLI's honey palette, Unicode/ASCII icons, and logo path are defined in `config/dev.config.sh`; its ASCII artwork is in `config/brand/full-logo.txt`. Set `NO_COLOR=1` to disable ANSI styling or set `DEV_UI_ICONS=false` in the trusted developer configuration for ASCII markers. The `[ui]` values in `config/jelly.toml` remain available to existing Rust/Cargo tooling but are not a second source for the CLI palette. `./scripts/dev.sh doctor` checks prerequisites without compiling Jelly or reading `.env`.
+Configuration and CLI branding are described in [Configuration](../getting-started/CONFIGURATION.md)
+and [Development](../development/DEVELOPMENT.md). The following sections document
+manual startup, MCP transport, authentication, and hosting behavior.
 
 ### Manual startup and profile validation
 
 Jelly's `config/jelly.toml` currently includes a **remote HTTPS ChatGPT profile** and a **local HTTP generic-MCP profile**. At startup, Jelly validates **all** explicit profiles before binding. The remote profile requires an HTTPS public URL even when the operator intends to use only a local client.
 
-For **local-only manual operation**, remove the `[[mcp.connections]]` block with `provider = "chatgpt"` in `config/jelly.toml`, or remove all connection profiles. Retaining only the `generic-mcp` profile does not require a public URL. Then, from the repository root, configure secrets and start the process:
+For **local-only manual operation**, remove the `[[mcp.connections]]` block with `provider = "chatgpt"` in `config/jelly.toml`, or remove all connection profiles. Retaining only the `generic-mcp` profile does not require a public URL. The following example uses OpenSSL to generate credentials. From the repository root, configure secrets and start the process:
 
 ```bash
 export JELLY_MCP_TOKEN="$(openssl rand -hex 32)"
