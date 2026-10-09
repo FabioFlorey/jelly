@@ -142,7 +142,7 @@ This is a **partial** migration: `browser/`, `primitives/`, `mcp/`, `mcp_auth/`,
 
 The migrated boundaries now have a **separate integration harness** at
 `src/bin/jelly-fcis-probe.rs`, launched via
-`scripts/check-fcis-isolated.sh`. It compiles a sanitized working-tree copy
+`./scripts/dev.sh test --isolated`. It compiles a sanitized working-tree copy
 with its own runtime and binaries, drives Chromium CDP and MCP HTTP using
 loopback-only processes, and checks OAuth persistence, routine state,
 download artifact finalization, and browser-session recovery. The real CDP

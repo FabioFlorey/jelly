@@ -15,7 +15,7 @@ esac
 # Check prerequisites BEFORE loading technical config or private .env data.
 dev::doctor
 # shellcheck source=../config.sh
-source "$ROOT/scripts/config.sh"
+source "$ROOT/scripts/lib/config.sh"
 ENV_FILE="$ROOT/.env"
 ENV_EXAMPLE="$ROOT/.env.example"
 LOGO_FILE="$ROOT/$DEV_BRAND_LOGO"
@@ -433,7 +433,7 @@ printf 'Public ChatGPT DCR: %s\n' "${CFG[JELLY_OAUTH_PUBLIC_CHATGPT_DCR]}"
 explain "Choose yes to apply this configuration and start Jelly now. Existing release binaries are reused when current."
 ask_bool JELLY_INSTALL_NOW "Build and install/start the user services now" true
 if [[ "${CFG[JELLY_INSTALL_NOW]}" == "true" ]]; then
-  exec "$ROOT/scripts/install-mcp-services.sh"
+  exec "$ROOT/scripts/commands/install.sh"
 fi
 
 printf '\n%b%s  Configuration complete%b\n' "$C_GREEN$C_BOLD" "$I_OK" "$C_RESET"

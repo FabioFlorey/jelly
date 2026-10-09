@@ -137,7 +137,7 @@ With the server running and the local token available in the current shell, disc
 
 ```bash
 # Load environment values without evaluating the .env file as shell code.
-source ./scripts/config.sh
+source ./scripts/lib/config.sh
 jelly_load_env
 
 curl --fail --silent --show-error http://127.0.0.1:8787/mcp \

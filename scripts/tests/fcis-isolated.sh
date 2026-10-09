@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Disposable, Rust-driven integration. Never operates on installed Jelly services.
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 for required in cargo rustc chromium tar mktemp sed; do
   command -v "$required" >/dev/null || { echo "missing required $required" >&2; exit 2; }
 done

@@ -302,7 +302,7 @@ The last fallback lets Jelly reuse PiLink's private `cloudflared` binary without
 Install the user services with:
 
 ```bash
-scripts/install-mcp-services.sh
+./scripts/dev.sh install
 ```
 
 For `quick-tunnel`, the MCP service owns both the temporary tunnel and MCP child process. For `nip-io`, the MCP service owns the MCP and Caddy child processes and any temporary router mappings. For `cloudflare-fixed`, `jelly-mcp.service` runs the MCP server and `jelly-cloudflared.service` runs the named tunnel.
@@ -313,7 +313,7 @@ Inspect them with:
 ./scripts/dev.sh status
 ```
 
-**Warning:** `scripts/clean-runtime.sh` stops the services and deletes OAuth tokens, browser profiles and cookies, artifacts, custom extensions/userscripts **and the Cargo build directory**, even without `--build`. Read the complete [destructive cleanup contract](./RUNTIME.md#destructive-cleanup) before using it.
+**Warning:** `./scripts/dev.sh clean --yes` stops the services and deletes OAuth tokens, browser profiles and cookies, artifacts, custom extensions/userscripts **and the Cargo build directory**, even without `--build`. Read the complete [destructive cleanup contract](./RUNTIME.md#destructive-cleanup) before using it.
 
 ## Local bearer smoke test
 

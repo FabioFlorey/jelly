@@ -107,7 +107,7 @@ cd jelly
         </h2>
         <pre><code>./scripts/dev.sh status
 curl --fail --silent --show-error http://127.0.0.1:8787/health
-source ./scripts/config.sh
+source ./scripts/lib/config.sh
 jelly_load_env
 curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
   -H "Authorization: Bearer $JELLY_MCP_TOKEN" \

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 USER_UNITS="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 
 systemctl --user disable --now jelly-cloudflared.service >/dev/null 2>&1 || true

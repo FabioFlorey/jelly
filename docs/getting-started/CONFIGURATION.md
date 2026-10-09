@@ -99,7 +99,7 @@ OAuth consent mode, ChatGPT DCR, public URL, and host-specific credentials.
 
 `.env` is local and must not be committed. It contains secrets and deployment-specific environment values such as credentials, OAuth secrets, public origins, listen addresses, hosting/tunnel settings, and HITL credentials.
 
-`.env.example` documents that interface without containing secrets. Jelly's shell tooling reads `.env` as **data**, never with `source .env`; the setup wizard writes safely quoted entries using the Rust `jelly-maint env` utility. When loading values into an interactive shell, use `source ./scripts/config.sh; jelly_load_env`, which explicitly loads validated environment values without evaluating the contents of `.env` as code. Sourcing `config.sh` alone only defines configuration and functions, with no Rust compilation or secret loading.
+`.env.example` documents that interface without containing secrets. Jelly's shell tooling reads `.env` as **data**, never with `source .env`; the setup wizard writes safely quoted entries using the Rust `jelly-maint env` utility. When loading values into an interactive shell, use `source ./scripts/lib/config.sh; jelly_load_env`, which explicitly loads validated environment values without evaluating the contents of `.env` as code. Sourcing `config.sh` alone only defines configuration and functions, with no Rust compilation or secret loading.
 
 Environment variables used internally to propagate per-execution context, such as trace/span identity, are runtime data rather than technical configuration.
 

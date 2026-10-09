@@ -61,7 +61,7 @@ To verify the authenticated MCP tool list, load the local secret in a shell (wit
 
 ```bash
 # Load environment values without evaluating the .env file as shell code.
-source ./scripts/config.sh
+source ./scripts/lib/config.sh
 jelly_load_env
 curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
   -H "Authorization: Bearer $JELLY_MCP_TOKEN" \

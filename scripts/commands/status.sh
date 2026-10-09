@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# shellcheck source=scripts/config.sh
-source "$ROOT/scripts/config.sh"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=scripts/lib/config.sh
+source "$ROOT/scripts/lib/config.sh"
 ENV_FILE="$ROOT/.env"
 
 # shellcheck source=lib/runtime.sh

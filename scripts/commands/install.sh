@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# shellcheck source=scripts/config.sh
-source "$ROOT/scripts/config.sh"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=scripts/lib/config.sh
+source "$ROOT/scripts/lib/config.sh"
 jelly_load_env
 USER_UNITS="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 ENV_FILE="$ROOT/.env"
@@ -77,7 +77,7 @@ elif find \
   "$ROOT/Cargo.toml" \
   "$ROOT/Cargo.lock" \
   "$ROOT/rust-toolchain.toml" \
-  "$ROOT/scripts/build_tool_index.rs" \
+  "$ROOT/scripts/maintenance/build_tool_index.rs" \
   "$ROOT/assets/full-logo.png" \
   "$ROOT/assets/favicon.png" \
   "$ROOT/assets/jelly.css" \
@@ -311,7 +311,7 @@ printf '  Environment     %s %b(mode 0600)%b\n' "$ENV_FILE" "$C_DIM" "$C_RESET"
 printf '  Config          %s\n' "$CONFIG_FILE"
 printf '  Runtime         %s\n' "$CONFIG_RUNTIME_ROOT"
 printf '\n%b◇  Operations%b\n' "$C_HONEY$C_BOLD" "$C_RESET"
-printf '  Status          scripts/status-mcp-services.sh\n'
+printf '  Status          scripts/commands/status.sh\n'
 printf '  Logs            journalctl --user -u jelly-mcp.service -f\n'
 printf '  Restart         systemctl --user restart jelly-mcp.service\n'
 printf '  Stop            systemctl --user stop jelly-mcp.service\n'

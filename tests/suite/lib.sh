@@ -2,8 +2,8 @@
 
 : "${REPO_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 if [[ -z "${CONFIG_BUILD_ROOT:-}" ]]; then
-  # shellcheck source=scripts/config.sh
-  source "$REPO_ROOT/scripts/config.sh"
+  # shellcheck source=scripts/lib/config.sh
+  source "$REPO_ROOT/scripts/lib/config.sh"
 fi
 BIN_DIR="$CONFIG_BUILD_ROOT/debug"
 : "${CARGO_TARGET_DIR:=$CONFIG_BUILD_ROOT}"

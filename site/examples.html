@@ -53,7 +53,7 @@
           <strong>Setup:</strong> Start Jelly and load <code>JELLY_MCP_TOKEN</code> from the local <code>.env</code> file.
           No Chromium process is needed for this stateless tool.
         </p>
-        <pre><code>source ./scripts/config.sh
+        <pre><code>source ./scripts/lib/config.sh
 jelly_load_env
 curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
   -H "Authorization: Bearer $JELLY_MCP_TOKEN" \

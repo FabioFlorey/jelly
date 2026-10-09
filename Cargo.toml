@@ -26,4 +26,4 @@ url = "2"
 
 [[bin]]
 name = "build-tool-index"
-path = "scripts/build_tool_index.rs"
+path = "scripts/maintenance/build_tool_index.rs"

@@ -20,15 +20,18 @@ Installation and operations:
   stop                Stop installed Jelly MCP and browser services
   logs [--follow]     Show recent MCP journal entries or follow them
   clean [--build] [--yes]  Preview destructive cleanup; execute only with --yes
+  uninstall [--yes]  Preview removal of Jelly MCP user services; execute with --yes
 
 Development:
   check               Format, lint, docs, security, architecture and guidance checks
   format [--check]    Format Rust code, or only verify formatting
   lint                Run Rust Clippy with warnings denied
-  test [--isolated|--ranking|--suite [ARGS...]]
+  test [--isolated|--ranking|--web-ui|--suite [ARGS...]]
                      Default: offline Rust tests; --isolated uses disposable Chromium/MCP
                      --suite explicitly targets the installed browser/service (use with care)
   build [--release]   Compile Jelly binaries
+  tools [--check|--generate]  Verify or regenerate the internal tool index
+  benchmark <surface|browser> --live  Run diagnostics against the installed browser
   ci                  Run local static checks and offline Rust tests
   help                Show this message
 
@@ -54,9 +57,9 @@ case "$cmd" in
   status|install)
     (($# == 0)) || { dev::error "$cmd takes no arguments"; exit 2; }
     if [[ "$cmd" == status ]]; then
-      exec "$DEV_ROOT/scripts/status-mcp-services.sh"
+      exec "$DEV_ROOT/scripts/commands/status.sh"
     fi
-    exec "$DEV_ROOT/scripts/install-mcp-services.sh" ;;
+    exec "$DEV_ROOT/scripts/commands/install.sh" ;;
   start|stop)
     (($# == 0)) || { dev::error "$cmd takes no arguments"; exit 2; }
     dev::require systemctl
@@ -75,6 +78,14 @@ case "$cmd" in
       --follow) (($# == 1)) || { dev::error 'logs --follow takes no other arguments'; exit 2; }; journalctl --user -u jelly-mcp.service -f ;;
       *) dev::error 'usage: dev.sh logs [--follow]'; exit 2 ;;
     esac ;;
+  uninstall)
+    if (($# == 0)); then
+      dev::warning 'Preview only: uninstall would disable/stop the Jelly MCP and Cloudflare user units and remove their installed unit files.'
+      dev::warning 'Run uninstall --yes to perform this operation.'
+      exit 0
+    fi
+    [[ "$#" == 1 && "$1" == --yes ]] || { dev::error 'usage: dev.sh uninstall [--yes]'; exit 2; }
+    exec "$DEV_ROOT/scripts/commands/uninstall.sh" ;;
   clean)
     build=false yes=false
     for arg in "$@"; do
@@ -83,19 +94,19 @@ case "$cmd" in
     dev::ui_init
     # Sourcing technical configuration is read-only and does not compile or load .env.
     # shellcheck source=config.sh
-    source "$DEV_ROOT/scripts/config.sh"
+    source "$DEV_ROOT/scripts/lib/config.sh"
     dev::warning 'clean stops installed Jelly services and deletes configured runtime/build state.'
     printf '  Runtime directory: %s\n' "$CONFIG_RUNTIME_ROOT"
     printf '  Cargo build directory: %s\n' "$CONFIG_BUILD_ROOT"
-    printf '  Action: scripts/clean-runtime.sh%s\n' "$( [[ "$build" == true ]] && printf ' --build' || true )"
+    printf '  Action: scripts/commands/clean.sh%s\n' "$( [[ "$build" == true ]] && printf ' --build' || true )"
     if [[ "$yes" != true ]]; then
       dev::warning 'Preview only. Use clean --yes to execute the destructive operation.'
       exit 0
     fi
     if [[ "$build" == true ]]; then
-      exec "$DEV_ROOT/scripts/clean-runtime.sh" --build
+      exec "$DEV_ROOT/scripts/commands/clean.sh" --build
     fi
-    exec "$DEV_ROOT/scripts/clean-runtime.sh" ;;
+    exec "$DEV_ROOT/scripts/commands/clean.sh" ;;
   check)
     (($# == 0)) || { dev::error 'check takes no arguments'; exit 2; }
     cd "$DEV_ROOT"
@@ -109,6 +120,7 @@ case "$cmd" in
         cargo run --quiet --locked --bin jelly-maint -- check "$kind"
       fi
     done
+    "$DEV_ROOT/scripts/dev.sh" tools --check
     "$DEV_ROOT/scripts/tests/dev-cli.sh" ;;
   format)
     dev::require cargo
@@ -129,7 +141,8 @@ case "$cmd" in
     case "${1:-}" in
       '') cargo test --lib --locked ;;
       --ranking) (($# == 1)) || { dev::error 'test --ranking takes no other arguments'; exit 2; }; cargo run --locked --bin jelly-maint -- test ranking ;;
-      --isolated) (($# == 1)) || { dev::error 'test --isolated takes no other arguments'; exit 2; }; exec "$DEV_ROOT/scripts/check-fcis-isolated.sh" ;;
+      --isolated) (($# == 1)) || { dev::error 'test --isolated takes no other arguments'; exit 2; }; exec "$DEV_ROOT/scripts/tests/fcis-isolated.sh" ;;
+      --web-ui) (($# == 1)) || { dev::error 'test --web-ui takes no other arguments'; exit 2; }; exec "$DEV_ROOT/scripts/tests/web-ui.sh" ;;
       --suite)
         shift
         case "${1:-}" in
@@ -137,7 +150,7 @@ case "$cmd" in
           *) dev::warning 'The installed Jelly browser/service may be affected by this test suite.' ;;
         esac
         exec "$DEV_ROOT/tests/suite/run.sh" "$@" ;;
-      *) dev::error 'usage: dev.sh test [--ranking|--isolated|--suite [ARGS...]]'; exit 2 ;;
+      *) dev::error 'usage: dev.sh test [--ranking|--isolated|--web-ui|--suite [ARGS...]]'; exit 2 ;;
     esac ;;
   build)
     dev::require cargo
@@ -146,6 +159,24 @@ case "$cmd" in
       '') cargo build --locked --bins ;;
       --release) (($# == 1)) || { dev::error 'build --release takes no other arguments'; exit 2; }; cargo build --locked --release --bins ;;
       *) dev::error 'usage: dev.sh build [--release]'; exit 2 ;;
+    esac ;;
+  tools)
+    dev::require cargo
+    cd "$DEV_ROOT"
+    case "${1:---check}" in
+      --check) (($# <= 1)) || { dev::error 'tools --check takes no extra arguments'; exit 2; }; cargo run --quiet --locked --bin build-tool-index -- --check ;;
+      --generate) (($# == 1)) || { dev::error 'tools --generate takes no extra arguments'; exit 2; }; cargo run --quiet --locked --bin build-tool-index ;;
+      *) dev::error 'usage: dev.sh tools [--check|--generate]'; exit 2 ;;
+    esac ;;
+  benchmark)
+    [[ "$#" == 2 && "$2" == --live ]] || {
+      dev::error 'benchmark uses the installed Jelly browser; specify benchmark <surface|browser> --live explicitly'
+      exit 2
+    }
+    case "$1" in
+      surface) exec "$DEV_ROOT/scripts/diagnostics/mcp-surface.sh" ;;
+      browser) exec "$DEV_ROOT/scripts/diagnostics/browser-runtime.sh" ;;
+      *) dev::error 'usage: dev.sh benchmark <surface|browser> --live'; exit 2 ;;
     esac ;;
   ci)
     (($# == 0)) || { dev::error 'ci takes no arguments'; exit 2; }

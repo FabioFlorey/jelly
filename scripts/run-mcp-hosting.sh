@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# shellcheck source=./config.sh
-source "$ROOT/scripts/config.sh"
+# shellcheck source=./lib/config.sh
+source "$ROOT/scripts/lib/config.sh"
 jelly_load_env
 BUILD_DIR="$CONFIG_BUILD_ROOT"
 MODE="${JELLY_HOSTING_MODE:-local}"

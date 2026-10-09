@@ -4,7 +4,7 @@
 # Technical settings come only from config/jelly.toml.
 # .env is reserved for secrets and deployment-specific environment values.
 
-: "${REPO_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+: "${REPO_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 CONFIG_FILE="$REPO_ROOT/config/jelly.toml"
 CARGO_CONFIG_FILE="$REPO_ROOT/config/cargo.toml"
 

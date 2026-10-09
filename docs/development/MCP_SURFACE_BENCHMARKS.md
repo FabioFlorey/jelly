@@ -92,7 +92,7 @@ In the recorded measurement, the small surface was materially smaller by tool co
 Reproduce with:
 
 ```bash
-scripts/benchmark-mcp-surface.sh
+./scripts/dev.sh benchmark surface --live
 ```
 
 The deterministic quality suite checks surface-budget properties rather than latency: binding distribution, published tool count, total `tools/list` bytes, aggregate input/output-schema bytes, and description bytes. The raw-off and raw-on small-surface variants must retain material headroom versus large-surface, so schema or prose growth cannot hide behind an unchanged tool count. Runtime numbers are reported for engineering decisions but are not treated as hard CI thresholds.

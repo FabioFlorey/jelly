@@ -3,9 +3,9 @@
 # Does not restart the installed Jelly service or modify its .env.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# shellcheck source=scripts/config.sh
-source "$ROOT/scripts/config.sh"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=scripts/lib/config.sh
+source "$ROOT/scripts/lib/config.sh"
 cd "$ROOT"
 BIN="${JELLY_UI_TEST_BIN:-$CONFIG_BUILD_ROOT/debug/jelly-mcp}"
 if [[ ! -x "$BIN" ]]; then

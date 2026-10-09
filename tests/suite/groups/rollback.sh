@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 rollback_load_env() {
-  # The suite runner loads .env as inert data via scripts/config.sh.
+  # The suite runner loads .env as inert data via scripts/lib/config.sh.
   : "${JELLY_MCP_TOKEN:?JELLY_MCP_TOKEN is required for rollback tests}"
   : "${JELLY_BOOTSTRAP_SECRET:?JELLY_BOOTSTRAP_SECRET is required for rollback tests}"
 }

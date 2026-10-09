@@ -47,8 +47,6 @@ jobs:
         run: ./scripts/dev.sh check
       - name: Compile Rust-only fixture and integration tools
         run: cargo check --quiet --locked --bin jelly-fcis-probe --bin jelly-fixture-server
-      - name: Tool index
-        run: scripts/check-tool-index.sh
       - name: Offline Rust tests
         run: |
           ./scripts/dev.sh test

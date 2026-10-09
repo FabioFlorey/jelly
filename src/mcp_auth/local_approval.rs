@@ -104,7 +104,7 @@ async fn connect_get(
             return local_page(
                 StatusCode::OK,
                 "Activate Jelly",
-                "<h1>Activate Jelly</h1><p>Connection activation must be started by Jelly's installer, which creates a short-lived, authorized setup link. Visiting this page alone does not grant browser access.</p><div class=\"links\"><a class=\"button secondary\" href=\"/connections\">Connection methods</a></div><p class=\"hint\">Run <code>./scripts/install-mcp-services.sh</code> to open a new secure setup link.</p>",
+                "<h1>Activate Jelly</h1><p>Connection activation must be started by Jelly's installer, which creates a short-lived, authorized setup link. Visiting this page alone does not grant browser access.</p><div class=\"links\"><a class=\"button secondary\" href=\"/connections\">Connection methods</a></div><p class=\"hint\">Run <code>./scripts/dev.sh install</code> to open a new secure setup link.</p>",
                 false,
             );
         }

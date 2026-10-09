@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-# shellcheck source=scripts/config.sh
-source scripts/config.sh
+# shellcheck source=scripts/lib/config.sh
+source scripts/lib/config.sh
 RUNTIME_ROOT="$CONFIG_RUNTIME_ROOT"
 DEFAULT_BATCH="$CONFIG_TEST_DEFAULT_BATCH"
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-# shellcheck source=scripts/config.sh
-source "$ROOT/scripts/config.sh"
+# shellcheck source=scripts/lib/config.sh
+source "$ROOT/scripts/lib/config.sh"
 
 BIN_DIR="$CONFIG_BUILD_ROOT/debug"
 FIXTURE="file://$(pwd)/tests/fixtures/browser-perf.html"

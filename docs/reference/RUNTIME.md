@@ -66,16 +66,16 @@ mkdir -p "$HOME/jelly-backup"
 cp -a /data/jelly-runtime/extensions/violentmonkey-src "$HOME/jelly-backup/"
 ```
 
-From the repository root, stop the managed services and delete runtime and build state:
+From the repository root, preview destructive cleanup with `./scripts/dev.sh clean`. To stop the managed services and delete runtime and build state explicitly:
 
 ```bash
-scripts/clean-runtime.sh
+./scripts/dev.sh clean --yes
 ```
 
 Alternatively, run:
 
 ```bash
-scripts/clean-runtime.sh --build
+./scripts/dev.sh clean --build --yes
 ```
 
 The `--build` variant additionally invokes `cargo clean` **after** deleting the build directory. It is **not** the only command that removes build output. Both commands print a completion message when the script exits successfully. The script does not delete repository source files or `.env`. Verify that any backed-up files are usable before proceeding.

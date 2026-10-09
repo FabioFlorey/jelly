@@ -242,7 +242,7 @@ pub fn test_security() -> Result<()> {
         assert_eq!(before, fs::read(&config)?);
         // Execute only the validator function from the checked-in cleanup
         // script; never run its service-stop/removal commands.
-        let cleanup_script = fs::read_to_string(super::root().join("scripts/clean-runtime.sh"))?;
+        let cleanup_script = fs::read_to_string(super::root().join("scripts/commands/clean.sh"))?;
         let function = cleanup_script
             .split_once("validate_cleanup_target() {")
             .ok_or("missing cleanup guard")?

@@ -31,7 +31,7 @@ framework dependencies are required.
 Branding is configured in trusted `config/dev.config.sh` and the canonical
 `config/brand/full-logo.txt` asset. `scripts/lib/runtime.sh` and `ui.sh` expose
 shared Bash helpers without compiling software, loading `.env` or modifying
-services. `scripts/config.sh` is also inert when sourced; commands that require
+services. `scripts/lib/config.sh` is also inert when sourced; commands that require
 private deployment values must explicitly invoke `jelly_load_env`, which uses
 the safe Rust data-only parser and preserves exported overrides.
 
@@ -66,7 +66,7 @@ Inspect the executable catalog and activation state:
 
 Tests/groups can be persistently disabled through `tests/suite/config/disabled-tests.txt` and `disabled-groups.txt`; `--include-disabled` overrides those files for an explicit diagnostic run. Batch definitions live in `tests/suite/config/batches.tsv`. See `tests/INDEX.md` for the group/batch map and `tests/suite/README.md` for the harness rationale, metadata contract, result schema, and selection rules.
 
-The legacy `scripts/check-*.sh` commands remain as compatibility wrappers into the same suite, so there is only one executable source of truth.
+The historical four-line `scripts/check-*.sh` forwarders have been removed. Use `./scripts/dev.sh test --suite --group NAME`, `--batch NAME`, or `--test ID` to select the same stable-ID tests. Unlike `test --isolated`, `test --suite` may interact with installed Jelly services.
 
 Deterministic browser fixtures live in `tests/fixtures/` for delayed images, DOM rerenders, visibility, cookie/origin storage, download lifecycle/cancellation, performance, semantic targeting, highlighting, and Shadow DOM behavior. Network-dependent React/Selenium/Porsche cases are kept in the `network` batch because external deployments can change independently of Jelly and should not be treated as deterministic local regressions.
 
@@ -118,9 +118,9 @@ For the shared human-facing Jelly design (home, connections, local activation,
 OAuth approval), use the isolated HTTP + headless Chromium smoke test:
 
 ```bash
-scripts/check-web-ui.sh
+./scripts/dev.sh test --web-ui
 # To keep render captures for visual review:
-JELLY_UI_SCREENSHOTS_DIR=/tmp/jelly-ui-review scripts/check-web-ui.sh
+JELLY_UI_SCREENSHOTS_DIR=/tmp/jelly-ui-review ./scripts/dev.sh test --web-ui
 ```
 
 This test starts a separate Jelly MCP process on temporary loopback ports and
@@ -138,9 +138,26 @@ The MCP `initialize` response includes [`.agent/instructions/mcp.md`](../../.age
 
 The [agent evaluation guide](./AGENT_EVALUATION.md) describes the offline routing/slot-filling scenarios and the separate browser-execution evidence needed for a valid overall success rate. Run `cargo run --locked --bin jelly-maint -- check agent-guidance --self-test` as a deterministic harness check; it does not call an LLM or measure real agent success.
 
+## Script organization and service compatibility
+
+`./scripts/dev.sh` is the single documented CLI. `scripts/commands/` contains
+installation and service operations; `scripts/lib/` contains sourced Bash
+configuration and UI helpers; `scripts/tests/` contains real isolated harnesses;
+`scripts/diagnostics/` contains opt-in live-browser benchmarks; and
+`scripts/maintenance/` contains the Rust support modules. The three top-level
+`run-*.sh` scripts are intentional **systemd entrypoints**: installed unit files
+reference `scripts/run-mcp-hosting.sh` and `scripts/run-cloudflare-tunnel.sh`,
+so their paths must not be changed without a managed unit migration. The
+`run-nip-io.sh` helper is invoked by the hosting launcher.
+
+There are no separate Bash scripts for each semantic test group. The stable
+IDs/groups and their runner live under `tests/suite/`. CLI changes require
+`./scripts/dev.sh check`, which includes shell dispatch/security tests. Do
+not create an additional wrapper for a command already exposed in `dev.sh`.
+
 ## Shell maintenance conventions
 
-Jelly's shell entry points use Bash with `set -euo pipefail`; shared test functions are sourced by the strict suite runner. Keep paths and command arguments quoted, avoid executing `.env` as Bash, validate deletion targets **before** stopping services, and only terminate processes owned by the current invocation. Preserve active browser profiles and only remove router mappings created by the current launcher. Prefer temporary files and atomic replacement for persistent configuration or service files. The compatibility `check-*.sh` scripts remain thin wrappers around the canonical test suite.
+Jelly's shell entry points use Bash with `set -euo pipefail`; shared test functions are sourced by the strict suite runner. Keep paths and command arguments quoted, avoid executing `.env` as Bash, validate deletion targets **before** stopping services, and only terminate processes owned by the current invocation. Preserve active browser profiles and only remove router mappings created by the current launcher. Prefer temporary files and atomic replacement for persistent configuration or service files. Do not reintroduce forwarding `check-*.sh` scripts: the CLI dispatches directly into the canonical test suite.
 
 After shell changes, run the offline safety checks and Bash parser across all tracked scripts:
 
@@ -172,13 +189,13 @@ The documentation checker verifies local links and anchors, the documentation in
 Regenerate the tool index:
 
 ```bash
-scripts/build-tool-index.sh
+./scripts/dev.sh tools --generate
 ```
 
 Verify it is current:
 
 ```bash
-scripts/check-tool-index.sh
+./scripts/dev.sh tools --check
 ```
 
 CI performs the same freshness check. The [documentation validation](#documentation-validation) additionally checks Markdown links and machine-readable examples.
@@ -210,11 +227,11 @@ The no-argument `snapshot-interactive` call intentionally remains unlimited for 
 Use the deterministic suite plus the focused runtime profiler when investigating browser-performance changes:
 
 ```bash
-scripts/profile-browser-runtime.sh
+./scripts/dev.sh benchmark browser --live
 ./scripts/dev.sh test --suite --batch deterministic
 ```
 
-The subsystem compatibility wrappers remain available when a focused historical command is convenient (`scripts/check-page-runtime.sh`, `scripts/check-ref-semantics.sh`, and the other `scripts/check-*.sh` entries), but they delegate to the stable-ID suite.
+Browser profiling and surface benchmarking require explicit `--live` because they attach to the installed browser; they are not run by `dev.sh check` or offline CI. To target one historical subsystem, use `./scripts/dev.sh test --suite --group runtime`, `--group refs`, or any group listed by `--list`.
 
 Performance conclusions should come from a purpose-built measurement for the change under review rather than a permanently maintained aggregate benchmark script.
 
@@ -242,9 +259,9 @@ Limit/offset pagination is positional rather than snapshot-isolated. If structur
 > Both variants of the cleanup script delete the configured runtime root **and** the Cargo build directory; `--build` also runs `cargo clean`. This permanently removes stored OAuth grants, browser profiles, logs, artifacts, custom extensions/userscripts, and compiled binaries. Back up data before running either command.
 
 ```bash
-scripts/clean-runtime.sh
-# Or, with an additional cargo clean step:
-scripts/clean-runtime.sh --build
+./scripts/dev.sh clean                 # Preview only
+./scripts/dev.sh clean --yes           # Confirmed destructive cleanup
+./scripts/dev.sh clean --build --yes   # Additionally run cargo clean
 ```
 
 See the full [destructive cleanup contract](../reference/RUNTIME.md#destructive-cleanup).

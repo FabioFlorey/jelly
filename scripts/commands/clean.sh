@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# shellcheck source=scripts/config.sh
-source "$ROOT/scripts/config.sh"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=scripts/lib/config.sh
+source "$ROOT/scripts/lib/config.sh"
 BUILD_DIR="$CONFIG_BUILD_ROOT"
 RUNTIME="$CONFIG_RUNTIME_ROOT"
 
