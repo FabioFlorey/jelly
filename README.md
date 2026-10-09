@@ -36,6 +36,7 @@ From research to action, Jelly gives AI agents a real Chromium browser to naviga
 
 <details name="use-case">
   <summary><b>Browser Automation: Let AI handle the repetitive work.</b></summary>
+  <br>
   <blockquote>
     <p>Automate tasks across websites and business applications.</p>
     <ul>
@@ -48,6 +49,7 @@ From research to action, Jelly gives AI agents a real Chromium browser to naviga
 
 <details name="use-case">
   <summary><b>AI-Powered Research: Explore more than static web pages.</b></summary>
+  <br>
   <blockquote>
     <p>Research information on JavaScript-heavy websites, interactive dashboards, and dynamically loaded pages.</p>
     <ul>
@@ -60,6 +62,7 @@ From research to action, Jelly gives AI agents a real Chromium browser to naviga
 
 <details name="use-case">
   <summary><b>Browser Testing: Check real user journeys.</b></summary>
+  <br>
   <blockquote>
     <p>Test interactive websites using Chromium and inspect the results.</p>
     <ul>
@@ -72,6 +75,7 @@ From research to action, Jelly gives AI agents a real Chromium browser to naviga
 
 <details name="use-case">
   <summary><b>Data Extraction: Collect information from complex websites.</b></summary>
+  <br>
   <blockquote>
     <p>Gather information from pages that require browser interaction.</p>
     <ul>
@@ -84,6 +88,7 @@ From research to action, Jelly gives AI agents a real Chromium browser to naviga
 
 <details name="use-case">
   <summary><b>Business Process Automation: Connect work across applications.</b></summary>
+  <br>
   <blockquote>
     <p>Carry out browser-based processes in tools that may not have a dedicated integration.</p>
     <ul>
@@ -96,6 +101,7 @@ From research to action, Jelly gives AI agents a real Chromium browser to naviga
 
 <details name="use-case">
   <summary><b>AI Agents: Give agents the ability to act, not just answer.</b></summary>
+  <br>
   <blockquote>
     <p>Connect an AI agent to Jelly through MCP to interact with websites and check the outcome.</p>
     <ul>
