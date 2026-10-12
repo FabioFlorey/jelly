@@ -9,6 +9,7 @@
 - [Discover, generate, and save routines](#discover-generate-and-save-routines)
 - [JSON graph format](#json-graph-format)
 - [Variables, conditions, and loops](#variables-conditions-and-loops)
+- [Optional input/output contracts](#optional-inputoutput-contracts)
 - [Chain routines](#chain-routines)
 - [Human approval and resumption](#human-approval-and-resumption)
 - [Included examples](#included-examples)
@@ -377,6 +378,46 @@ A condition uses `guard`, `then`, and `else`:
 ```
 
 Supported guard operations are `exists`, `true`, `false`, `equals`, `not_equals`, and `error_kind`. Loops are ordinary graph edges; limit them with `max_steps`, optional node-level `max_visits`, and `max_duration_ms` so a routine cannot retry indefinitely.
+
+## Optional input/output contracts
+
+A saved JSON graph can declare `inputs` and `outputs` without changing the
+existing untyped format. Contracts are optional; old routine definitions
+and invocations remain valid.
+
+```json
+{
+  "name": "invoice",
+  "description": "Return the requested invoice identifier.",
+  "entry": "done",
+  "inputs": {
+    "invoice_id": {"type": "string", "required": true}
+  },
+  "outputs": {
+    "id": {"from": "invoice_id", "type": "string", "required": true}
+  },
+  "nodes": {"done": {"terminal": "success"}}
+}
+```
+
+Inputs passed via CLI or MCP `vars` are strings. Therefore only
+`type: "string"` is valid for inputs currently. A required input must
+be present before any node executes. Other supplied variables are still
+allowed for backward compatibility.
+
+Output specifications use `from` to read a dot-separated path from the
+completed graph context; supported output types are `string`, `number`,
+`boolean`, `object` and `array`. The `required` flag defaults to false.
+A required missing output or a present value with the wrong type fails the
+routine before it reports successful completion. When `outputs` is declared,
+the completed result includes an `outputs` object in addition to the legacy
+`context`, allowing a parent macro-routine to reference
+`{{ child.outputs.id }}` after saving the result under `save: "child"`.
+
+The contracts validate data types and presence; they do not verify website
+facts. Graph-defined assertions remain responsible for checking real-world
+outcomes. Typed inputs other than strings, schema revisions, secret-field
+classification and output-only return envelopes are future extensions.
 
 ## Chain routines
 

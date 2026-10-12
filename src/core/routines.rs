@@ -248,6 +248,115 @@ pub(crate) fn valid_routine_id(id: &str) -> bool {
         })
 }
 
+/// Optional routine input/output contracts. Input variables supplied by the
+/// CLI/MCP are strings; outputs read typed values from graph context.
+pub(crate) fn validate_contracts(graph: &Value) -> Result<(), String> {
+    for (field, is_output) in [("inputs", false), ("outputs", true)] {
+        let Some(contract) = graph.get(field) else {
+            continue;
+        };
+        let specs = contract
+            .as_object()
+            .ok_or_else(|| format!("{field} must be an object"))?;
+        if specs.len() > 64 {
+            return Err(format!("{field} exceeds 64 fields"));
+        }
+        for (name, spec) in specs {
+            if !valid_routine_name(name) {
+                return Err(format!("{field}.{name} has invalid field name"));
+            }
+            let spec = spec
+                .as_object()
+                .ok_or_else(|| format!("{field}.{name} must be an object"))?;
+            if spec
+                .keys()
+                .any(|key| !matches!(key.as_str(), "type" | "required" | "from"))
+                || spec.get("required").is_some_and(|v| !v.is_boolean())
+            {
+                return Err(format!(
+                    "{field}.{name} has unsupported fields or required value"
+                ));
+            }
+            let kind = spec
+                .get("type")
+                .and_then(Value::as_str)
+                .ok_or_else(|| format!("{field}.{name} requires type"))?;
+            if !matches!(kind, "string" | "number" | "boolean" | "object" | "array") {
+                return Err(format!("{field}.{name} has unsupported type"));
+            }
+            if is_output {
+                let source = spec
+                    .get("from")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| format!("{field}.{name} requires from"))?;
+                if source.is_empty()
+                    || source.len() > 200
+                    || !source.split('.').all(valid_routine_name)
+                {
+                    return Err(format!("{field}.{name} has invalid from path"));
+                }
+            } else if kind != "string" || spec.contains_key("from") {
+                return Err(format!(
+                    "{field}.{name} input must be type string, without from"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn correct_type(value: &Value, kind: &str) -> bool {
+    match kind {
+        "string" => value.is_string(),
+        "number" => value.is_number(),
+        "boolean" => value.is_boolean(),
+        "object" => value.is_object(),
+        "array" => value.is_array(),
+        _ => false,
+    }
+}
+
+pub(crate) fn validate_inputs(graph: &Value, context: &Map<String, Value>) -> Result<(), String> {
+    let Some(inputs) = graph.get("inputs").and_then(Value::as_object) else {
+        return Ok(());
+    };
+    for (name, spec) in inputs {
+        match context.get(name) {
+            Some(value) if correct_type(value, spec["type"].as_str().unwrap()) => {}
+            Some(_) => return Err(format!("input {name} has wrong type")),
+            None if spec["required"] == true => {
+                return Err(format!("required input {name} is missing"));
+            }
+            None => {}
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn extract_outputs(
+    graph: &Value,
+    context: &Map<String, Value>,
+) -> Result<Option<Map<String, Value>>, String> {
+    let Some(specs) = graph.get("outputs").and_then(Value::as_object) else {
+        return Ok(None);
+    };
+    let mut outputs = Map::new();
+    for (name, spec) in specs {
+        let source = spec["from"].as_str().unwrap();
+        match lookup(context, source) {
+            Some(value) if correct_type(value, spec["type"].as_str().unwrap()) => {
+                outputs.insert(name.clone(), value.clone());
+            }
+            Some(_) => return Err(format!("output {name} from {source} has wrong type")),
+            None if spec["required"] == true => {
+                return Err(format!("required output {name} from {source} is missing"));
+            }
+            None => {}
+        }
+    }
+    Ok(Some(outputs))
+}
+
 /// Validate a persistent, named JSON graph before saving or executing it.
 pub(crate) fn validate_routine_definition(
     graph: &Value,
@@ -275,10 +384,12 @@ pub(crate) fn validate_routine_definition(
     {
         return Err("routine id must be a lowercase UUID v4".into());
     }
+    validate_contracts(graph)?;
     validate_graph(graph)
 }
 
 pub(crate) fn validate_graph(graph: &Value) -> Result<(), Box<dyn std::error::Error>> {
+    validate_contracts(graph)?;
     let mode = routine_mode(graph)?;
     let entry = graph
         .get("entry")
@@ -493,6 +604,66 @@ mod tests {
         .as_object()
         .unwrap()
         .clone()
+    }
+
+    #[test]
+    fn optional_typed_contracts_validate_inputs_and_outputs() {
+        let graph = json!({
+            "name":"typed",
+            "description":"A typed routine",
+            "entry":"done",
+            "inputs":{"invoice":{"type":"string","required":true}},
+            "outputs":{
+                "receipt":{"from":"proof.path","type":"string","required":true},
+                "verified":{"from":"proof.verification.integrity_verified","type":"boolean","required":true},
+                "optional":{"from":"missing","type":"number"}
+            },
+            "nodes":{"done":{"terminal":"success"}}
+        });
+        validate_routine_definition(&graph, None).unwrap();
+        let mut values = Map::new();
+        assert!(validate_inputs(&graph, &values).is_err());
+        values.insert("invoice".into(), json!("2026-10"));
+        validate_inputs(&graph, &values).unwrap();
+        values.insert("invoice".into(), json!(5));
+        assert!(validate_inputs(&graph, &values).is_err());
+        values.insert("invoice".into(), json!("2026-10"));
+        values.insert(
+            "proof".into(),
+            json!({"path":"/tmp/invoice.pdf",
+            "verification":{"integrity_verified":true}}),
+        );
+        let outputs = extract_outputs(&graph, &values).unwrap().unwrap();
+        assert_eq!(outputs["receipt"], "/tmp/invoice.pdf");
+        assert_eq!(outputs["verified"], true);
+        assert!(!outputs.contains_key("optional"));
+        values["proof"] = json!({"path":"/tmp/invoice.pdf",
+            "verification":{"integrity_verified":"yes"}});
+        assert!(extract_outputs(&graph, &values).is_err());
+        values.remove("proof");
+        assert!(extract_outputs(&graph, &values).is_err());
+    }
+
+    #[test]
+    fn typed_contracts_reject_invalid_shapes_without_affecting_legacy() {
+        let mut graph = json!({
+            "name":"typed","description":"contract shape","entry":"done",
+            "nodes":{"done":{"terminal":"success"}},
+            "inputs":{"name":{"type":"number"}}
+        });
+        assert!(validate_routine_definition(&graph, None).is_err());
+        graph["inputs"]["name"]["type"] = json!("string");
+        validate_routine_definition(&graph, None).unwrap();
+        graph["outputs"] = json!({"result":{"type":"object","from":"a..b"}});
+        assert!(validate_routine_definition(&graph, None).is_err());
+        graph["outputs"]["result"]["from"] = json!("a.b");
+        validate_routine_definition(&graph, None).unwrap();
+        graph["outputs"]["result"]["unexpected"] = json!(1);
+        assert!(validate_routine_definition(&graph, None).is_err());
+        graph.as_object_mut().unwrap().remove("inputs");
+        graph.as_object_mut().unwrap().remove("outputs");
+        validate_routine_definition(&graph, None).unwrap();
+        assert!(extract_outputs(&graph, &Map::new()).unwrap().is_none());
     }
 
     #[test]

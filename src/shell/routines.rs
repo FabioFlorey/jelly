@@ -1,7 +1,8 @@
 use crate::core::routines::{
     PlannedNode, PlannedToolOutcome, RoutineFailure, context_from_vars, error_transition,
-    error_value, parse_output, plan_node, plan_tool_outcome, routine_mode, system_failure_kind,
-    valid_routine_id, valid_routine_name, validate_routine_definition, vars,
+    error_value, extract_outputs, parse_output, plan_node, plan_tool_outcome, routine_mode,
+    system_failure_kind, valid_routine_id, valid_routine_name, validate_inputs,
+    validate_routine_definition, vars,
 };
 use crate::shell::routine_handoff::{dispatch, select_target};
 use crate::shell::routine_state;
@@ -254,6 +255,32 @@ fn save_graph_state(
     Ok(())
 }
 
+/// A contract violation is a deterministic workflow failure, not an
+/// uncertain crash: preserve the terminal state in the continuation ledger.
+fn checked_outputs(
+    graph: &Value,
+    context: &Map<String, Value>,
+    finalizer: &mut GraphFinalizer,
+) -> Result<Option<Map<String, Value>>, Box<dyn std::error::Error>> {
+    match extract_outputs(graph, context) {
+        Ok(outputs) => Ok(outputs),
+        Err(error) => {
+            let outcome = json!({
+                "status":"failed",
+                "kind":"output_contract",
+                "message":error
+            });
+            finalizer.finalize(&outcome).map_err(|failure| {
+                format!(
+                    "output contract failure; cleanup failed: {}",
+                    failure.message
+                )
+            })?;
+            Err(error.into())
+        }
+    }
+}
+
 fn graph_run(
     graph: Value,
     start: String,
@@ -313,7 +340,12 @@ fn graph_run(
         match plan_node(&current, node, &context)? {
             PlannedNode::Terminal { success, message } => {
                 if success {
-                    let outcome = json!({"status":"completed","message":message,"context":context});
+                    let outputs = checked_outputs(&graph, &context, &mut finalizer)?;
+                    let mut outcome =
+                        json!({"status":"completed","message":message,"context":context});
+                    if let Some(outputs) = outputs {
+                        outcome["outputs"] = json!(outputs);
+                    }
                     finalizer
                         .finalize(&outcome)
                         .map_err(|e| format!("cleanup failed: {}", e.message))?;
@@ -481,7 +513,11 @@ fn graph_run(
                         if let Some(next) = next {
                             current = next;
                         } else {
-                            let outcome = json!({"status":"completed","context":context});
+                            let outputs = checked_outputs(&graph, &context, &mut finalizer)?;
+                            let mut outcome = json!({"status":"completed","context":context});
+                            if let Some(outputs) = outputs {
+                                outcome["outputs"] = json!(outputs);
+                            }
                             finalizer
                                 .finalize(&outcome)
                                 .map_err(|e| format!("cleanup failed: {}", e.message))?;
@@ -655,10 +691,12 @@ fn start_graph(
     select_target(handoff_to)?;
     let graph = load_routine(name)?;
     let entry = graph["entry"].as_str().unwrap().to_owned();
+    let context = context_from_vars(extra);
+    validate_inputs(&graph, &context)?;
     graph_run(
         graph,
         entry,
-        context_from_vars(extra),
+        context,
         0,
         HashMap::new(),
         RunContinuation {

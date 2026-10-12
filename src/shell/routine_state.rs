@@ -411,6 +411,19 @@ mod tests {
         }
     }
 
+    /// Status can legitimately report a momentary in-progress lock. Test
+    /// stable states after it clears, while retaining a hard failure bound.
+    fn settled_status(dir: &Path, id: &str) -> Value {
+        for _ in 0..100 {
+            let value = inspect_in(dir, id).unwrap();
+            if value["status"] != "running" {
+                return value;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        panic!("routine remained locked beyond the test budget");
+    }
+
     #[test]
     fn resume_ids_are_numeric_and_bounded() {
         for id in ["", "abc", "../state", "12.4", "1".repeat(41).as_str()] {
@@ -429,9 +442,9 @@ mod tests {
             "awaiting":{"kind":"agent","instruction":"Inspect invoice"},"inflight":false
         });
         save_checkpoint_in(dir, &id, &state).unwrap();
-        assert_eq!(inspect_in(dir, &id).unwrap()["status"], "suspended");
+        assert_eq!(settled_status(dir, &id)["status"], "suspended");
         assert_eq!(
-            inspect_in(dir, &id).unwrap()["awaiting"]["instruction"],
+            settled_status(dir, &id)["awaiting"]["instruction"],
             "Inspect invoice"
         );
 
@@ -441,7 +454,7 @@ mod tests {
 
         state["inflight"] = json!(true);
         save_checkpoint_in(dir, &id, &state).unwrap();
-        assert_eq!(inspect_in(dir, &id).unwrap()["status"], "interrupted");
+        assert_eq!(settled_status(dir, &id)["status"], "interrupted");
 
         let terminal = json!({"status":"completed","context":{"confidential":"private"}});
         record_in(dir, &id, &terminal).unwrap();
@@ -454,7 +467,7 @@ mod tests {
                 & 0o777,
             0o600
         );
-        let summary = inspect_in(dir, &id).unwrap();
+        let summary = settled_status(dir, &id);
         assert_eq!(summary["status"], "completed");
         assert_eq!(summary["terminal"], true);
         assert!(summary.get("context").is_none());
@@ -483,7 +496,7 @@ mod tests {
         assert!(check_resume_lease(&checkpoint, Some("not-a-token")).is_err());
         check_resume_lease(&checkpoint, Some(token)).unwrap();
         assert!(claim_in(dir, &id, "other-worker", None, None).is_err());
-        let status = inspect_in(dir, &id).unwrap();
+        let status = settled_status(dir, &id);
         assert_eq!(status["status"], "claimed");
         assert_eq!(status["lease"]["owner"], "worker");
         assert_eq!(status["lease"]["expires_at"], claimed["expires_at"]);
@@ -495,7 +508,7 @@ mod tests {
         );
         assert!(release_in(dir, &id, "bad").is_err());
         assert_eq!(release_in(dir, &id, token).unwrap()["claim_released"], true);
-        assert_eq!(inspect_in(dir, &id).unwrap()["status"], "suspended");
+        assert_eq!(settled_status(dir, &id)["status"], "suspended");
         check_resume_lease(&checkpoint_in(dir, &id).unwrap(), None).unwrap();
     }
 
@@ -514,7 +527,7 @@ mod tests {
         let mut state = checkpoint_in(dir, &id).unwrap();
         state["lease"]["expires_at"] = json!(0);
         save_checkpoint_in(dir, &id, &state).unwrap();
-        assert_eq!(inspect_in(dir, &id).unwrap()["status"], "expired");
+        assert_eq!(settled_status(dir, &id)["status"], "expired");
         assert!(check_resume_lease(&state, Some(token)).is_err());
         assert!(renew_in(dir, &id, token, None).is_err());
         assert!(claim_in(dir, &id, "worker-b", None, None).is_err());
@@ -536,7 +549,7 @@ mod tests {
         save_checkpoint_in(dir, &id, &unsafe_state).unwrap();
         assert!(claim_in(dir, &id, "worker-c", None, None).is_err());
         assert!(release_in(dir, &id, second["lease_token"].as_str().unwrap()).is_err());
-        assert_eq!(inspect_in(dir, &id).unwrap()["status"], "interrupted");
+        assert_eq!(settled_status(dir, &id)["status"], "interrupted");
     }
 
     #[test]
