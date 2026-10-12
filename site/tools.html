@@ -43,6 +43,15 @@
           capture evidence, and ask for help. This guide shows which tool to use,
           then provides the exact inputs and outputs for developers.
         </p>
+        <p>
+          <strong>What is a tool surface?</strong> It is the set of tool names Jelly shows to a connected
+          AI assistant. The default <strong>small surface</strong> groups browser actions behind three tools:
+          <code>browser-schema</code>, <code>browser-call</code>, and <code>browser-events</code>.
+          The <strong>large surface</strong> exposes individual actions such as <code>click</code>
+          and <code>read-page</code> as separate tools. Both use the same Jelly browser engine;
+          this choice changes how the AI calls tools, <em>not</em> where Chromium runs.
+          <a href="#tool-surfaces">Compare the surfaces below</a>.
+        </p>
         <p class="tool-guide-links">
           <a href="#start-here">Start here</a>
           <a href="#tool-list">Find a tool</a>
@@ -1156,9 +1165,11 @@
       <section id="tool-surfaces">
         <h2>Choosing a tool surface</h2>
         <p>
-          The default small surface groups browser operations into <code>browser-schema</code>,
-          <code>browser-call</code>, and <code>browser-events</code>.
-          The expanded surface publishes individual browser primitives instead.
+          A surface is the list of MCP tools visible to your AI client. The <strong>small surface</strong>
+          (the default) offers three general browser tools plus 13 system tools. The
+          <strong>large surface</strong> offers individual browser operations, such as
+          <code>click</code> and <code>read-page</code>, plus the same system tools.
+          You do not need to switch surfaces to choose native Chromium, Docker/Podman, or remote CDP.
         </p>
         <p>
           Query <code>tools/list</code> on the running MCP server for the active catalog and input schemas.
