@@ -4,17 +4,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="theme-color" content="#ffc107">
-    <meta name="description" content="Working JSON-RPC MCP request examples for Jelly: browser-schema capabilities, browser-call read-page, authentication and representative result structure.">
+    <meta name="description" content="Understand Jelly through practical examples: discover browser tools, read a web page, run a verified routine, and watch a browser recording.">
     <meta name="robots" content="index,follow">
     <title>
-      Jelly MCP Request Examples · Jelly MCP Server
+      Jelly Examples: Browser Tools and Routines · Jelly
     </title>
     <link rel="canonical" href="https://fabioflorey.github.io/jelly/examples.html">
     <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <link rel="alternate icon" type="image/png" href="./assets/images/favicon.png">
-    <link rel="stylesheet" href="./assets/css/style.css?v=centered-media-tables-20261012">
-    <meta property="og:title" content="Jelly MCP Request Examples · Jelly MCP Server">
-    <meta property="og:description" content="Working JSON-RPC MCP request examples for Jelly: browser-schema capabilities, browser-call read-page, authentication and representative result structure.">
+    <link rel="stylesheet" href="./assets/css/style.css?v=routines-examples-20261012">
+    <meta property="og:title" content="Jelly Examples: Browser Tools and Routines · Jelly">
+    <meta property="og:description" content="Understand Jelly through practical examples: discover browser tools, read a web page, run a verified routine, and watch a browser recording.">
     <meta property="og:url" content="https://fabioflorey.github.io/jelly/examples.html">
     <meta property="og:type" content="article">
   </head>
@@ -37,16 +37,55 @@
         <div class="eyebrow">
           Jelly / Developer documentation
         </div>
-        <h1>
-          Jelly MCP Request Examples
-        </h1>
+        <h1>See Jelly in action</h1>
         <p class="lede">
-          Two tool-call recipes based on Jelly&#x27;s current Rust schemas, with setup, expected result shapes, and limitations.
+          From a single browser tool to a complete checked workflow. Start with a simple
+          MCP request, then see how Jelly routines connect several steps and verify the result.
+        </p>
+        <p class="tool-guide-links">
+          <a href="#start-here">Choose an example</a>
+          <a href="#discover">Discover tools</a>
+          <a href="#read">Read a page</a>
+          <a href="#routines">Run a routine</a>
+          <a href="#video">Watch the recording</a>
         </p>
       </div>
+      <section id="start-here">
+        <h2>What kind of example do you need?</h2>
+        <p>
+          An <strong>MCP tool</strong> performs a particular operation, such as reading the current page.
+          A <strong>routine</strong> links operations into a reusable workflow with checks, retries,
+          and optional human approval. You can call both from an AI client connected to Jelly.
+        </p>
+        <div class="grid tool-intro-grid example-choice-grid">
+          <article class="card">
+            <div class="index">START SMALL</div>
+            <h3>Discover browser tools</h3>
+            <p>See how an AI client asks Jelly what browser operations it supports, without opening Chromium.</p>
+            <p><a href="#discover">View tool discovery →</a></p>
+          </article>
+          <article class="card">
+            <div class="index">BROWSER ACTION</div>
+            <h3>Open and read a page</h3>
+            <p>Open an example website and request its current content through MCP.</p>
+            <p><a href="#read">View page reading →</a></p>
+          </article>
+          <article class="card">
+            <div class="index">MULTI-STEP WORKFLOW</div>
+            <h3>Verify and capture a page</h3>
+            <p>Use an existing routine to open a page, check that it is right, and verify a screenshot.</p>
+            <p><a href="#routines">View routine examples →</a></p>
+          </article>
+        </div>
+        <p>
+          <strong>Before running commands:</strong> set up Jelly using
+          <a href="./getting-started.html">Getting Started</a>. The commands below act on your
+          actual local server and browser; they are not a simulated demo.
+        </p>
+      </section>
       <section id="discover">
         <h2>
-          Example 1: Discover browser operations
+          Example 1: Ask Jelly what it can do
         </h2>
         <p>
           <strong>Objective:</strong> Confirm authenticated MCP access and list semantic capability categories.
@@ -59,6 +98,12 @@ curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
   -H "Authorization: Bearer $JELLY_MCP_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"browser-schema","arguments":{"action":"capabilities"}}}'</code></pre>
+        <p>
+          <strong>What you should see:</strong> A successful JSON-RPC response that lists browser
+          capability categories. Your running Jelly version determines the actual result.
+        </p>
+        <details>
+          <summary>Show the detailed example response (source-derived, not a live run)</summary>
         <p>
           <strong>Source-derived output excerpt:</strong> The counts and category descriptions below are derived from the
           checked-in Rust primitive registry; this is not a recorded live MCP response. The transport's additional
@@ -135,14 +180,17 @@ curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
           different catalog. Inspect the actual JSON-RPC result instead of relying on a static count. A failed
           authentication produces HTTP 401.
         </p>
+        </details>
       </section>
       <section id="read">
         <h2>
-          Example 2: Read a page through MCP
+          Example 2: Open a page and read it
         </h2>
         <p>
           <strong>Objective:</strong> Read content from a running Chromium page. <strong>Setup:</strong> After the server
-          and token are configured, start the browser using the system MCP tool:
+          and token are configured, start the browser using the system MCP tool.
+          First load the token in your terminal as shown in <a href="#discover">Example 1</a>.
+          Opening a page changes the shared browser's active page:
         </p>
         <pre><code>curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
   -H "Authorization: Bearer $JELLY_MCP_TOKEN" \
@@ -165,13 +213,99 @@ curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
           The browser session is shared. Only call <code>close-browser</code> when you intend to stop it for every connected client. A failed browser launch returns a structured error (such as <code>browser_unavailable</code>).
         </p>
       </section>
+      <section id="routines">
+        <h2>Example 3: Run a routine that checks its work</h2>
+        <p>
+          <strong>What is a routine?</strong> Instead of requesting one action at a time,
+          you give Jelly a saved set of steps. A routine can <strong>check a page before acting</strong>,
+          wait and retry when an element is missing, branch on results, record evidence,
+          and stop with an explicit success or failure. Some routines can also pause for a person.
+        </p>
+        <p>
+          Jelly already includes <code>verified-screenshot.json</code>, so you do not need to
+          write a workflow file for your first test. Here is what it does:
+        </p>
+        <ol>
+          <li><strong>Open</strong> the requested website in Chromium.</li>
+          <li><strong>Verify</strong> that the URL matches and the target is visible, waiting when appropriate.</li>
+          <li><strong>Capture</strong> a screenshot and verify the resulting artifact.</li>
+          <li><strong>Finish</strong> successfully only when the checks pass; otherwise report failure.</li>
+        </ol>
+        <p><strong>Try it:</strong> In a dedicated Jelly checkout with Chromium available, run:</p>
+        <pre><code>cargo run --quiet --bin agent-run -- \
+  call-routine verified-screenshot \
+  url=https://example.com/ \
+  target=css:body</code></pre>
+        <p>
+          <strong>Expected outcome:</strong> The routine reports <code>verified screenshot captured</code>
+          and registers the screenshot artifact. If the URL or target verification fails,
+          it does not call the screenshot proof of success. The trailing slash in
+          <code>https://example.com/</code> matters because the routine checks for an exact URL.
+          It opens and changes a real browser session; do not run it during another user's workflow.
+        </p>
+        <details>
+          <summary>Call the same routine through an MCP client (JSON example)</summary>
+          <p>
+            An AI client can call the MCP system tool <code>call-routine</code>.
+            After loading <code>JELLY_MCP_TOKEN</code> as in
+            <a href="#discover">Example 1</a>, send this authenticated request:
+          </p>
+          <pre><code>curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
+  -H "Authorization: Bearer $JELLY_MCP_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"call-routine","arguments":{"name":"verified-screenshot","vars":{"url":"https://example.com/","target":"css:body"}}}}'</code></pre>
+          <p>
+            The MCP tool returns a structured response with the routine result.
+            Inspect the actual result; a valid request is not proof that a browser operation succeeded.
+          </p>
+        </details>
+        <h3>What else can routines do?</h3>
+        <div class="grid connection-options">
+          <article class="card">
+            <div class="index">FILES AND EVIDENCE</div>
+            <h3>Verify a download</h3>
+            <p>
+              The bundled <code>verified-download</code> routine checks the page and download trigger,
+              performs the click, waits for the download, and verifies the file artifact.
+            </p>
+          </article>
+          <article class="card">
+            <div class="index">HUMAN APPROVAL AND RECOVERY</div>
+            <h3>Pause, resume, and retry</h3>
+            <p>
+              Graph routines can branch on failures, retry bounded steps, or pause for a human.
+              A suspended routine returns a resume ID, which can be used to continue its saved workflow.
+            </p>
+          </article>
+        </div>
+        <details>
+          <summary>See the download routine command (template, requires a real download page)</summary>
+          <pre><code>cargo run --quiet --bin agent-run -- \
+  call-routine verified-download \
+  url=https://your-download-site.example/downloads \
+  target=css:a.download</code></pre>
+          <p>
+            This command is a <strong>template, not a runnable public example</strong>.
+            Replace the URL and selector with a real page containing a download link.
+            It fails if the download or artifact verification fails.
+          </p>
+        </details>
+        <p>
+          <strong>Want to build your own workflow?</strong> Read the
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/docs/guides/ROUTINES.md">Routines guide</a>
+          for the actual JSON graph format, branching rules, timeouts, and human-in-the-loop
+          suspension/resumption. See the <a href="./tools.html#call-routine"><code>call-routine</code>
+          API reference</a> for exact MCP parameters.
+        </p>
+      </section>
       <section id="video">
         <h2>
-          Browser recording example
+          Example 4: Watch Jelly operate a browser
         </h2>
         <p>
           Jelly doesn't just automate the browser. It shows its work, capturing and captioning
-          every move as it happens.
+          every move as it happens. The recording below illustrates real browser interaction;
+          it is not a recorded execution of the screenshot or download routines above.
         </p>
         <video autoplay loop muted playsinline controls preload="auto" poster="./assets/images/porsche-718-spyder-rs-demo-20261008-poster.png" aria-label="Jelly configuring a Porsche 718 Spyder RS in Racing Yellow">
           <source src="./assets/images/porsche-718-spyder-rs-demo-20261008.mp4" type="video/mp4">
@@ -179,8 +313,10 @@ curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
         </video>
         <p>
           <strong>Limitations:</strong> Real sites may require authentication, and actions can have side effects. Do not
-          submit purchases or change accounts without consent. Reference: <a href="./tools.html">Tool parameters</a> and
-          <a href="./tools.html">Tool reference</a>.
+          submit purchases or change accounts without consent. See
+          <a href="./tools.html">the Tools reference</a> for parameters and
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/docs/guides/ROUTINES.md">the Routines guide</a>
+          for multi-step workflow definitions.
         </p>
       </section>
     </main>

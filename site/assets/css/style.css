@@ -549,6 +549,7 @@ html { scroll-padding-top: 86px; }
 .tool-intro-grid .card { min-height: 0; }
 .tool-intro-grid .card .index { margin-bottom: 14px; }
 .tool-intro-grid .card p { line-height: 1.7; }
+.example-choice-grid .card p + p { margin-top: 16px; }
 .tool-groups {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
