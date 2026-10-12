@@ -531,6 +531,39 @@ fn system_args_are_mapped_to_existing_cli_shape() {
         )
         .is_err()
     );
+    let capture_start = json!({"action":"capture","operation":"start"});
+    assert_eq!(
+        system_cli_args("call-routine", capture_start.as_object().unwrap()).unwrap(),
+        vec!["--capture", "start"]
+    );
+    let capture_status = json!({"action":"capture","operation":"status","capture_id":"capture-0123456789abcdef0123456789abcdef"});
+    assert_eq!(
+        system_cli_args("call-routine", capture_status.as_object().unwrap()).unwrap(),
+        vec![
+            "--capture",
+            "status",
+            "capture-0123456789abcdef0123456789abcdef"
+        ]
+    );
+    let capture_stop = json!({"action":"capture","operation":"stop","capture_id":"capture-0123456789abcdef0123456789abcdef"});
+    assert_eq!(
+        system_cli_args("call-routine", capture_stop.as_object().unwrap()).unwrap(),
+        vec![
+            "--capture",
+            "stop",
+            "capture-0123456789abcdef0123456789abcdef"
+        ]
+    );
+    assert!(
+        system_cli_args(
+            "call-routine",
+            json!({"action":"capture","operation":"stop"})
+                .as_object()
+                .unwrap()
+        )
+        .is_err()
+    );
+    assert!(system_cli_args("call-routine",json!({"action":"capture","operation":"start","capture_id":"capture-0123456789abcdef0123456789abcdef"}).as_object().unwrap()).is_err());
     let crystallize = json!({"action":"crystallize","name":"sample","expected_revision":1,"trace_id":"trace-123"});
     assert_eq!(
         system_cli_args("call-routine", crystallize.as_object().unwrap()).unwrap(),

@@ -76,15 +76,15 @@ pub(crate) use error::{cdp_error, error_details, structured_error};
 /// Browser/system registry descriptors, discovery functions, and execution helpers
 /// consumed by Jelly binaries, generated documentation, and regression probes.
 pub use execution::{
-    ArgKind, ArgSpec, CategorySpec, PrimitiveSpec, ToolCategorySpec, ToolSpec, capabilities,
-    category_specs, execute_named_browser_primitive, lightweight_tools, new_id, primitive_specs,
-    record_step, redact_tool_args, run_cli_primitive, search_tools, tool_category_specs,
-    tool_schema, tool_specs, tools_in,
+    ArgKind, ArgSpec, CategorySpec, PrimitiveSpec, ToolCategorySpec, ToolSpec, active_trace_id,
+    capabilities, category_specs, execute_named_browser_primitive, lightweight_tools, new_id,
+    primitive_specs, record_step, redact_tool_args, run_cli_primitive, search_tools,
+    tool_category_specs, tool_schema, tool_specs, tools_in,
 };
 pub(crate) use execution::{
     browser_capabilities, browser_operation_schema, execute_browser_primitive,
-    is_browser_primitive, named_primitive_input_schema, prepare_named_primitive_args,
-    search_browser_operations,
+    is_browser_primitive, manage_routine_capture, named_primitive_input_schema,
+    prepare_named_primitive_args, search_browser_operations,
 };
 
 /// Error type shared by Jelly's command and browser execution surfaces.

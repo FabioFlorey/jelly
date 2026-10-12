@@ -8,6 +8,7 @@
 - [Execution modes and agent handoffs](#execution-modes-and-agent-handoffs)
 - [Discover, generate, and save routines](#discover-generate-and-save-routines)
 - [Immutable revisions and promotion](#immutable-revisions-and-promotion)
+- [Routine Capture sessions](#routine-capture-sessions)
 - [Trace crystallization into a staged candidate](#trace-crystallization-into-a-staged-candidate)
 - [JSON graph format](#json-graph-format)
 - [Variables, conditions, and loops](#variables-conditions-and-loops)
@@ -554,6 +555,69 @@ active routine. Existing suspended workflows retain their captured definition.
 Versioning does not certify a procedure as safe; reviewing and testing
 candidates before promotion is still required.
 
+## Routine Capture sessions
+
+Jelly can now manage a **capture session** across separate CLI commands and
+MCP browser primitives. There is no need to set `JELLY_TRACE_ID` manually.
+The session stores an automatically generated `capture_id` (also its trace
+ID) and records subsequent primitive outcomes in Jelly's existing
+`logs/actions.jsonl`. Capture does not open Chromium, run a workflow or start
+`record-browser`, and captures no video/screenshots by itself.
+
+Start the session through `call-routine`:
+
+```json
+{"action":"capture","operation":"start"}
+```
+
+Then use Jelly normally to perform browser operations and explicit assertions.
+MCP calls and `agent-run` CLI calls share the same active capture ID. Inspect
+progress, then stop it by supplying the ID returned from start:
+
+```json
+{"action":"capture","operation":"status"}
+```
+
+```json
+{"action":"capture","operation":"stop",
+ "capture_id":"capture-0123456789abcdef0123456789abcdef"}
+```
+
+CLI equivalents:
+
+```bash
+agent-run call-routine --capture start
+agent-run call-routine --capture status
+agent-run call-routine --capture stop "capture-0123456789abcdef0123456789abcdef"
+agent-run call-routine --capture status "capture-0123456789abcdef0123456789abcdef"
+```
+
+`status` without an ID returns `idle` when no capture is active; with an ID
+it inspects a previous session. Status returns primitive and verification
+counts, failed event counts, wrapper event counts, and unsupported primitive
+counts; it does **not** return raw arguments. Only one capture is active per
+Jelly runtime, and the capture metadata is persisted privately under the
+runtime's `routines/captures` directory (mode 0700, files 0600). The active
+capture survives restarts until explicitly stopped. Start and stop are
+serialized across processes using a per-runtime filesystem lock.
+
+**Shared runtime scope:** a capture records actions from *all* agents and CLI
+processes using the same Jelly runtime while it is active. It is not yet
+isolated to one MCP client. Do not start capture when unrelated clients might
+use the browser, and do not run multiple unrelated workflows in the same
+capture. Stop after all relevant calls have completed; a command still
+in flight at stop time may not be included. The log uses existing argument
+redaction; never assume that web text or other recorded values cannot contain
+sensitive content.
+
+The resulting `capture_id` can then be provided as `trace_id` to the existing
+`crystallize` operation to stage a **candidate**, after first creating or
+selecting a named saved routine. Stopping capture never invokes
+`crystallize` and never activates a revision. The converter's strict
+action/verification allowlist still applies; captured sessions with arbitrary
+navigation, form entry or other unsupported events remain available as
+diagnostic evidence but cannot automatically become `auto` graphs.
+
 ## Trace crystallization into a staged candidate
 
 The `crystallize` management action reconstructs a **candidate auto-routine**
@@ -562,8 +626,8 @@ the candidate, change the current active routine, perform model inference, or
 assert that replaying the procedure will succeed.
 
 The agent must have executed browser primitives with a **shared trace ID**
-(for CLI workflows, for example, use the same `JELLY_TRACE_ID` environment
-variable across calls). Independently generated trace IDs cannot be merged
+(prefer `capture start`/`stop` above; manually setting `JELLY_TRACE_ID` remains
+an alternative). Independently generated trace IDs cannot be merged
 automatically. The shared trace contains real `primitive.completed` events
 with successful, explicit verification operations after each action. The
 caller supplies the active saved routine's `name` and `expected_revision`:
@@ -602,7 +666,7 @@ guarantee the action is safe or idempotent in later runs.
 The converter does not infer variables, branches, loops, recovery policies,
 correctness from screenshots, or an optimal procedure. It requires explicit
 recorded assertions, cannot safely reconstruct redacted values, and does not
-replace human/agent review. Future work can add guided capture sessions and
+replace human/agent review. Future work can add scoped capture sessions and
 parameterization before candidate staging.
 
 <div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

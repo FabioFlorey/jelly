@@ -812,6 +812,13 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
     };
     match args.first().map(String::as_str) {
         Some("list") if args.len() == 1 => return list_routines(),
+        Some("--capture") if (2..=3).contains(&args.len()) => {
+            let operation = args[1].as_str();
+            let id = args.get(2).map(String::as_str);
+            println!("{}", crate::manage_routine_capture(operation, id)?);
+            return Ok(());
+        }
+
         Some("--crystallize") if args.len() == 4 => {
             let expected = args[2].parse::<u64>()?;
             let name = &args[1];

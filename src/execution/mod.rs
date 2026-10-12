@@ -1,6 +1,7 @@
 mod discovery;
 mod named;
 mod registry;
+mod routine_capture;
 mod tools;
 mod tracing;
 
@@ -15,6 +16,8 @@ pub use registry::{
     ArgKind, ArgSpec, CATEGORIES as category_specs, CategorySpec, PRIMITIVES as primitive_specs,
     PrimitiveSpec,
 };
+pub use routine_capture::active_trace_id;
+pub(crate) use routine_capture::manage as manage_routine_capture;
 pub use tools::{
     TOOL_CATEGORIES as tool_category_specs, TOOLS as tool_specs, ToolCategorySpec, ToolSpec,
 };

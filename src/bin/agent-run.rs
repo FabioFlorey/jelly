@@ -1,6 +1,6 @@
 use jelly::{
-    ACTIVE_TARGET, BROWSER_MODE, LOG_DIR, PAGE_TARGET, new_id, primitive_specs, record_step,
-    redact_tool_args,
+    ACTIVE_TARGET, BROWSER_MODE, LOG_DIR, PAGE_TARGET, active_trace_id, new_id, primitive_specs,
+    record_step, redact_tool_args,
 };
 use serde_json::json;
 use std::{
@@ -45,7 +45,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let started = SystemTime::now();
     let timer = Instant::now();
-    let trace_id = env::var("JELLY_TRACE_ID").unwrap_or_else(|_| new_id("trace"));
+    let managing_capture =
+        tool == "call-routine" && args.get(1).is_some_and(|argument| argument == "--capture");
+    let trace_id = (if managing_capture {
+        None
+    } else {
+        active_trace_id()
+    })
+    .or_else(|| env::var("JELLY_TRACE_ID").ok())
+    .unwrap_or_else(|| new_id("trace"));
     let span_id = new_id("span");
     let source = env::var("JELLY_SOURCE").unwrap_or_else(|_| "agent-run".into());
     if tool == "close-browser" {

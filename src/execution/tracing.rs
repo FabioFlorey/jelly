@@ -18,7 +18,9 @@ pub fn log_primitive(
     error: Option<&Error>,
     prepared: Option<&PreparedStep>,
 ) -> Result<(), Error> {
-    let trace_id = env::var("JELLY_TRACE_ID").unwrap_or_else(|_| new_id("trace"));
+    let trace_id = crate::execution::active_trace_id()
+        .or_else(|| env::var("JELLY_TRACE_ID").ok())
+        .unwrap_or_else(|| new_id("trace"));
     let span_id = new_id("span");
     let ok = error.is_none();
     fs::create_dir_all(LOG_DIR)?;

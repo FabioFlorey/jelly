@@ -118,8 +118,8 @@ pub static TOOLS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "call-routine",
-        description: "Save, search, inspect, run or resume reusable JSON graphs by name or UUID, with auto/hybrid/jelly execution modes and chained routines. Saving never executes; use browser-call for a simple ordered batch.",
-        usage: "call-routine list | call-routine --versions <name> | call-routine --crystallize <name> <expected-rev> <trace-id> | call-routine --revise <name> <expected-rev> <graph-json> | call-routine --promote <name> <rev> <expected-rev> | call-routine --search <query> | call-routine --status <resume-id> | call-routine --claim <id> <owner> [seconds] [--takeover <reason>] | call-routine --renew <id> <lease-token> [seconds] | call-routine --release <id> <lease-token> | call-routine describe <name-or-uuid> | call-routine save <graph-json> | call-routine [--handoff-to <profile>] <name-or-uuid> [key=value] | call-routine resume <id> [--lease <token>] [key=value]",
+        description: "Capture action traces, stage deterministic candidates, or save, search, inspect, run and resume JSON routines with auto/hybrid/jelly modes. Capture and save never execute browser operations; use browser-call for a simple one-off batch.",
+        usage: "call-routine list | call-routine --capture <start|status [id]|stop id> | call-routine --versions <name> | call-routine --crystallize <name> <expected-rev> <trace-id> | call-routine --revise <name> <expected-rev> <graph-json> | call-routine --promote <name> <rev> <expected-rev> | call-routine --search <query> | call-routine --status <resume-id> | call-routine --claim <id> <owner> [seconds] [--takeover <reason>] | call-routine --renew <id> <lease-token> [seconds] | call-routine --release <id> <lease-token> | call-routine describe <name-or-uuid> | call-routine save <graph-json> | call-routine [--handoff-to <profile>] <name-or-uuid> [key=value] | call-routine resume <id> [--lease <token>] [key=value]",
         category: "routines",
     },
     ToolSpec {

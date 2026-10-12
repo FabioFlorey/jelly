@@ -260,6 +260,21 @@ pub(super) fn system_cli_args(
             if let Some(action) = string("action")? {
                 return match action.as_str() {
                     "list" if object.len() == 1 => Ok(vec!["list".into()]),
+                    "capture" => {
+                        let operation = string("operation")?.ok_or("capture requires operation")?;
+                        let id = string("capture_id")?;
+                        match (operation.as_str(), id) {
+                            ("start", None) if object.len() == 2 =>
+                                Ok(vec!["--capture".into(), "start".into()]),
+                            ("status", None) if object.len() == 2 =>
+                                Ok(vec!["--capture".into(), "status".into()]),
+                            ("status", Some(id)) | ("stop", Some(id))
+                                if object.len() == 3 =>
+                                Ok(vec!["--capture".into(), operation, id]),
+                            _ => Err("capture requires start, status [capture_id], or stop with capture_id".into()),
+                        }
+                    }
+
                     "crystallize" if object.len() == 4 => {
                         let name = string("name")?.ok_or("crystallize requires name")?;
                         let expected = integer("expected_revision")?
