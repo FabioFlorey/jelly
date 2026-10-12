@@ -528,6 +528,38 @@ html { scroll-padding-top: 86px; }
 .doc-head h1 { font-size: clamp(2.3rem, 5vw, 4.2rem); line-height: 1.13; margin: 18px 0; overflow-wrap: anywhere; }
 .doc-page section { padding: 28px 0 34px; border-top: 1px solid var(--line); max-width: 1050px; }
 .doc-page section h2 { font-size: clamp(1.25rem, 2.3vw, 1.7rem); line-height: 1.34; margin: 0 0 18px; }
+
+/* Keep first-run instructions readable. HTML source newlines are not visual
+   breaks: paragraphs have a comfortable measure; choices remain separate. */
+.getting-started-page section > p,
+.getting-started-page section > ul,
+.getting-started-page section > ol { max-width: 72ch; }
+.getting-started-page .doc-head .site-note { font-size: .92rem; max-width: 72ch; line-height: 1.7; margin-top: 18px; }
+.getting-started-page section > p { margin-block: 16px; }
+.getting-started-page section li { line-height: 1.7; }
+.getting-started-page section li + li { margin-top: 10px; }
+.getting-started-page section > pre {
+  max-width: 780px;
+  margin: 22px 0;
+  font-size: .94rem;
+  line-height: 1.8;
+}
+.getting-started-page pre code {
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+.guide-jumps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin-top: 20px;
+  font-size: .9rem;
+}
+.guide-jumps span { color: var(--muted); }
+.guide-jumps a { color: var(--honey); white-space: nowrap; text-underline-offset: 3px; }
+
 .doc-page p, .doc-page li, .doc-page dd { color: var(--fg); max-width: 920px; line-height: 1.75; }
 .doc-page dt { color: var(--honey); font-weight: 700; margin-top: 10px; }
 .doc-page dd { margin-inline-start: 0; margin-bottom: 10px; overflow-wrap: anywhere; }
