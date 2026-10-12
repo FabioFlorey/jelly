@@ -582,6 +582,15 @@ fn system_args_are_mapped_to_existing_cli_shape() {
         system_cli_args("call-routine", crystallize.as_object().unwrap()).unwrap(),
         vec!["--crystallize", "sample", "1", "trace-123"]
     );
+    let live_fixture = json!({"action":"validate-browser","name":"sample","revision":2,
+        "fixture":{"html":"<input id='box' type='checkbox'>",
+                   "vars":{"check_target":"css:#box"}}});
+    let args = system_cli_args("call-routine", live_fixture.as_object().unwrap()).unwrap();
+    assert_eq!(&args[..3], ["--validate-browser", "sample", "2"]);
+    assert_eq!(
+        serde_json::from_str::<Value>(&args[3]).unwrap(),
+        live_fixture["fixture"]
+    );
     let fixture_validation = json!({"action":"validate","name":"sample","revision":2,
     "fixture":{"vars":{"submit":"css:#submit"},"steps":[
         {"node":"step_000","tool":"click","args":["css:#submit"],"ok":true}

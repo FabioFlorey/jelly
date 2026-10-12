@@ -18,7 +18,7 @@ use std::{
 const MAX_STEPS: usize = 42;
 const MAX_FIXTURE_BYTES: usize = 16 * 1024;
 
-fn digest(bytes: &[u8]) -> String {
+pub(crate) fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
@@ -36,7 +36,7 @@ fn is_check(name: &str) -> bool {
     )
 }
 
-fn input_context(fixture: &Value) -> Result<Map<String, Value>, Box<dyn Error>> {
+pub(crate) fn input_context(fixture: &Value) -> Result<Map<String, Value>, Box<dyn Error>> {
     let vars = fixture["vars"]
         .as_object()
         .ok_or("validation fixture requires vars object")?;
@@ -234,7 +234,7 @@ fn replay(graph: &Value, fixture: &Value) -> Result<Value, Box<dyn Error>> {
     }))
 }
 
-fn store_report(root: &Path, report: &Value) -> Result<(), Box<dyn Error>> {
+pub(crate) fn store_report(root: &Path, report: &Value) -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(root)?;
     fs::set_permissions(root, fs::Permissions::from_mode(0o700))?;
     let id = report["validation_id"]

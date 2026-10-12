@@ -2,6 +2,7 @@
 
 pub(crate) mod routine_crystallize;
 pub(crate) mod routine_handoff;
+pub(crate) mod routine_live_validation;
 pub(crate) mod routine_state;
 pub(crate) mod routine_validation;
 pub(crate) mod routine_versions;
