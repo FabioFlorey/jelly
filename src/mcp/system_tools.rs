@@ -264,6 +264,43 @@ pub(super) fn system_cli_args(
                         "--status".into(),
                         string("resume_id")?.ok_or("status requires resume_id")?,
                     ]),
+                    "claim" => {
+                        let id = string("resume_id")?.ok_or("claim requires resume_id")?;
+                        let owner = string("owner")?.ok_or("claim requires owner")?;
+                        let seconds = integer("ttl_seconds")?;
+                        let takeover = string("takeover_reason")?;
+                        let expected =
+                            3 + usize::from(seconds.is_some()) + usize::from(takeover.is_some());
+                        if object.len() != expected {
+                            return Err("unexpected claim fields".into());
+                        }
+                        let mut args = vec!["--claim".into(), id, owner];
+                        if let Some(ttl) = seconds {
+                            args.push(ttl.to_string());
+                        }
+                        if let Some(reason) = takeover {
+                            args.extend(["--takeover".into(), reason]);
+                        }
+                        Ok(args)
+                    }
+                    "renew" => {
+                        let id = string("resume_id")?.ok_or("renew requires resume_id")?;
+                        let token = string("lease_token")?.ok_or("renew requires lease_token")?;
+                        let seconds = integer("ttl_seconds")?;
+                        if object.len() != 3 + usize::from(seconds.is_some()) {
+                            return Err("unexpected renew fields".into());
+                        }
+                        let mut args = vec!["--renew".into(), id, token];
+                        if let Some(ttl) = seconds {
+                            args.push(ttl.to_string());
+                        }
+                        Ok(args)
+                    }
+                    "release" if object.len() == 3 => Ok(vec![
+                        "--release".into(),
+                        string("resume_id")?.ok_or("release requires resume_id")?,
+                        string("lease_token")?.ok_or("release requires lease_token")?,
+                    ]),
                     "search" if object.len() == 2 => Ok(vec![
                         "--search".into(),
                         string("query")?.ok_or("search requires query")?,
@@ -289,8 +326,12 @@ pub(super) fn system_cli_args(
                 return Err("provide exactly one of name or resume_id".into());
             }
             let handoff_to = string("handoff_to")?;
+            let lease_token = string("lease_token")?;
             if resume_id.is_some() && handoff_to.is_some() {
                 return Err("handoff_to is fixed by the checkpoint on resume".into());
+            }
+            if name.is_some() && lease_token.is_some() {
+                return Err("lease_token may only accompany resume_id".into());
             }
             let mut args = if let Some(id) = resume_id {
                 vec!["resume".into(), id]
@@ -299,6 +340,9 @@ pub(super) fn system_cli_args(
             };
             if let Some(target) = handoff_to {
                 args.splice(0..0, ["--handoff-to".into(), target]);
+            }
+            if let Some(token) = lease_token {
+                args.extend(["--lease".into(), token]);
             }
             if let Some(vars) = object.get("vars") {
                 let vars = vars.as_object().ok_or("vars must be an object")?;

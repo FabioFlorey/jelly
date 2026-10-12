@@ -495,6 +495,42 @@ fn system_args_are_mapped_to_existing_cli_shape() {
         system_cli_args("call-routine", status.as_object().unwrap()).unwrap(),
         vec!["--status", "12345"]
     );
+    let claim =
+        json!({"action":"claim","resume_id":"12345","owner":"local-worker","ttl_seconds":900});
+    assert_eq!(
+        system_cli_args("call-routine", claim.as_object().unwrap()).unwrap(),
+        vec!["--claim", "12345", "local-worker", "900"]
+    );
+    let renew = json!({"action":"renew","resume_id":"12345","lease_token":"0123456789abcdef0123456789abcdef"});
+    assert_eq!(
+        system_cli_args("call-routine", renew.as_object().unwrap()).unwrap(),
+        vec!["--renew", "12345", "0123456789abcdef0123456789abcdef"]
+    );
+    let release = json!({"action":"release","resume_id":"12345","lease_token":"0123456789abcdef0123456789abcdef"});
+    assert_eq!(
+        system_cli_args("call-routine", release.as_object().unwrap()).unwrap(),
+        vec!["--release", "12345", "0123456789abcdef0123456789abcdef"]
+    );
+    let protected_resume =
+        json!({"resume_id":"12345","lease_token":"0123456789abcdef0123456789abcdef"});
+    assert_eq!(
+        system_cli_args("call-routine", protected_resume.as_object().unwrap()).unwrap(),
+        vec![
+            "resume",
+            "12345",
+            "--lease",
+            "0123456789abcdef0123456789abcdef"
+        ]
+    );
+    assert!(
+        system_cli_args(
+            "call-routine",
+            json!({"action":"claim","resume_id":"12345","owner":"worker","name":"unwanted"})
+                .as_object()
+                .unwrap()
+        )
+        .is_err()
+    );
     let describe = json!({"action":"describe","name":"sample"});
     assert_eq!(
         system_cli_args("call-routine", describe.as_object().unwrap()).unwrap(),

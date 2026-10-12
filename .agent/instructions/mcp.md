@@ -134,7 +134,7 @@ Use `call-routine` for reusable, verified JSON graphs with names, descriptions, 
 
 When `call-routine` returns `data.reason: "agent_required"` and `data.handoff.delivery: "returned"`, **you are the designated agent**: inspect, perform authorized `instruction`, verify and call `call-routine` with `resume_id`. Delivery is not success. For `delivered` to another agent, do not duplicate side effects; that agent must resume. On failed delivery, the caller handles or reports the blocker. Alternate agents require operator configuration and explicit `handoff_to`; default is caller.
 
-Poll asynchronous work using `call-routine` `{"action":"status","resume_id":"..."}`. Never resume `running`; `interrupted` is uncertain and **must not be retried without inspecting side effects**. `completed` is durable; duplicate resume returns `replayed: true`. No MCP push or model-identity attestation.
+Poll asynchronous work using `call-routine` `{"action":"status","resume_id":"..."}`. An agent can `claim` the handoff, `renew` or `release` a 15-minute lease, and resume with its private `lease_token`; `claimed` rejects other resumes. An `expired` lease requires explicit reasoned takeover after inspecting side effects, never automatic retry. Never resume `running`; `interrupted` is uncertain. `completed` is durable and duplicate resume returns `replayed: true`. No MCP push or agent-identity attestation; owner is a label only.
 
 ## 8. HITL
 

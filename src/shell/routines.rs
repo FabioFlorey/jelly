@@ -223,6 +223,7 @@ struct RunContinuation {
     handoff_to: String,
     pending_child: Option<String>,
     awaiting: Option<Value>,
+    lease: Option<Value>,
 }
 
 fn save_graph_state(
@@ -246,6 +247,7 @@ fn save_graph_state(
         "handoff_to":continuation.handoff_to,
         "pending_child":continuation.pending_child,
         "awaiting":continuation.awaiting,
+        "lease":continuation.lease,
         "inflight":false
     });
     routine_state::save_checkpoint(id, &body)?;
@@ -340,6 +342,8 @@ fn graph_run(
                         let id = finalizer.state.clone().unwrap_or_else(state_id);
                         continuation.browser_owned = finalizer.browser_owned;
                         continuation.pending_child = None;
+                        // A human HITL handoff is not owned by the agent worker.
+                        continuation.lease = None;
                         continuation.awaiting = Some(json!({"kind":"human","node":current}));
                         save_graph_state(
                             &id,
@@ -426,6 +430,10 @@ fn graph_run(
                     let parent_id = finalizer.state.clone().unwrap_or_else(state_id);
                     continuation.browser_owned = finalizer.browser_owned;
                     continuation.pending_child = Some(child_id.to_owned());
+                    if child["reason"] != "agent_required" {
+                        // A human-suspended child must not inherit an agent lease.
+                        continuation.lease = None;
+                    }
                     continuation.awaiting = Some(json!({
                         "kind":child["reason"].as_str().unwrap_or("human"),
                         "node":current,
@@ -659,11 +667,16 @@ fn start_graph(
             handoff_to: handoff_to.to_owned(),
             pending_child: None,
             awaiting: None,
+            lease: None,
         },
     )
 }
 
-fn resume(id: &str, extra: HashMap<String, String>) -> Result<(), Box<dyn std::error::Error>> {
+fn resume(
+    id: &str,
+    extra: HashMap<String, String>,
+    lease_token: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
     routine_state::validate_resume_id(id)?;
     let _lock = routine_state::acquire(id)?;
     if let Some(mut outcome) = routine_state::receipt(id)? {
@@ -679,6 +692,7 @@ fn resume(id: &str, extra: HashMap<String, String>) -> Result<(), Box<dyn std::e
     if value["inflight"] == true {
         return Err("routine execution was interrupted; inspect external effects before an operator-controlled recovery".into());
     }
+    routine_state::check_resume_lease(&value, lease_token)?;
     if value["kind"] == "graph" {
         // Mark the checkpoint before performing any further action. A crash or
         // forced kill now leaves an uncertain state, not a safe retry target.
@@ -726,6 +740,7 @@ fn resume(id: &str, extra: HashMap<String, String>) -> Result<(), Box<dyn std::e
                 handoff_to: handoff_to.to_owned(),
                 pending_child,
                 awaiting,
+                lease: value.get("lease").filter(|lease| !lease.is_null()).cloned(),
             },
         );
     }
@@ -754,6 +769,41 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
             println!("{}", routine_state::inspect(&args[1])?);
             return Ok(());
         }
+        Some("--claim") if (3..=6).contains(&args.len()) => {
+            let seconds = args
+                .get(3)
+                .filter(|value| value.as_str() != "--takeover")
+                .map(|text| text.parse::<u64>())
+                .transpose()?;
+            let takeover = args
+                .iter()
+                .position(|value| value == "--takeover")
+                .map(|position| {
+                    args.get(position + 1)
+                        .map(String::as_str)
+                        .ok_or("--takeover requires a reason")
+                })
+                .transpose()?;
+            let expected =
+                3 + usize::from(seconds.is_some()) + if takeover.is_some() { 2 } else { 0 };
+            if expected != args.len() {
+                return Err("invalid claim arguments".into());
+            }
+            println!(
+                "{}",
+                routine_state::claim(&args[1], &args[2], seconds, takeover)?
+            );
+            return Ok(());
+        }
+        Some("--renew") if (3..=4).contains(&args.len()) => {
+            let seconds = args.get(3).map(|value| value.parse::<u64>()).transpose()?;
+            println!("{}", routine_state::renew(&args[1], &args[2], seconds)?);
+            return Ok(());
+        }
+        Some("--release") if args.len() == 3 => {
+            println!("{}", routine_state::release(&args[1], &args[2])?);
+            return Ok(());
+        }
         Some("--search") if args.len() == 2 => return search_routines(&args[1]),
         Some("describe") if args.len() == 2 => return describe_routine(&args[1]),
         Some("save") if args.len() == 2 => return save_routine(&args[1]),
@@ -765,11 +815,15 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
                 "handoff_to is captured in the checkpoint and cannot change on resume".into(),
             );
         }
-        return resume(
-            args.get(1)
-                .ok_or("usage: call-routine resume <id> [key=value]")?,
-            vars(&args[2..]),
-        );
+        let id = args
+            .get(1)
+            .ok_or("usage: call-routine resume <id> [--lease <token>] [key=value]")?;
+        let (token, start) = if args.get(2).is_some_and(|arg| arg == "--lease") {
+            (Some(args.get(3).ok_or("missing lease token")?.as_str()), 4)
+        } else {
+            (None, 2)
+        };
+        return resume(id, vars(&args[start..]), token);
     }
 
     let name = args

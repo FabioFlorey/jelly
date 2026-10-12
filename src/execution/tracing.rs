@@ -436,6 +436,17 @@ pub fn redact_tool_args(tool: &str, args: &[String]) -> Vec<String> {
                 *value = "<redacted-storage-value>".into();
             }
         }
+        "call-routine" => {
+            // Renew/release take a positional token. The resume --lease flag
+            // is covered by redact_args below, including agent-run traces.
+            if matches!(
+                args.first().map(String::as_str),
+                Some("--renew" | "--release")
+            ) && let Some(token) = out.get_mut(2)
+            {
+                *token = "<redacted>".into();
+            }
+        }
         _ => {}
     }
     out
@@ -451,7 +462,15 @@ pub fn redact_args(args: &[String]) -> Vec<String> {
             continue;
         }
         let lower = a.to_ascii_lowercase();
-        if ["--token", "--password", "--secret", "--api-key", "--apikey"].contains(&lower.as_str())
+        if [
+            "--token",
+            "--password",
+            "--secret",
+            "--api-key",
+            "--apikey",
+            "--lease",
+        ]
+        .contains(&lower.as_str())
         {
             out.push(a.clone());
             secret = true
@@ -504,6 +523,26 @@ mod tests {
             redact_args(&args),
             vec!["--token".to_owned(), "<redacted>".to_owned()]
         );
+    }
+
+    #[test]
+    fn routine_lease_tokens_are_absent_from_traces() {
+        let token = "0123456789abcdef0123456789abcdef";
+        for action in ["--renew", "--release"] {
+            let args = vec![action.into(), "12345".into(), token.into()];
+            let redacted = redact_tool_args("agent-call-routine", &args);
+            assert_eq!(redacted[2], "<redacted>");
+            assert!(!redacted.join(" ").contains(token));
+        }
+        let args = vec![
+            "resume".into(),
+            "12345".into(),
+            "--lease".into(),
+            token.into(),
+        ];
+        let redacted = redact_tool_args("agent-call-routine", &args);
+        assert_eq!(redacted[3], "<redacted>");
+        assert!(!redacted.join(" ").contains(token));
     }
 
     #[test]

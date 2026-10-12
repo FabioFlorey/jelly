@@ -182,11 +182,68 @@ disconnected MCP client. Valid statuses are:
 | --- | --- |
 | `suspended` | Saved checkpoint awaiting external action or HITL; `awaiting` describes the pending instruction if known |
 | `running` | Another process currently holds the continuation lock |
+| `claimed` | An agent has acknowledged the handoff and holds an unexpired lease |
+| `expired` | The agent's lease elapsed; do not automatically replay its side effects |
 | `completed` | The continuation finished and a durable success receipt exists |
 | `failed` | The graph reached an explicit failed terminal |
 | `interrupted` | The process stopped or erred with an uncertain outcome; do **not** blindly retry |
 
+### Explicit agent acknowledgement and lease
+
+The default behavior remains backwards-compatible: a handoff returns to the
+calling agent and can be resumed directly. For asynchronous handoffs, an agent
+may **claim** a suspended agent node before working:
+
+```json
+{"action":"claim","resume_id":"17917883592861916161836","owner":"local-worker","ttl_seconds":900}
+```
+
+`claim` returns `lease_token` (a new 128-bit random value) and `expires_at`.
+Keep the token private: it is a bearer capability, **not proof of an
+authenticated agent identity**. Owner labels are only attribution metadata.
+To renew the lease, call `{"action":"renew","resume_id":"...","lease_token":"..."}`
+(with optional `ttl_seconds`: 60-3600, default 900). To release it, call
+`{"action":"release","resume_id":"...","lease_token":"..."}`. Only a safely
+suspended agent handoff can be claimed; human HITL, running, interrupted, and
+terminal states cannot be claimed or renewed.
+
+A claimed routine **requires** the token to resume:
+
+```json
+{"resume_id":"17917883592861916161836","lease_token":"<secret>"}
+```
+
+CLI equivalents:
+
+```bash
+agent-run call-routine --claim "$RESUME_ID" local-worker 900
+agent-run call-routine --renew "$RESUME_ID" "$LEASE_TOKEN" 900
+agent-run call-routine --release "$RESUME_ID" "$LEASE_TOKEN"
+agent-run call-routine resume "$RESUME_ID" --lease "$LEASE_TOKEN"
+```
+
+The lease persists across repeated agent suspensions, including parent
+macro-routine checkpoints. When the workflow delegates instead to human HITL,
+including a suspended human child, Jelly releases the agent lease. `status` exposes owner and expiry but never the
+token. A second claim or invalid token is rejected, as is a resume after lease
+expiry. **Expiration alone never authorizes another agent to execute actions.**
+After verifying potential external side effects, an operator may explicitly
+take over using `claim` with `takeover_reason` (12-300 characters), for example:
+
+```json
+{"action":"claim","resume_id":"...","owner":"recovery-worker","takeover_reason":"Checked invoice state; no submission occurred"}
+```
+
+This rotates the token and invalidates the prior claim. Takeover is not an
+automatic safety guarantee: an old agent might still be working outside
+Jelly. Applications requiring hard mutual exclusion across independent
+agents need additional execution-level coordination. Jelly never starts
+an agent merely because a lease expires, and MCP authentication is still
+required for every call. Token-bearing arguments and private checkpoint
+files deserve the same care as other secrets.
+
 Only one process can hold the advisory lock for a given `resume_id`. Concurrent
+OLD
 `resume` calls fail without starting a duplicate workflow. After completion,
 a repeated `resume` returns the stored result with `replayed: true`, without
 executing another action. A newly started `resume` marks the checkpoint as
