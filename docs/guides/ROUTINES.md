@@ -91,6 +91,80 @@ The existing `hitl` node remains separate: it requests human intervention
 via Telegram. An agent node yields work back to the caller through the routine
 result. Neither mechanism is a general durable background agent scheduler.
 
+### Handoff destination: caller by default
+
+**The agent invoking Jelly is the default recipient.** A `call-routine` response
+with `status: "suspended"`, `reason: "agent_required"` and
+`handoff: {"target":"caller","delivery":"returned",...}` is directed to that
+same agent, in the same tool call. The agent should inspect the page, perform
+the permitted action, then call `call-routine` with `resume_id`. Completion
+is determined by the next verification node, not by an untrusted claim.
+
+The caller may instead select an **operator-configured** profile when starting
+a routine (not when resuming):
+
+```json
+{"name":"invoice-download","vars":{"invoice":"2026-10"},"handoff_to":"local-worker"}
+```
+
+This is the MCP tool *arguments* object. CLI equivalent:
+
+```bash
+agent-run call-routine --handoff-to local-worker invoice-download invoice=2026-10
+```
+
+Profiles are defined by the operator in `config/jelly.toml`; tools cannot
+provide arbitrary command paths or endpoint URLs:
+
+```toml
+[[routines.agents]]
+name = "local-worker"
+transport = "local"
+program = "/usr/local/bin/jelly-agent-adapter"
+args = []
+
+[[routines.agents]]
+name = "remote-worker"
+transport = "remote"
+url = "https://agents.example.com/jelly/handoff"
+bearer_token_env = "JELLY_ROUTINE_AGENT_TOKEN"
+```
+
+The local adapter is **an external executable**, not an LLM built into Jelly:
+Jelly starts it without a shell, writes one UTF-8 JSON handoff object to stdin,
+and waits up to five seconds for exit status 0 (acknowledgement). A remote adapter
+receives the same JSON as an HTTPS POST with
+`Content-Type: application/json`; an optional bearer token is loaded from the
+named environment variable, never stored in a graph. Remote delivery uses
+`curl` and a five-second timeout. Both adapters must acknowledge quickly and
+manage actual agent execution independently; success in dispatch means only
+that the handoff was accepted for delivery.
+
+The JSON includes `resume_id`, `routine`, `node`, `instruction`, `verify`,
+and the typed error when present. The adapter must arrange for its agent to
+access Jelly with its own authorized MCP connection, perform the task and
+call `call-routine` again with `resume_id`. Do not treat the ID as an access
+token. Authentication to Jelly remains mandatory. Delivery may expose
+instruction text and error details to the selected agent: choose trusted
+endpoints, secure environment variables and restrict who may select profiles.
+
+If external delivery fails, Jelly **keeps the checkpoint** and returns a
+structured result with `handoff.delivery: "failed"` and `fallback: "caller"`.
+The original agent can recover manually. Unknown or malformed named profiles
+are rejected *before* executing the routine. The selected destination is
+persisted in the checkpoint and cannot be replaced when resuming.
+
+In a macro-routine, a suspended child pauses its parent. The original caller
+receives a **parent** `resume_id`. The parent checkpoint retains the child
+continuation and resumes it first, then checks its outcome before continuing.
+A nested agent handoff is dispatched once, at the outermost routine boundary.
+This applies to nested human suspension too, without re-sending the HITL request.
+
+MCP does not guarantee that a caller model will automatically continue after
+receiving a tool result; Jelly supplies the explicit instruction and checkpoint.
+No persistent worker, automatic wake-up or provider-managed model session is
+silently assumed.
+
 ## Discover, generate, and save routines
 
 The `call-routine` MCP tool lets an AI client **list**, **describe**, **save**, **run**, and **resume** JSON routines. To generate one, the agent constructs a graph from a previously verified workflow, gives it a meaningful name and description, and invokes `call-routine` with `action: "save"` and a `graph` object.
@@ -282,7 +356,7 @@ A saved graph runs **real browser and system operations**. Inspect generated gra
 Saving requires write access to the repository's `.agent/routines/` directory. Generated JSON files are ordinary files in that checkout and should be reviewed before committing to version control. Existing names and UUIDs are not silently replaced. Legacy `.jinja` routines are **not supported**; use JSON graphs for all new and existing workflows.
 
 The current implementation does **not** provide autonomous model invocation,
-an agent wake-up adapter, routine version history, typed routine input/output
+a standardized agent wake-up/completion protocol, routine version history, typed routine input/output
 contracts, semantic search, or automatic promotion of agent traces into auto
 routines. Those are separate future steps. Agents must inspect the handoff
 result and explicitly resume; a `panic` in Jelly is not a supported recovery

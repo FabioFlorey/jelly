@@ -17,6 +17,9 @@ pub struct JellyConfig {
     pub tests: TestsConfig,
     pub ui: UiConfig,
     pub hitl: HitlConfig,
+    /// Optional dispatch adapters for routine agent handoffs.
+    #[serde(default)]
+    pub routines: RoutinesConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -89,6 +92,29 @@ pub struct McpConfig {
     /// Optional client onboarding profiles. Empty preserves legacy MCP behavior.
     #[serde(default)]
     pub connections: Vec<crate::connection::ProviderConnection>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct RoutinesConfig {
+    /// Explicit operator-provisioned agents; caller is always the default.
+    #[serde(default)]
+    pub agents: Vec<RoutineAgentConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RoutineAgentConfig {
+    pub name: String,
+    /// local: run an absolute executable (no shell); remote: HTTPS JSON webhook.
+    pub transport: String,
+    #[serde(default)]
+    pub program: Option<PathBuf>,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub url: Option<String>,
+    /// Name of environment variable containing the remote bearer token.
+    #[serde(default)]
+    pub bearer_token_env: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -494,6 +520,39 @@ mod tests {
         assert!(
             toml::from_str::<RemoteBrowserConfig>(&format!("{base}download_mode = 'magic'\n"))
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn routine_agent_profiles_deserialize_without_changing_default_caller() {
+        let default: RoutinesConfig = toml::from_str("").unwrap();
+        assert!(default.agents.is_empty());
+        let configured: RoutinesConfig = toml::from_str(
+            r#"
+            [[agents]]
+            name = "local-worker"
+            transport = "local"
+            program = "/usr/local/bin/agent"
+            args = ["--json"]
+
+            [[agents]]
+            name = "remote-worker"
+            transport = "remote"
+            url = "https://agents.example.test/handoff"
+            bearer_token_env = "JELLY_AGENT_TOKEN"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(configured.agents.len(), 2);
+        assert_eq!(configured.agents[0].name, "local-worker");
+        assert_eq!(
+            configured.agents[0].program.as_ref().unwrap(),
+            &PathBuf::from("/usr/local/bin/agent")
+        );
+        assert_eq!(configured.agents[1].transport, "remote");
+        assert_eq!(
+            configured.agents[1].bearer_token_env.as_deref(),
+            Some("JELLY_AGENT_TOKEN")
         );
     }
 

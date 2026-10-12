@@ -284,11 +284,18 @@ pub(super) fn system_cli_args(
             if name.is_some() == resume_id.is_some() {
                 return Err("provide exactly one of name or resume_id".into());
             }
+            let handoff_to = string("handoff_to")?;
+            if resume_id.is_some() && handoff_to.is_some() {
+                return Err("handoff_to is fixed by the checkpoint on resume".into());
+            }
             let mut args = if let Some(id) = resume_id {
                 vec!["resume".into(), id]
             } else {
                 vec![name.unwrap()]
             };
+            if let Some(target) = handoff_to {
+                args.splice(0..0, ["--handoff-to".into(), target]);
+            }
             if let Some(vars) = object.get("vars") {
                 let vars = vars.as_object().ok_or("vars must be an object")?;
                 for (key, value) in vars {

@@ -144,6 +144,8 @@ FFmpeg is part of the recording pipeline, **not** a general-purpose MCP shell to
 
 Use `call-routine` for reusable, verified JSON graphs with names, descriptions, variables, conditions, loops, and chaining. List existing routines before repeating work. Save a generated graph with `action: "save"` (never executes); review before running. Use `browser-call` for one-off batches.
 
+When `call-routine` returns `data.status: "suspended"` and `data.reason: "agent_required"` with `data.handoff.delivery: "returned"`, **you are the designated agent**: inspect the current browser, follow the structured `instruction` within user authority, verify the action, then call `call-routine` with `resume_id`. Never treat delegation delivery as proof of success. If `delivery: "delivered"` to a named agent, do not duplicate its side effects; the external agent must resume the checkpoint, and no automatic completion notification is implied. If delivery failed and falls back to `caller`, handle the instruction or report the blocker. Named alternate agents require an operator-configured profile and explicit `handoff_to` on the initiating run; the default is always the calling agent.
+
 ## 8. HITL
 
 Before HITL, exhaust legitimate automatable paths: inspect again, refresh stale refs, and retry only safe observations or alternate supported UI paths. If the host has an active ChatGPT conversation, ask for human decisions there; otherwise use the published `hitl` tool through Telegram.

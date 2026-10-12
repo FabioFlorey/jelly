@@ -3,6 +3,7 @@ use crate::core::routines::{
     error_value, parse_output, plan_node, plan_tool_outcome, routine_mode, system_failure_kind,
     valid_routine_id, valid_routine_name, validate_routine_definition, vars,
 };
+use crate::shell::routine_handoff::{dispatch, select_target};
 use crate::{
     BrowserSession, ROUTINE_STATE_DIR, classify_error, error_details, execute_browser_primitive,
     is_browser_primitive,
@@ -201,6 +202,13 @@ impl Drop for GraphFinalizer {
     }
 }
 
+struct RunContinuation {
+    browser_owned: bool,
+    state: Option<String>,
+    handoff_to: String,
+    pending_child: Option<String>,
+}
+
 fn save_graph_state(
     id: &str,
     graph: &Value,
@@ -208,7 +216,7 @@ fn save_graph_state(
     context: &Map<String, Value>,
     steps: u64,
     visits: &HashMap<String, u64>,
-    browser_owned: bool,
+    continuation: &RunContinuation,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(routine_state())?;
     let body = json!({
@@ -218,7 +226,9 @@ fn save_graph_state(
         "context":context,
         "steps":steps,
         "visits":visits,
-        "browser_owned":browser_owned
+        "browser_owned":continuation.browser_owned,
+        "handoff_to":continuation.handoff_to,
+        "pending_child":continuation.pending_child
     });
     fs::write(
         format!("{}/{id}.state", routine_state()),
@@ -233,8 +243,7 @@ fn graph_run(
     mut context: Map<String, Value>,
     mut steps: u64,
     mut visits: HashMap<String, u64>,
-    browser_owned: bool,
-    state: Option<String>,
+    mut continuation: RunContinuation,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(routine_state())?;
     let max_steps = graph
@@ -256,7 +265,11 @@ fn graph_run(
         .ok_or("graph routine requires nodes")?;
     let mut current = start;
     let mut browser: Option<BrowserSession> = None;
-    let mut finalizer = GraphFinalizer::new(browser_owned, keep_browser, state);
+    let mut finalizer = GraphFinalizer::new(
+        continuation.browser_owned,
+        keep_browser,
+        continuation.state.take(),
+    );
 
     loop {
         if started.elapsed() > Duration::from_millis(max_duration_ms) {
@@ -311,6 +324,8 @@ fn graph_run(
                             .and_then(Value::as_str)
                             .ok_or("hitl node requires resume or next")?;
                         let id = finalizer.state.clone().unwrap_or_else(state_id);
+                        continuation.browser_owned = finalizer.browser_owned;
+                        continuation.pending_child = None;
                         save_graph_state(
                             &id,
                             &graph,
@@ -318,7 +333,7 @@ fn graph_run(
                             &context,
                             steps,
                             &visits,
-                            finalizer.browser_owned,
+                            &continuation,
                         )?;
                         finalizer.state = Some(id.clone());
                         finalizer.suspend();
@@ -339,39 +354,81 @@ fn graph_run(
                 }
             }
             PlannedNode::Agent { instruction } => {
-                // The caller's agent performs the work outside this process. On resume,
+                // The selected agent performs work outside this process. On resume,
                 // the next node is a validated verification tool, not the next action.
                 let verify = node["resume"]
                     .as_str()
                     .ok_or("agent node requires verification resume target")?;
                 let id = finalizer.state.clone().unwrap_or_else(state_id);
-                save_graph_state(
-                    &id,
-                    &graph,
-                    verify,
-                    &context,
-                    steps,
-                    &visits,
-                    finalizer.browser_owned,
-                )?;
+                continuation.browser_owned = finalizer.browser_owned;
+                continuation.pending_child = None;
+                save_graph_state(&id, &graph, verify, &context, steps, &visits, &continuation)?;
                 finalizer.state = Some(id.clone());
                 finalizer.suspend();
-                println!(
-                    "{}",
-                    json!({
-                        "status":"suspended",
-                        "reason":"agent_required",
-                        "resume_id":id,
-                        "node":current,
-                        "instruction":instruction,
-                        "verify":verify,
-                        "error":context.get("_error")
-                    })
-                );
+                let mut handoff = json!({
+                    "status":"suspended",
+                    "reason":"agent_required",
+                    "resume_id":id,
+                    "routine":graph["name"],
+                    "node":current,
+                    "instruction":instruction,
+                    "verify":verify,
+                    "error":context.get("_error")
+                });
+                let delivery = dispatch(&continuation.handoff_to, &handoff);
+                handoff["handoff"] = delivery;
+                println!("{handoff}");
                 return Ok(());
             }
             PlannedNode::Tool { name, args } => {
-                let result = execute_tool(&mut browser, &name, &args);
+                let result = if let Some(child_id) = continuation.pending_child.take() {
+                    if name != "call-routine" {
+                        return Err("pending child continuation requires call-routine node".into());
+                    }
+                    system_tool("call-routine", &["resume".into(), child_id])
+                } else {
+                    execute_tool(&mut browser, &name, &args)
+                };
+                // Nested calls execute in a separate process. Their suspension is
+                // not a success: checkpoint the parent and relay the instruction
+                // outward, so only the original caller (or selected adapter)
+                // receives the actionable handoff.
+                if name == "call-routine"
+                    && let Ok(output) = &result
+                    && let Ok(mut child) = serde_json::from_str::<Value>(output)
+                    && child["status"] == "suspended"
+                {
+                    let child_id = child["resume_id"]
+                        .as_str()
+                        .ok_or("suspended child routine lacks resume_id")?;
+                    if !child_id.bytes().all(|ch| ch.is_ascii_digit()) {
+                        return Err("suspended child has invalid resume_id".into());
+                    }
+                    let parent_id = finalizer.state.clone().unwrap_or_else(state_id);
+                    continuation.browser_owned = finalizer.browser_owned;
+                    continuation.pending_child = Some(child_id.to_owned());
+                    save_graph_state(
+                        &parent_id,
+                        &graph,
+                        &current,
+                        &context,
+                        steps,
+                        &visits,
+                        &continuation,
+                    )?;
+                    finalizer.state = Some(parent_id.clone());
+                    finalizer.suspend();
+                    child["resume_id"] = json!(parent_id);
+                    child["parent_routine"] = graph["name"].clone();
+                    if child["reason"] == "agent_required" {
+                        if let Some(object) = child.as_object_mut() {
+                            object.remove("handoff");
+                        }
+                        child["handoff"] = dispatch(&continuation.handoff_to, &child);
+                    }
+                    println!("{child}");
+                    return Ok(());
+                }
                 match plan_tool_outcome(node, &name, result.as_ref().map(String::as_str)) {
                     PlannedToolOutcome::Success {
                         data,
@@ -558,7 +615,9 @@ fn describe_routine(identifier: &str) -> Result<(), Box<dyn std::error::Error>> 
 fn start_graph(
     name: &str,
     extra: HashMap<String, String>,
+    handoff_to: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    select_target(handoff_to)?;
     let graph = load_routine(name)?;
     let entry = graph["entry"].as_str().unwrap().to_owned();
     graph_run(
@@ -567,8 +626,12 @@ fn start_graph(
         context_from_vars(extra),
         0,
         HashMap::new(),
-        false,
-        None,
+        RunContinuation {
+            browser_owned: false,
+            state: None,
+            handoff_to: handoff_to.to_owned(),
+            pending_child: None,
+        },
     )
 }
 
@@ -602,14 +665,21 @@ fn resume(id: &str, extra: HashMap<String, String>) -> Result<(), Box<dyn std::e
             })
             .unwrap_or_default();
         let browser_owned = value["browser_owned"].as_bool().unwrap_or(false);
+        // Old HITL states had no handoff routing field.
+        let handoff_to = value["handoff_to"].as_str().unwrap_or("caller");
+        let pending_child = value["pending_child"].as_str().map(str::to_owned);
         return graph_run(
             graph,
             current,
             context,
             steps,
             visits,
-            browser_owned,
-            Some(id.to_owned()),
+            RunContinuation {
+                browser_owned,
+                state: Some(id.to_owned()),
+                handoff_to: handoff_to.to_owned(),
+                pending_child,
+            },
         );
     }
 
@@ -618,7 +688,19 @@ fn resume(id: &str, extra: HashMap<String, String>) -> Result<(), Box<dyn std::e
 
 /// Run or resume a Jelly routine using the current process arguments and environment.
 pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Vec<String> = env::args().skip(1).collect();
+    let mut args: Vec<String> = env::args().skip(1).collect();
+    let handoff_to = if args.first().is_some_and(|a| a == "--handoff-to") {
+        if args.len() < 3 {
+            return Err(
+                "usage: call-routine --handoff-to <configured-agent> <name> [key=value]".into(),
+            );
+        }
+        let target = args[1].clone();
+        args.drain(..2);
+        target
+    } else {
+        "caller".to_owned()
+    };
     match args.first().map(String::as_str) {
         Some("list") if args.len() == 1 => return list_routines(),
         Some("--search") if args.len() == 2 => return search_routines(&args[1]),
@@ -627,6 +709,11 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
         _ => {}
     }
     if args.first().map(String::as_str) == Some("resume") {
+        if handoff_to != "caller" {
+            return Err(
+                "handoff_to is captured in the checkpoint and cannot change on resume".into(),
+            );
+        }
         return resume(
             args.get(1)
                 .ok_or("usage: call-routine resume <id> [key=value]")?,
@@ -640,7 +727,7 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
     if !valid_routine_name(name) && !valid_routine_id(name) {
         return Err("invalid routine name or UUID".into());
     }
-    start_graph(name, vars(&args[1..]))
+    start_graph(name, vars(&args[1..]), &handoff_to)
 }
 
 #[cfg(test)]

@@ -466,6 +466,20 @@ fn system_args_are_mapped_to_existing_cli_shape() {
     let args = system_cli_args("call-routine", save.as_object().unwrap()).unwrap();
     assert_eq!(args[0], "save");
     assert_eq!(serde_json::from_str::<Value>(&args[1]).unwrap(), graph);
+    let agent_run = json!({"name":"sample","handoff_to":"worker","vars":{"item":"book"}});
+    assert_eq!(
+        system_cli_args("call-routine", agent_run.as_object().unwrap()).unwrap(),
+        vec!["--handoff-to", "worker", "sample", "item=book"]
+    );
+    assert!(
+        system_cli_args(
+            "call-routine",
+            json!({"resume_id":"123","handoff_to":"worker"})
+                .as_object()
+                .unwrap()
+        )
+        .is_err()
+    );
     let list = json!({"action":"list"});
     assert_eq!(
         system_cli_args("call-routine", list.as_object().unwrap()).unwrap(),

@@ -130,6 +130,7 @@ pub(crate) fn system_input_schema(name: &str) -> Option<Value> {
             "properties":{
                 "name":{"type":"string","description":"Saved routine name or UUID to execute or describe."},
                 "resume_id":{"type":"string","description":"Continuation ID when resuming a suspended routine."},
+                "handoff_to":{"type":"string","minLength":1,"description":"Optional operator-configured agent profile for this run; omitted or caller routes to the invoking agent. Fixed across resume."},
                 "vars":{"type":"object","additionalProperties":{"type":"string"}},
                 "action":{"type":"string","enum":["save","list","search","describe"],"description":"Optional management operation. Omit to execute a saved graph."},
                 "query":{"type":"string","minLength":1,"maxLength":200,"description":"Case-insensitive substring of routine name or description for action=search."},
@@ -137,7 +138,7 @@ pub(crate) fn system_input_schema(name: &str) -> Option<Value> {
             },
             "oneOf":[
                 {"required":["name"],"not":{"anyOf":[{"required":["action"]},{"required":["resume_id"]}]}},
-                {"required":["resume_id"],"not":{"required":["action"]}},
+                {"required":["resume_id"],"not":{"anyOf":[{"required":["action"]},{"required":["handoff_to"]}]}},
                 {"required":["action","graph"],"properties":{"action":{"const":"save"}}},
                 {"required":["action"],"properties":{"action":{"const":"list"}}},
                 {"required":["action","query"],"properties":{"action":{"const":"search"}}},

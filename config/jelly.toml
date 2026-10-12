@@ -43,6 +43,20 @@ provider = "generic-mcp"
 method = "local-http"
 auth = "bearer-token"
 
+# Agent handoffs go back to the MCP/CLI calling agent by default.
+# Optional operator-approved alternate agents (selected per run using handoff_to):
+# [routines]
+# [[routines.agents]]
+# name = "local-worker"
+# transport = "local"
+# program = "/usr/local/bin/jelly-agent-adapter"
+# args = []
+# [[routines.agents]]
+# name = "remote-worker"
+# transport = "remote"
+# url = "https://agent.example.com/jelly/handoff"
+# bearer_token_env = "JELLY_ROUTINE_AGENT_TOKEN"
+
 [page]
 runtime = true
 snapshot_limit = 0
