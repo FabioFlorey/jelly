@@ -59,7 +59,7 @@ jobs:
           else
             # Public GitHub check-run annotations expose the failure reason
             # even when job logs require authenticated access.
-            failure="$(grep -E 'test .* FAILED|panicked at|error:|FAILED' "$LOG" | head -n 3 | tr '\n' ' ' || true)"
+            failure="$(grep -E '^test .* \.\.\. FAILED$|^thread .* panicked|panicked at|^error:|^failures:|^test result: FAILED' "$LOG" | tail -n 4 | tr '\n' ' ' || true)"
             failure="$(printf '%s' "$failure" | sed 's/%/%25/g')"
             if [[ -z "$failure" ]]; then failure='Rust suite failed; inspect the job log.'; fi
             echo "::error title=Rust suite (including Chromium) failed::$failure"
