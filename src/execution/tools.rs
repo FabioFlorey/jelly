@@ -118,8 +118,8 @@ pub static TOOLS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "call-routine",
-        description: "Save, discover, inspect, run or resume reusable named JSON graphs with descriptions, variables, conditions, loops and chained routines. Saving never executes; use browser-call for a simple ordered batch.",
-        usage: "call-routine list | call-routine describe <name> | call-routine save <graph-json> | call-routine <name> [key=value] | call-routine resume <id> [key=value]",
+        description: "Save, search, inspect, run or resume reusable JSON graphs by name or UUID, with auto/hybrid/jelly execution modes and chained routines. Saving never executes; use browser-call for a simple ordered batch.",
+        usage: "call-routine list | call-routine --search <query> | call-routine describe <name-or-uuid> | call-routine save <graph-json> | call-routine <name-or-uuid> [key=value] | call-routine resume <id> [key=value]",
         category: "routines",
     },
     ToolSpec {

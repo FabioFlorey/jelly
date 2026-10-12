@@ -471,6 +471,11 @@ fn system_args_are_mapped_to_existing_cli_shape() {
         system_cli_args("call-routine", list.as_object().unwrap()).unwrap(),
         vec!["list"]
     );
+    let search = json!({"action":"search","query":"invoice"});
+    assert_eq!(
+        system_cli_args("call-routine", search.as_object().unwrap()).unwrap(),
+        vec!["--search", "invoice"]
+    );
     let describe = json!({"action":"describe","name":"sample"});
     assert_eq!(
         system_cli_args("call-routine", describe.as_object().unwrap()).unwrap(),

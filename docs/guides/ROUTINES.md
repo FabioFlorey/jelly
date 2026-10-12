@@ -5,6 +5,7 @@
 ## Table of Contents
 
 - [Purpose: save a verified workflow](#purpose-save-a-verified-workflow)
+- [Execution modes and agent handoffs](#execution-modes-and-agent-handoffs)
 - [Discover, generate, and save routines](#discover-generate-and-save-routines)
 - [JSON graph format](#json-graph-format)
 - [Variables, conditions, and loops](#variables-conditions-and-loops)
@@ -25,16 +26,82 @@ Routines are not a substitute for verification. Before saving one, the AI should
 
 Use a normal `browser-call` batch for a simple one-off sequence. Use a routine when the workflow is worth *remembering and reusing*.
 
+## Execution modes and agent handoffs
+
+Jelly uses **one JSON graph runner** with three execution modes. A definition that
+does not set `mode` retains the legacy `auto` behavior.
+
+| Mode | Graph execution | Agent participation |
+| --- | --- | --- |
+| `auto` | Browser/system tools, conditions, bounded loops, routine calls | None; agent nodes are rejected |
+| `hybrid` | Deterministic by default; `on_error` can branch to an agent node | Explicit fallback when a graph routes to an agent node |
+| `jelly` | Graphs can include agent nodes in their normal path | Each agent node suspends execution until an external agent acts |
+
+A **macro-routine** is composition, not a fourth runner: any graph can call
+saved routines using `call-routine` and pass selected variables to each child.
+
+An `agent` node is a **structured handoff**, not an embedded LLM call. It renders
+a text instruction using routine variables and returns a suspended result with
+`reason: "agent_required"`, `instruction`, `node`, `verify`, `resume_id`, and,
+when present, the typed `_error` from the failed operation. Jelly persists the
+graph and its context. The calling agent then uses Jelly's ordinary browser tools
+to resolve the situation and calls `call-routine` with `resume_id` to continue.
+**No model runs inside Jelly, and the continuation is not automatic.**
+
+Example hybrid fallback:
+
+```json
+{
+  "name": "invoice-download",
+  "description": "Find and download an invoice; recover a changed button with the calling agent.",
+  "mode": "hybrid",
+  "entry": "click",
+  "max_steps": 20,
+  "nodes": {
+    "click": {
+      "tool": "click",
+      "args": ["text:Download invoice"],
+      "next": "verify",
+      "on_error": {"target_not_found": "repair"}
+    },
+    "repair": {
+      "agent": "Find and click the download button for invoice {{ invoice }}.",
+      "resume": "verify"
+    },
+    "verify": {
+      "tool": "wait-for",
+      "args": ["text", "Download complete", "10"],
+      "next": "done"
+    },
+    "done": {"terminal": "success"}
+  }
+}
+```
+
+An agent node is also valid in `mode: "jelly"` and can be the graph entry.
+`resume` **must point directly to a supported verification tool**, such as
+`assert-visible`, `assert-url`, `assert-text`, `assert-title`, `assert-image-ready`,
+`wait-for`, `verify-artifact`, or `wait-download`. This prevents silently
+advancing past a delegated action without a verification attempt. The
+verification can still fail, and success is not inferred from the agent's claim.
+The example's condition is illustrative; adapt verification to observable
+website behavior.
+
+The existing `hitl` node remains separate: it requests human intervention
+via Telegram. An agent node yields work back to the caller through the routine
+result. Neither mechanism is a general durable background agent scheduler.
+
 ## Discover, generate, and save routines
 
 The `call-routine` MCP tool lets an AI client **list**, **describe**, **save**, **run**, and **resume** JSON routines. To generate one, the agent constructs a graph from a previously verified workflow, gives it a meaningful name and description, and invokes `call-routine` with `action: "save"` and a `graph` object.
 
-Jelly validates the graph structure and saves it as `.agent/routines/<name>.json`. The save operation **never executes** the workflow or overwrites an existing routine.
+Jelly validates the graph structure and saves it as `.agent/routines/<name>.json`. The save operation **never executes** the workflow or overwrites an existing routine. Newly saved definitions receive a generated **UUID v4** (`id`) if one was not provided. Existing definitions without an ID remain valid; they can still be addressed by name.
 
 To inspect saved routines from the CLI:
 
 ```bash
 cargo run --quiet --bin agent-run -- call-routine list
+cargo run --quiet --bin agent-run -- call-routine --search screenshot
 cargo run --quiet --bin agent-run -- call-routine describe verified-screenshot
 ```
 
@@ -74,7 +141,7 @@ To save a graph already written to a local JSON file:
 cargo run --quiet --bin agent-run -- call-routine save "$(cat my-workflow.json)"
 ```
 
-Saved routine names use lowercase letters, digits, hyphens, and underscores, starting with a letter. Descriptions are required. Use `describe` to review the actual saved graph before running it.
+Saved routine names use lowercase letters, digits, hyphens, and underscores, starting with a letter. Descriptions are required. `list` and `--search` include the execution mode and UUID if present. `--search` performs a **case-insensitive substring match** on the name and description, not semantic/embedding search. `describe` and execution accept either a name or a UUID from `list`. Use `describe` to review the actual saved graph before running it.
 
 ## JSON graph format
 
@@ -212,7 +279,17 @@ The trailing slash matters because this routine uses an exact URL assertion. The
 
 A saved graph runs **real browser and system operations**. Inspect generated graphs before running them; favor semantic browser operations and explicit verification over arbitrary JavaScript or raw CDP. A save operation never launches a browser, but a later run may navigate or change shared state.
 
-Saving requires write access to the repository's `.agent/routines/` directory. Generated JSON files are ordinary files in that checkout and should be reviewed before committing to version control. Existing names are not silently replaced. Legacy `.jinja` routines are **not supported**; use JSON graphs for all new and existing workflows.
+Saving requires write access to the repository's `.agent/routines/` directory. Generated JSON files are ordinary files in that checkout and should be reviewed before committing to version control. Existing names and UUIDs are not silently replaced. Legacy `.jinja` routines are **not supported**; use JSON graphs for all new and existing workflows.
+
+The current implementation does **not** provide autonomous model invocation,
+an agent wake-up adapter, routine version history, typed routine input/output
+contracts, semantic search, or automatic promotion of agent traces into auto
+routines. Those are separate future steps. Agents must inspect the handoff
+result and explicitly resume; a `panic` in Jelly is not a supported recovery
+trigger. Ensure delegated actions are idempotent or inspect the browser state
+before retrying side effects (submissions, downloads, purchases). Suspended
+routines retain their captured definition so a later edit to a saved file
+does not retroactively change the suspended graph.
 
 See [Reliability](./RELIABILITY.md) for transition, error, artifact, timeout, and cleanup semantics.
 

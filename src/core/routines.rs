@@ -216,6 +216,38 @@ pub(crate) fn valid_routine_name(name: &str) -> bool {
         && !matches!(name, "save" | "list" | "describe" | "resume")
 }
 
+/// Saved definitions without a mode remain deterministic legacy graphs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RoutineMode {
+    Auto,
+    Hybrid,
+    Jelly,
+}
+
+pub(crate) fn routine_mode(graph: &Value) -> Result<RoutineMode, &'static str> {
+    match graph.get("mode") {
+        None => Ok(RoutineMode::Auto),
+        Some(Value::String(value)) if value == "auto" => Ok(RoutineMode::Auto),
+        Some(Value::String(value)) if value == "hybrid" => Ok(RoutineMode::Hybrid),
+        Some(Value::String(value)) if value == "jelly" => Ok(RoutineMode::Jelly),
+        _ => Err("routine mode must be auto, hybrid or jelly"),
+    }
+}
+
+pub(crate) fn valid_routine_id(id: &str) -> bool {
+    let bytes = id.as_bytes();
+    bytes.len() == 36
+        && bytes[14] == b'4'
+        && matches!(bytes[19], b'8' | b'9' | b'a' | b'b')
+        && bytes.iter().enumerate().all(|(i, byte)| {
+            if matches!(i, 8 | 13 | 18 | 23) {
+                *byte == b'-'
+            } else {
+                byte.is_ascii_digit() || (b'a'..=b'f').contains(byte)
+            }
+        })
+}
+
 /// Validate a persistent, named JSON graph before saving or executing it.
 pub(crate) fn validate_routine_definition(
     graph: &Value,
@@ -238,10 +270,16 @@ pub(crate) fn validate_routine_definition(
     if description.trim().is_empty() || description.len() > 400 {
         return Err("routine description must contain 1-400 characters".into());
     }
+    if let Some(id) = graph.get("id")
+        && !id.as_str().is_some_and(valid_routine_id)
+    {
+        return Err("routine id must be a lowercase UUID v4".into());
+    }
     validate_graph(graph)
 }
 
 pub(crate) fn validate_graph(graph: &Value) -> Result<(), Box<dyn std::error::Error>> {
+    let mode = routine_mode(graph)?;
     let entry = graph
         .get("entry")
         .and_then(Value::as_str)
@@ -254,6 +292,55 @@ pub(crate) fn validate_graph(graph: &Value) -> Result<(), Box<dyn std::error::Er
         return Err(format!("entry node does not exist: {entry}").into());
     }
     for (name, node) in nodes {
+        if let Some(instruction) = node.get("agent") {
+            if mode == RoutineMode::Auto {
+                return Err(format!("node {name} requires hybrid or jelly mode").into());
+            }
+            if !instruction
+                .as_str()
+                .is_some_and(|text| !text.trim().is_empty() && text.len() <= 2000)
+            {
+                return Err(
+                    format!("node {name} agent must be nonempty text (max 2000 bytes)").into(),
+                );
+            }
+            if ["tool", "hitl", "terminal", "guard", "goto", "next"]
+                .iter()
+                .any(|key| node.get(*key).is_some())
+            {
+                return Err(format!("node {name} agent cannot combine other actions").into());
+            }
+            let verify = node
+                .get("resume")
+                .and_then(Value::as_str)
+                .and_then(|target| nodes.get(target))
+                // plan_node prioritizes these actions over tool execution.
+                // A mixed node could otherwise bypass verification entirely.
+                .filter(|target| {
+                    ["terminal", "goto", "guard", "hitl", "agent"]
+                        .iter()
+                        .all(|key| target.get(*key).is_none())
+                })
+                .and_then(|target| target.get("tool"))
+                .and_then(Value::as_str);
+            if !verify.is_some_and(|tool| {
+                matches!(
+                    tool,
+                    "assert-visible"
+                        | "assert-text"
+                        | "assert-title"
+                        | "assert-url"
+                        | "assert-image-ready"
+                        | "wait-for"
+                        | "verify-artifact"
+                        | "wait-download"
+                )
+            }) {
+                return Err(
+                    format!("node {name} agent resume must target a verification tool").into(),
+                );
+            }
+        }
         for field in ["next", "then", "else", "resume", "goto"] {
             if let Some(target) = node.get(field).and_then(Value::as_str)
                 && !nodes.contains_key(target)
@@ -293,6 +380,7 @@ pub(crate) enum PlannedNode {
     Terminal { success: bool, message: String },
     Jump(String),
     Hitl { message: String },
+    Agent { instruction: String },
     Tool { name: String, args: Vec<String> },
 }
 
@@ -333,6 +421,11 @@ pub(crate) fn plan_node(
         // Intentionally do not resolve the resume/next edge here: the original
         // contract evaluates it only *after* the HITL delivery succeeds.
         return Ok(PlannedNode::Hitl { message });
+    }
+    if let Some(instruction) = node.get("agent").and_then(Value::as_str) {
+        let instruction = render_text(instruction, context)
+            .map_err(|error| format!("{}: {}", error.kind, error.message))?;
+        return Ok(PlannedNode::Agent { instruction });
     }
     let name = node
         .get("tool")
@@ -400,6 +493,79 @@ mod tests {
         .as_object()
         .unwrap()
         .clone()
+    }
+
+    #[test]
+    fn modes_preserve_legacy_graphs_and_reject_unhandled_agent_steps() {
+        let graph = json!({
+            "name":"legacy",
+            "description":"An existing deterministic routine",
+            "entry":"done",
+            "nodes":{"done":{"terminal":"success"}}
+        });
+        assert_eq!(routine_mode(&graph).unwrap(), RoutineMode::Auto);
+        validate_routine_definition(&graph, None).unwrap();
+        let mut invalid = graph.clone();
+        invalid["mode"] = json!("unknown");
+        assert!(validate_routine_definition(&invalid, None).is_err());
+        invalid["mode"] = json!("auto");
+        invalid["nodes"]["done"] = json!({"agent":"Click button","resume":"verify"});
+        assert!(validate_routine_definition(&invalid, None).is_err());
+    }
+
+    #[test]
+    fn hybrid_and_jelly_agent_handoffs_require_real_verification() {
+        let graph = json!({
+            "mode":"hybrid", "name":"recover-click",
+            "description":"Recover a missing selector and verify the outcome",
+            "entry":"click",
+            "nodes":{
+                "click":{"tool":"click","args":["text:Download"],
+                         "next":"done","on_error":{"target_not_found":"repair"}},
+                "repair":{"agent":"Find and click the new Download button for {{name}}",
+                          "resume":"verify"},
+                "verify":{"tool":"assert-visible","args":["text:Downloaded"],"next":"done"},
+                "done":{"terminal":"success"}
+            }
+        });
+        validate_routine_definition(&graph, None).unwrap();
+        assert_eq!(
+            plan_node("repair", &graph["nodes"]["repair"], &context()).unwrap(),
+            PlannedNode::Agent {
+                instruction: "Find and click the new Download button for Alice".into()
+            }
+        );
+        let mut jelly = graph.clone();
+        jelly["mode"] = json!("jelly");
+        jelly["entry"] = json!("repair");
+        validate_routine_definition(&jelly, None).unwrap();
+        jelly["nodes"]["verify"]["tool"] = json!("click");
+        assert!(validate_routine_definition(&jelly, None).is_err());
+        jelly["nodes"]["verify"]["tool"] = json!("assert-visible");
+        jelly["nodes"]["verify"]["terminal"] = json!("success");
+        assert!(validate_routine_definition(&jelly, None).is_err());
+        jelly["nodes"]["verify"]
+            .as_object_mut()
+            .unwrap()
+            .remove("terminal");
+        jelly["nodes"]["repair"]["resume"] = json!("done");
+        assert!(validate_routine_definition(&jelly, None).is_err());
+        jelly["nodes"]["repair"]["resume"] = json!("verify");
+        jelly["nodes"]["repair"]["agent"] = json!("");
+        assert!(validate_routine_definition(&jelly, None).is_err());
+    }
+
+    #[test]
+    fn routine_ids_are_strict_uuid_v4_and_optional_on_legacy_graphs() {
+        let graph = json!({"name":"check","description":"Check","entry":"done",
+            "nodes":{"done":{"terminal":"success"}}});
+        validate_routine_definition(&graph, None).unwrap();
+        let mut identified = graph.clone();
+        identified["id"] = json!("72dddbd7-f9a0-4d7f-93cc-d927bd35ec09");
+        validate_routine_definition(&identified, None).unwrap();
+        identified["id"] = json!("72dddbd7-f9a0-3d7f-93cc-d927bd35ec09");
+        assert!(validate_routine_definition(&identified, None).is_err());
+        assert!(valid_routine_name("search"));
     }
 
     #[test]

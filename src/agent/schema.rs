@@ -128,10 +128,11 @@ pub(crate) fn system_input_schema(name: &str) -> Option<Value> {
         "call-routine" => json!({
             "type":"object",
             "properties":{
-                "name":{"type":"string","description":"Saved routine name to execute or describe."},
+                "name":{"type":"string","description":"Saved routine name or UUID to execute or describe."},
                 "resume_id":{"type":"string","description":"Continuation ID when resuming a suspended routine."},
                 "vars":{"type":"object","additionalProperties":{"type":"string"}},
-                "action":{"type":"string","enum":["save","list","describe"],"description":"Optional management operation. Omit to execute a saved graph."},
+                "action":{"type":"string","enum":["save","list","search","describe"],"description":"Optional management operation. Omit to execute a saved graph."},
+                "query":{"type":"string","minLength":1,"maxLength":200,"description":"Case-insensitive substring of routine name or description for action=search."},
                 "graph":{"type":"object","description":"Complete JSON graph with name, description, entry and nodes; required for action=save. Saving does not execute."}
             },
             "oneOf":[
@@ -139,6 +140,7 @@ pub(crate) fn system_input_schema(name: &str) -> Option<Value> {
                 {"required":["resume_id"],"not":{"required":["action"]}},
                 {"required":["action","graph"],"properties":{"action":{"const":"save"}}},
                 {"required":["action"],"properties":{"action":{"const":"list"}}},
+                {"required":["action","query"],"properties":{"action":{"const":"search"}}},
                 {"required":["action","name"],"properties":{"action":{"const":"describe"}}}
             ],
             "additionalProperties":false

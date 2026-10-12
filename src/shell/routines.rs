@@ -1,7 +1,7 @@
 use crate::core::routines::{
     PlannedNode, PlannedToolOutcome, RoutineFailure, context_from_vars, error_transition,
-    error_value, parse_output, plan_node, plan_tool_outcome, system_failure_kind,
-    valid_routine_name, validate_routine_definition, vars,
+    error_value, parse_output, plan_node, plan_tool_outcome, routine_mode, system_failure_kind,
+    valid_routine_id, valid_routine_name, validate_routine_definition, vars,
 };
 use crate::{
     BrowserSession, ROUTINE_STATE_DIR, classify_error, error_details, execute_browser_primitive,
@@ -38,12 +38,15 @@ impl RoutineFailure {
 }
 
 fn state_id() -> String {
+    // Keep continuation IDs decimal for existing resume callers, but avoid
+    // collisions when two graph runs suspend in the same millisecond.
     format!(
-        "{}",
+        "{}{:010}",
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_millis()
+            .as_millis(),
+        rand::random::<u32>()
     )
 }
 
@@ -335,6 +338,38 @@ fn graph_run(
                     }
                 }
             }
+            PlannedNode::Agent { instruction } => {
+                // The caller's agent performs the work outside this process. On resume,
+                // the next node is a validated verification tool, not the next action.
+                let verify = node["resume"]
+                    .as_str()
+                    .ok_or("agent node requires verification resume target")?;
+                let id = finalizer.state.clone().unwrap_or_else(state_id);
+                save_graph_state(
+                    &id,
+                    &graph,
+                    verify,
+                    &context,
+                    steps,
+                    &visits,
+                    finalizer.browser_owned,
+                )?;
+                finalizer.state = Some(id.clone());
+                finalizer.suspend();
+                println!(
+                    "{}",
+                    json!({
+                        "status":"suspended",
+                        "reason":"agent_required",
+                        "resume_id":id,
+                        "node":current,
+                        "instruction":instruction,
+                        "verify":verify,
+                        "error":context.get("_error")
+                    })
+                );
+                return Ok(());
+            }
             PlannedNode::Tool { name, args } => {
                 let result = execute_tool(&mut browser, &name, &args);
                 match plan_tool_outcome(node, &name, result.as_ref().map(String::as_str)) {
@@ -380,29 +415,23 @@ fn graph_run(
     }
 }
 
-/// Saving a routine never runs it. Refuse overwrites and unsafe names.
-fn save_routine(json_source: &str) -> Result<(), Box<dyn std::error::Error>> {
-    if json_source.len() > 64 * 1024 {
-        return Err("routine graph exceeds the 64 KiB size limit".into());
-    }
-    let graph: Value = serde_json::from_str(json_source)?;
-    validate_routine_definition(&graph, None)?;
-    let name = graph["name"].as_str().unwrap();
-    let path = format!("{ROUTINES}/{name}.json");
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&path)?;
-    file.write_all(serde_json::to_string_pretty(&graph)?.as_bytes())?;
-    file.write_all(b"\n")?;
-    println!(
-        "{}",
-        json!({"status":"saved","name":name,"description":graph["description"],"path":path})
-    );
-    Ok(())
+fn new_routine_id() -> String {
+    // UUID v4 using the existing rand dependency; avoid adding a UUID crate.
+    let value = rand::random::<u128>();
+    let value =
+        (value & !(0xf_u128 << 76) & !(0x3_u128 << 62)) | (0x4_u128 << 76) | (0x2_u128 << 62);
+    let hex = format!("{value:032x}");
+    format!(
+        "{}-{}-{}-{}-{}",
+        &hex[..8],
+        &hex[8..12],
+        &hex[12..16],
+        &hex[16..20],
+        &hex[20..]
+    )
 }
 
-fn list_routines() -> Result<(), Box<dyn std::error::Error>> {
+fn saved_routines() -> Result<Vec<(String, Value)>, Box<dyn std::error::Error>> {
     let mut routines = Vec::new();
     for entry in fs::read_dir(ROUTINES)? {
         let path = entry?.path();
@@ -415,27 +444,113 @@ fn list_routines() -> Result<(), Box<dyn std::error::Error>> {
         if !valid_routine_name(name) {
             continue;
         }
-        let Ok(data) = fs::read(&path) else {
-            continue;
-        };
+        let Ok(data) = fs::read(&path) else { continue };
         let Ok(graph) = serde_json::from_slice::<Value>(&data) else {
             continue;
         };
         if validate_routine_definition(&graph, Some(name)).is_ok() {
-            routines.push(json!({"name":name,"description":graph["description"]}));
+            routines.push((name.to_owned(), graph));
         }
     }
-    routines.sort_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
+    routines.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(routines)
+}
+
+fn routine_summary(name: &str, graph: &Value) -> Value {
+    let mode = match routine_mode(graph).expect("validated routine") {
+        crate::core::routines::RoutineMode::Auto => "auto",
+        crate::core::routines::RoutineMode::Hybrid => "hybrid",
+        crate::core::routines::RoutineMode::Jelly => "jelly",
+    };
+    json!({"name":name,"id":graph.get("id"),"mode":mode,"description":graph["description"]})
+}
+
+fn load_routine(identifier: &str) -> Result<Value, Box<dyn std::error::Error>> {
+    // A UUID beginning with a-f is also a syntactically valid routine name.
+    // Resolve UUIDs first so that every generated ID remains callable.
+    if valid_routine_id(identifier) {
+        for (_, graph) in saved_routines()? {
+            if graph["id"] == identifier {
+                return Ok(graph);
+            }
+        }
+        return Err("routine UUID not found".into());
+    }
+    if valid_routine_name(identifier) {
+        let graph: Value =
+            serde_json::from_slice(&fs::read(format!("{ROUTINES}/{identifier}.json"))?)?;
+        validate_routine_definition(&graph, Some(identifier))?;
+        return Ok(graph);
+    }
+    Err("invalid routine name or UUID".into())
+}
+
+/// Saving a routine never runs it. Refuse overwrites and unsafe names.
+fn save_routine(json_source: &str) -> Result<(), Box<dyn std::error::Error>> {
+    if json_source.len() > 64 * 1024 {
+        return Err("routine graph exceeds the 64 KiB size limit".into());
+    }
+    let mut graph: Value = serde_json::from_str(json_source)?;
+    validate_routine_definition(&graph, None)?;
+    if graph.get("id").is_none() {
+        graph
+            .as_object_mut()
+            .unwrap()
+            .insert("id".into(), json!(new_routine_id()));
+    }
+    for (name, existing) in saved_routines()? {
+        if existing["id"] == graph["id"] {
+            return Err(format!("routine UUID already belongs to {name}").into());
+        }
+    }
+    let name = graph["name"].as_str().unwrap();
+    let path = format!("{ROUTINES}/{name}.json");
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)?;
+    file.write_all(serde_json::to_string_pretty(&graph)?.as_bytes())?;
+    file.write_all(b"\n")?;
+    println!(
+        "{}",
+        json!({"status":"saved","name":name,"id":graph["id"],"mode":routine_summary(name, &graph)["mode"],"description":graph["description"],"path":path})
+    );
+    Ok(())
+}
+
+fn list_routines() -> Result<(), Box<dyn std::error::Error>> {
+    let routines: Vec<_> = saved_routines()?
+        .iter()
+        .map(|(name, graph)| routine_summary(name, graph))
+        .collect();
     println!("{}", json!({"routines":routines}));
     Ok(())
 }
 
-fn describe_routine(name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    if !valid_routine_name(name) {
-        return Err("invalid routine name".into());
+fn search_routines(query: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let query = query.trim();
+    if query.is_empty() || query.len() > 200 {
+        return Err("routine search query must contain 1-200 characters".into());
     }
-    let graph: Value = serde_json::from_slice(&fs::read(format!("{ROUTINES}/{name}.json"))?)?;
-    validate_routine_definition(&graph, Some(name))?;
+    let query = query.to_lowercase();
+    let routines: Vec<_> = saved_routines()?
+        .iter()
+        .filter(|(name, graph)| {
+            name.to_lowercase().contains(&query)
+                || graph["description"]
+                    .as_str()
+                    .unwrap()
+                    .to_lowercase()
+                    .contains(&query)
+        })
+        .map(|(name, graph)| routine_summary(name, graph))
+        .collect();
+    println!("{}", json!({"routines":routines}));
+    Ok(())
+}
+
+fn describe_routine(identifier: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let graph = load_routine(identifier)?;
     println!("{}", serde_json::to_string_pretty(&graph)?);
     Ok(())
 }
@@ -444,9 +559,7 @@ fn start_graph(
     name: &str,
     extra: HashMap<String, String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let path = format!("{ROUTINES}/{name}.json");
-    let graph: Value = serde_json::from_slice(&fs::read(path)?)?;
-    validate_routine_definition(&graph, Some(name))?;
+    let graph = load_routine(name)?;
     let entry = graph["entry"].as_str().unwrap().to_owned();
     graph_run(
         graph,
@@ -508,6 +621,7 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("list") if args.len() == 1 => return list_routines(),
+        Some("--search") if args.len() == 2 => return search_routines(&args[1]),
         Some("describe") if args.len() == 2 => return describe_routine(&args[1]),
         Some("save") if args.len() == 2 => return save_routine(&args[1]),
         _ => {}
@@ -523,8 +637,8 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
     let name = args
         .first()
         .ok_or("usage: call-routine <name> [key=value]")?;
-    if !valid_routine_name(name) {
-        return Err("invalid routine name".into());
+    if !valid_routine_name(name) && !valid_routine_id(name) {
+        return Err("invalid routine name or UUID".into());
     }
     start_graph(name, vars(&args[1..]))
 }
@@ -532,6 +646,32 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn continuation_ids_remain_decimal_and_have_entropy() {
+        let first = state_id();
+        let second = state_id();
+        assert!(first.bytes().all(|byte| byte.is_ascii_digit()));
+        assert!(second.bytes().all(|byte| byte.is_ascii_digit()));
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn saved_routine_ids_are_valid_uuid_v4() {
+        let first = new_routine_id();
+        let second = new_routine_id();
+        assert!(valid_routine_id(&first));
+        assert!(valid_routine_id(&second));
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn saved_routine_summary_reports_legacy_mode() {
+        let graph = json!({"name":"legacy","description":"Old","entry":"done",
+            "nodes":{"done":{"terminal":"success"}}});
+        assert_eq!(routine_summary("legacy", &graph)["mode"], "auto");
+        assert!(routine_summary("legacy", &graph)["id"].is_null());
+    }
 
     #[test]
     fn system_tool_failure_kinds_match_mcp_classification() {
