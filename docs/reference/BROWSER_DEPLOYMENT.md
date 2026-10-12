@@ -7,9 +7,16 @@
 - [Connection modes](#connection-modes)
 - [Local compatibility recommendations and explicit probes](#local-compatibility-recommendations-and-explicit-probes)
 - [Security option model](#security-option-model)
+  - [Diagnosis semantics](#diagnosis-semantics)
 - [Verified container compatibility matrix (Arch Linux, 12 October 2026)](#verified-container-compatibility-matrix-arch-linux-12-october-2026)
+  - [Rootless Docker is now actually tested](#rootless-docker-is-now-actually-tested)
+  - [Process UID is a separate diagnostic axis, not a Jelly CLI setting](#process-uid-is-a-separate-diagnostic-axis-not-a-jelly-cli-setting)
+  - [Profile-mode counterexample: distinct options can interact](#profile-mode-counterexample-distinct-options-can-interact)
+  - [Actual sandbox checks and network evidence](#actual-sandbox-checks-and-network-evidence)
+  - [Are the configuration dimensions independent?](#are-the-configuration-dimensions-independent)
 - [Download policy (per remote browser)](#download-policy-per-remote-browser)
 - [Current implementation vs follow-up validation](#current-implementation-vs-follow-up-validation)
+  - [What was actually tested](#what-was-actually-tested)
 
 [Documentation index](../INDEX.md)
 
@@ -41,7 +48,17 @@ The container helper owns only the containers it creates. It never starts/stops 
 
 `./scripts/dev.sh browser detect` reports the accessible Docker/Podman engine **for the current user and socket**, including rootful/rootless status. `./scripts/dev.sh browser recommend` is read-only: it ranks **local CDP PASS** above historical Arch reference observations and leaves local FAIL/UNVERIFIED combinations selectable. `./scripts/dev.sh browser` offers those choices, a temporary browser probe and an advanced menu retaining all sandbox/restriction/profile/network settings. No daemon is started, no privileged socket access is granted and no engine is installed automatically.
 
-`./scripts/dev.sh browser probe --engine podman --sandbox enabled --engine-security standard --profile isolated --publish 127.0.0.1:19400` explicitly builds the same image and creates temporary container/network/storage resources; it tests actual host-to-CDP reachability, cleans up and **does not register a browser**. Local PASS/FAIL evidence is cached in the private user cache, with invalidation tied to OS/kernel, engine mode/version, image/source identity and selected configuration. The probe never tests LAN-bound publication (it uses a dynamically allocated **loopback** port), shared bind-mounted downloads, MCP browser routing or effective sandbox activation. This cache is not a security attestation; non-loopback and shared-download claims remain unverified. See the [guided setup instructions](../getting-started/CONTAINER_CHROMIUM.md#guided-setup-based-on-this-host).
+`./scripts/dev.sh browser probe --engine podman --sandbox enabled --engine-security standard --profile
+isolated --publish 127.0.0.1:19400` explicitly builds the same image and creates temporary
+container/network/storage resources; it tests actual host-to-CDP reachability, cleans up and **does not
+register a browser**. Local PASS/FAIL evidence is cached in the private user cache, with invalidation
+tied to OS/kernel, engine mode/version, image/source identity and selected configuration. The probe
+never tests LAN-bound publication (it uses a dynamically allocated **loopback** port), shared
+bind-mounted downloads, MCP browser routing or effective sandbox activation.
+
+This cache is not a security attestation; non-loopback and shared-download claims remain unverified. See
+the [guided setup
+instructions](../getting-started/CONTAINER_CHROMIUM.md#guided-setup-based-on-this-host).
 
 The availability of a rootful/rootless daemon is **not** an option that Jelly silently changes; it depends on the selected Docker/Podman socket and user privileges. Chromium's image UID 10001 remains fixed in normal use. Advanced settings never silently change an operator-selected option when a probe or browser launch fails.
 
@@ -103,7 +120,16 @@ Observed failure classes:
 
 ### Rootless Docker is now actually tested
 
-The rootless-Docker daemon was started **temporarily and independently** through `rootlesskit`, with a private UNIX socket and storage, without changing the installed rootful Docker daemon or adding anyone to the `docker` group. The first attempts failed because the user namespace inherited protected paths under `/run/docker` and `/run/containerd`; replacing those two symlinks **inside the private rootless mount namespace** allowed the daemon to start. It ran real Alpine and Chromium containers, including all eight combinations above. This instance reported **cgroup driver `none`**, so cgroup resource-limit enforcement was **not** verified. This is not equivalent to validating a permanent Docker-rootless service installation or its boot-time integration.
+The rootless-Docker daemon was started **temporarily and independently** through `rootlesskit`, with a
+private UNIX socket and storage, without changing the installed rootful Docker daemon or adding anyone
+to the `docker` group. The first attempts failed because the user namespace inherited protected paths
+under `/run/docker` and `/run/containerd`; replacing those two symlinks **inside the private rootless
+mount namespace** allowed the daemon to start. It ran real Alpine and Chromium containers, including all
+eight combinations above.
+
+This instance reported **cgroup driver `none`**, so cgroup resource-limit enforcement was **not**
+verified. This is not equivalent to validating a permanent Docker-rootless service installation or its
+boot-time integration.
 
 ### Process UID is a separate diagnostic axis, not a Jelly CLI setting
 
@@ -175,7 +201,23 @@ An HTTP bridge is permitted by explicit choice; the transfer is unencrypted and 
 
 **Implemented:** choice-aware CLI, three container profiles, network/remote connection selection, UUID/easy names, per-browser MCP routing, conditional MCP `browser_id` schema, per-browser download modes, security request labels, basic runtime diagnostics and suggestions.
 
-**Live-tested on Arch Linux (October 2026):** Docker private bridge/no host publication and Podman rootless loopback publication, real CDP HTTP/WebSocket commands, isolated targets between Docker/Podman instances, ephemeral profile permissions, persistent volume restart with stale-lock recovery and serialized persistent-profile access. Rootless Podman's custom netavark bridge required `--disable-dns` in this headless user session (outbound DNS was verified); `--bridge-dns auto|enabled|disabled` preserves an operator override. Docker's default bridge could not reach Debian mirrors for an image build on this host; `--build-network host` allowed the build with runtime networking unchanged. Chromium's `chrome://sandbox` on Podman rootless (`sandbox=enabled`, `engine-security=standard`) reported `PID namespaces: Yes`, `Network namespaces: Yes`, `Seccomp-BPF sandbox: Yes` and `You are adequately sandboxed`. The enabled/restricted combination could not launch on either runtime, and Docker's enabled/standard combination failed on this host. These compatibility outcomes may differ by kernel and engine policy. **Not yet established by live integration tests:** HTTPS/HTTP artifact-server interoperability or dynamic container runtime matrix in CI. **Not implemented:** automatic container policy remediation, sandbox attestation, dynamic MCP configuration reload, or a managed artifact bridge.
+### What was actually tested
+
+**Live-tested on Arch Linux (October 2026):** Docker private bridge/no host publication and Podman
+rootless loopback publication, real CDP HTTP/WebSocket commands, isolated targets between Docker/Podman
+instances, ephemeral profile permissions, persistent volume restart with stale-lock recovery and
+serialized persistent-profile access. Rootless Podman's custom netavark bridge required `--disable-dns`
+in this headless user session (outbound DNS was verified); `--bridge-dns auto|enabled|disabled`
+preserves an operator override. Docker's default bridge could not reach Debian mirrors for an image
+build on this host; `--build-network host` allowed the build with runtime networking unchanged.
+
+Chromium's `chrome://sandbox` on Podman rootless (`sandbox=enabled`, `engine-security=standard`)
+reported `PID namespaces: Yes`, `Network namespaces: Yes`, `Seccomp-BPF sandbox: Yes` and `You are
+adequately sandboxed`. The enabled/restricted combination could not launch on either runtime, and
+Docker's enabled/standard combination failed on this host. These compatibility outcomes may differ by
+kernel and engine policy. **Not yet established by live integration tests:** HTTPS/HTTP artifact-server
+interoperability or dynamic container runtime matrix in CI. **Not implemented:** automatic container
+policy remediation, sandbox attestation, dynamic MCP configuration reload, or a managed artifact bridge.
 
 A missing verification is reported as *unverified*, not silently upgraded to *enabled*.
 

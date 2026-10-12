@@ -63,7 +63,18 @@ The small-surface Agent API includes a runtime-scoped `browser-events` builtin w
 
 Polling is cursor-based. The cursor contains a stream generation and sequence number; it advances across all observed notifications, including non-matching events, so filters cannot cause the same unrelated frames to be rescanned indefinitely. Poll results expose `cursor_lost`, the number of new ring drops, and the number of stream resets since the previous poll. Ring loss accounting distinguishes a dropped sequence that occurred after the subscription cursor from eviction of history the subscriber had already consumed.
 
-`poll` issues a harmless browser-scoped `Target.getTargets` barrier to drain pending websocket notifications through the synchronous receive loop before reading the ring. There is no background reader. This is a measured design choice for the current poll-based API: deterministic Chromium tests recover a complete 64-event idle burst with no loss, while a 1,500-event idle burst produces exactly the expected 476 evictions from the 1,024-entry ring and exposes that loss through `cursor_lost`/drop accounting. Notifications are therefore observable when a later request or poll drains the socket, not continuously while Jelly is idle. Subscriptions live only in the owning `BrowserSession`; browser/MCP-session restart invalidates their opaque IDs and later use returns `subscription_not_found`. MCP `browser-events` therefore requires persistent MCP browser sessions and is incompatible with `[mcp].persistent_session = false`.
+`poll` issues a harmless browser-scoped `Target.getTargets` barrier to drain pending websocket
+notifications through the synchronous receive loop before reading the ring. There is no background
+reader. This is a measured design choice for the current poll-based API: deterministic Chromium tests
+recover a complete 64-event idle burst with no loss, while a 1,500-event idle burst produces exactly the
+expected 476 evictions from the 1,024-entry ring and exposes that loss through `cursor_lost`/drop
+accounting.
+
+Notifications are therefore observable when a later request or poll drains the socket, not continuously
+while Jelly is idle. Subscriptions live only in the owning `BrowserSession`; browser/MCP-session restart
+invalidates their opaque IDs and later use returns `subscription_not_found`. MCP `browser-events`
+therefore requires persistent MCP browser sessions and is incompatible with `[mcp].persistent_session =
+false`.
 
 `browser-events` does not implicitly enable CDP domains. Events such as Runtime or Network notifications must already be enabled by the workflow when the protocol requires it. Jelly does enable Target discovery and flattened page-only auto-attach so notifications from multiple page sessions can be attributed to logical targets. The agent addresses `main`/`tab-N`; it never supplies or receives CDP `sessionId` values. Detach/crash clears the affected in-memory session binding, and destroy removes the logical target after retaining the lifecycle event with its logical attribution.
 
@@ -146,9 +157,26 @@ Capture establishes file integrity, not semantic correctness. A guarded routine 
 
 For example, `verified-screenshot` records evidence such as `url`, `target-visible`, and `image-ready` when applicable. Captures and registered downloads are archived to immutable Jelly-managed paths before metadata is written. Use an artifact ID in later workflow steps instead of assuming `latest.png` or the newest download is the intended file.
 
-Chromium download lifecycle is tracked from browser-level `Browser.downloadWillBegin` and `Browser.downloadProgress` events. Jelly persists a bounded set of lifecycle records under runtime state with the Chromium GUID, sanitized source URL, suggested filename, received/total byte counts, timestamps, terminal state, optional materialized destination, failure reason, and registered artifact. Terminal states are `completed`, `canceled`, or `interrupted`. Chromium's Browser-domain progress event does not provide a detailed network failure string, so Jelly records bounded operational reasons it can establish itself, such as `canceled_by_user`, `canceled_by_browser`, browser stop/restart or launcher-process exit before completion, or download-tracker disconnection.
+Chromium download lifecycle is tracked from browser-level `Browser.downloadWillBegin` and
+`Browser.downloadProgress` events. Jelly persists a bounded set of lifecycle records under runtime state
+with the Chromium GUID, sanitized source URL, suggested filename, received/total byte counts,
+timestamps, terminal state, optional materialized destination, failure reason, and registered artifact.
+Terminal states are `completed`, `canceled`, or `interrupted`.
 
-`download wait` treats lifecycle state as authoritative and registers a completed managed file as an immutable artifact. An optional destination copies the suggested filename out of Jelly's managed download directory; `fail` and `uniquify` reserve the destination with create-new semantics so a concurrent file cannot be overwritten, while `overwrite` is explicitly destructive. The legacy `wait-download` timestamp/name contract remains supported: when a matching lifecycle record exists it waits on that state; only when no matching record exists does it use the historical filesystem heuristic (temporary-extension filtering, nonzero size, and stable size across the compatibility probe interval).
+Chromium's Browser-domain progress event does not provide a detailed network failure string, so Jelly
+records bounded operational reasons it can establish itself, such as `canceled_by_user`,
+`canceled_by_browser`, browser stop/restart or launcher-process exit before completion, or
+download-tracker disconnection.
+
+`download wait` treats lifecycle state as authoritative and registers a completed managed file as an
+immutable artifact. An optional destination copies the suggested filename out of Jelly's managed
+download directory; `fail` and `uniquify` reserve the destination with create-new semantics so a
+concurrent file cannot be overwritten, while `overwrite` is explicitly destructive.
+
+The legacy `wait-download` timestamp/name contract remains supported: when a matching lifecycle record
+exists it waits on that state; only when no matching record exists does it use the historical filesystem
+heuristic (temporary-extension filtering, nonzero size, and stable size across the compatibility probe
+interval).
 
 `verified-download` still records a timestamp immediately before the trigger and uses `wait-download`, but matching Jelly-managed browser downloads now complete from the first-class lifecycle record before artifact verification. The filesystem fallback remains for legacy or externally created files that have no lifecycle event.
 

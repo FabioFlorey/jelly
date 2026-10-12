@@ -26,7 +26,18 @@ cargo run --bin jelly-browser-connect -- list
 cargo run --bin jelly-browser-connect -- remove Jelly-Biscuit
 ```
 
-The helper discovers the browser-level WebSocket through Chromium's `/json/version` endpoint for HTTP URLs, verifies that the resulting CDP WebSocket is reachable, and stores registrations in `config/browsers.toml`. It assigns a stable UUID v4 and the next unused dessert name from 208 distinct sweets arranged in eight A-Z rounds: Jelly-Applepie, Jelly-Biscuit, Jelly-Cannoli, Jelly-Dorayaki, through Jelly-Zabaione, then Jelly-Alfajores for the next round. New additions include Jelly-Chiacchiere, Jelly-Jellybeans, and Jelly-Candies. Numbered suffixes are used only after the catalog is exhausted. The names draw from traditional sweets across countries; brand names are not used. The helper switches `config/jelly.toml` to `remote-cdp` on first successful registration. **Restart the Jelly MCP service after adding/removing browsers**: configuration is loaded once at startup. The helper does not start or stop containers or Chromium instances.
+The helper discovers the browser-level WebSocket through Chromium's `/json/version` endpoint for HTTP
+URLs, verifies that the resulting CDP WebSocket is reachable, and stores registrations in
+`config/browsers.toml`. It assigns a stable UUID v4 and the next unused dessert name from 208 distinct
+sweets arranged in eight A-Z rounds: Jelly-Applepie, Jelly-Biscuit, Jelly-Cannoli, Jelly-Dorayaki,
+through Jelly-Zabaione, then Jelly-Alfajores for the next round. New additions include
+Jelly-Chiacchiere, Jelly-Jellybeans, and Jelly-Candies. Numbered suffixes are used only after the
+catalog is exhausted.
+
+The names draw from traditional sweets across countries; brand names are not used. The helper switches
+`config/jelly.toml` to `remote-cdp` on first successful registration. **Restart the Jelly MCP service
+after adding/removing browsers**: configuration is loaded once at startup. The helper does not start or
+stop containers or Chromium instances.
 
 For an externally hosted service use `./scripts/dev.sh browser connect --address HOST:PORT` (or supply a WebSocket URL); registration uses `connection_mode = "address"`. A container on Jelly's dedicated subnet is recorded as `connection_mode = "subnet"`. These values describe topology, not a security guarantee. For optional artifact transfer use `--mode transfer --remote-path /browser-downloads --download-url https://your-artifact-bridge/files`. The operator still has to expose a protected artifact endpoint; the helper will not create one. It does not persist authentication secrets from command-line arguments.
 

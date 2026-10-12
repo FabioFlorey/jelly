@@ -4,12 +4,29 @@
 
 ## Table of Contents
 
+- [Overview and component map](#overview-and-component-map)
+  - [Rust source layout](#rust-source-layout)
 - [Functional core and imperative shell](#functional-core-and-imperative-shell)
+  - [Public APIs and persistence](#public-apis-and-persistence)
+  - [Page ranking and compatibility](#page-ranking-and-compatibility)
+  - [Isolated integration coverage](#isolated-integration-coverage)
 - [Connection and authentication boundaries](#connection-and-authentication-boundaries)
+  - [Connection profiles and server access](#connection-profiles-and-server-access)
+  - [Browser sessions, targets, and events](#browser-sessions-targets-and-events)
+  - [Download tracking and guarded routines](#download-tracking-and-guarded-routines)
+  - [Agent entrypoints and MCP tool publication](#agent-entrypoints-and-mcp-tool-publication)
 
 **Audience:** Developers and maintainers who need to understand system boundaries before changing Rust modules or deployment behavior.
 
-Jelly separates browser transport, semantic browser capabilities, system/integration tools, orchestration, agent-facing discovery, MCP authentication, and a remote MCP adapter. With the remote-CDP backend, per-call `browser_id` is resolved from a UUID/easy name into an independently cached browser session and runtime tree; the Docker/Podman container helper is optional infrastructure, not a dependency of the browser core. Deployment security policy is explicitly operator-selected, not inferred from browser availability. The [browser deployment model](../reference/BROWSER_DEPLOYMENT.md) defines requested, observed and unverified properties. This document explains current component relationships; see [MCP Server](../reference/MCP.md) for endpoint contracts and [Routines](../guides/ROUTINES.md) for executable workflows.
+Jelly has separate layers for browser transport, semantic browser operations, system tools, routines, tool discovery, MCP transport, and authentication.
+
+In remote-CDP mode, a `browser_id` selects a browser by UUID or easy name. Jelly then resolves it to an independently cached browser session and runtime tree. The Docker/Podman helper is optional infrastructure; it is not part of the browser core.
+
+Deployment security is chosen by the operator, not inferred from a working connection. See the [browser deployment model](../reference/BROWSER_DEPLOYMENT.md) for the distinction between requested, observed, and unverified security properties. For endpoint details, see [MCP Server](../reference/MCP.md); for executable workflows, see [Routines](../guides/ROUTINES.md).
+
+## Overview and component map
+
+The first diagram shows how CLI and MCP requests reach the browser and system tools. The second shows how one browser primitive definition supplies execution, validation, schemas, tracing, and discovery.
 
 ```mermaid
 flowchart LR
@@ -42,7 +59,12 @@ flowchart LR
 
 A separate **system tool registry** describes executable capabilities that should remain outside the browser primitive abstraction: browser lifecycle, screenshots and downloads, network capture, routines, and HITL. Internal discovery and the generated capability index aggregate both registries while preserving their different execution models. That internal documentation is not the MCP publication contract; the validated Agent Tool Catalog is the separate projection used by remote clients.
 
-The Rust source is split by responsibility:
+### Rust source layout
+
+The source tree is grouped by responsibility. The diagrams above show the dependencies; the directory map below shows where those pieces live:
+
+<details>
+<summary>Show the Rust source directory map</summary>
 
 ```text
 src/
@@ -133,6 +155,8 @@ src/
 └── lib.rs
 ```
 
+</details>
+
 ## Functional core and imperative shell
 
 The dependency direction is **shell → core**. Core functions receive observed values
@@ -147,6 +171,8 @@ accessing global runtime configuration.
 | OAuth | Authorization-code, PKCE and refresh/replay policy | `mcp_auth/oauth.rs` and `storage.rs` manage tokens, locks and durable grants. |
 | Page-side ranking | `core/ranking.js` compares normalized candidates | `browser/runtime.rs` observes the DOM and injects the ranking code. |
 
+### Public APIs and persistence
+
 Some public APIs remain exported from their established modules:
 `jelly::routine::run_from_env` through `src/routine.rs`, `LogicalTarget` and
 `TargetRegistry` through `browser/mod.rs`, and `jelly::DownloadRecord` through
@@ -158,6 +184,8 @@ OAuth handlers remain in `mcp_auth/`: the adapter reads the clock, generates
 tokens, locks and persists the store, and applies the grant/PKCE rules from
 `core/oauth.rs`. Tests cover policy decisions, HTTP token exchange and durable
 store reload. Persistence fault injection is not covered.
+
+### Page ranking and compatibility
 
 **In-page semantic ranking** compares candidate match quality, disabled state,
 viewport visibility, and document order in `src/core/ranking.js`. Both
@@ -173,6 +201,8 @@ production latency equivalence.
 
 The functional core/shell separation is not exhaustive. `browser/`, `primitives/`, `mcp/`, `mcp_auth/`, and parts of `shell/routines.rs` and `shell/targets.rs` contain decisions alongside effects. Routine text interpolation and graph validation retain their existing semantics.
 
+### Isolated integration coverage
+
 The isolated integration harness lives in `src/bin/jelly-fcis-probe.rs` and runs via
 `./scripts/dev.sh test --isolated`. It compiles a sanitized working-tree copy
 with its own runtime and binaries, drives Chromium CDP and MCP HTTP using
@@ -183,6 +213,8 @@ still require dedicated isolated tests; passing the harness does not
 establish complete behavioral equivalence under those failure modes.
 
 ## Connection and authentication boundaries
+
+### Connection profiles and server access
 
 Jelly supports two **client onboarding profiles** in `src/connection.rs`: `ChatGPT` and `GenericMcp`. A profile combines a provider name, client connection method (`local-http` or `remote-http`), and desired authentication method (`bearer-token` or `oauth`). `stdio` and unauthenticated (`none`) modes are reserved but not implemented. Connection profiles do not configure per-client authorization policies or create additional MCP listeners.
 
@@ -196,10 +228,52 @@ Jelly supports two **client onboarding profiles** in `src/connection.rs`: `ChatG
 
 Public `/health` and `/ready` report minimal MCP service state, not browser availability. Detailed `/dashboard`, `/status`, and `/status.json` require operator access through an owner session or administrative bearer credential; ordinary OAuth access tokens are insufficient. This is a **single-owner, process-wide browser session**, not an isolated per-client browser service. The risk boundary for direct privileged CDP is documented in [MCP Server](../reference/MCP.md#raw-cdp-trust-boundary).
 
-Most browser primitives share one persistent `BrowserSession` inside a routine. MCP browser-bound catalog entries also reuse a cached `BrowserSession` by default; `[mcp].persistent_session = false` restores one connection/attach per MCP call for rollback diagnostics. `BrowserSession` owns logical target state plus a bounded in-memory CDP notification ring and subscription registry. It enables Target discovery and flattened auto-attach for page targets, maintaining `sessionId ↔ targetId ↔ logical label` mappings in memory while persisting only logical labels/target IDs. Synchronous request waits retain notifications instead of discarding them, and `browser-events poll` uses a barrier request to drain pending frames before cursor/filter evaluation. Idle-event tests showed that this barrier model preserves the current poll-based contract, including explicit bounded-loss reporting under ring overflow, so Jelly intentionally does not add a background reader to `BrowserSession` itself.
+### Browser sessions, targets, and events
 
-Download lifecycle is the deliberate exception at the browser-service layer. `browser_launcher` opens a separate browser-level CDP connection, enables `Browser.downloadWillBegin`/`Browser.downloadProgress` through `Browser.setDownloadBehavior`, and persists bounded download records under a file lock so system-tool processes can list, wait, cancel, and finalize downloads independently of any one `BrowserSession`. This tracker does not feed the browser-events ring. JSON routines are guarded directed graphs: evidence is stored in context, edges can branch/loop/jump, and typed failures can select recovery paths. A graph that starts Chromium owns that browser and finalizes it on terminal completion or unhandled failure; HITL suspension preserves the session for continuation.
+Most browser primitives share one persistent `BrowserSession` inside a routine. MCP browser-bound
+catalog entries also reuse a cached `BrowserSession` by default; `[mcp].persistent_session = false`
+restores one connection/attach per MCP call for rollback diagnostics. `BrowserSession` owns logical
+target state plus a bounded in-memory CDP notification ring and subscription registry. It enables Target
+discovery and flattened auto-attach for page targets, maintaining `sessionId ↔ targetId ↔ logical label`
+mappings in memory while persisting only logical labels/target IDs.
 
-Executable agent entrypoints live in Cargo's native `src/bin/` layout. Standalone system tools continue to execute through the agent-tool dispatch path, which lets them manage process lifetime, files, human-intervention transport, or other concerns that do not belong in a `BrowserSession` handler. `src/agent/` owns the validated Agent Tool Catalog and native agent-facing builtins. `config/jelly.toml` `[mcp].surface` selects one validated catalog at MCP startup. The selected catalog is frozen for the process lifetime, projected into `tools/list`, and used unchanged as the `tools/call` execution allowlist. `large-surface` exposes individual browser primitives plus system tools; `small-surface` is the supported default and replaces only the browser primitives with `browser-schema`, `browser-call`, and `browser-events`. Both surfaces intentionally project the exact same ordered system-tool registry and bindings. Lifecycle/artifact/routine aggregation, HITL exposure, and operator/admin capabilities such as profile import are separate design questions and are not coupled to the browser API cutover. Internal primitive/system registries remain canonical implementation metadata rather than the remote transport surface itself. The `.agent/` tree is reserved for declarative or generated agent-facing resources such as routines and the generated tool index.
+Synchronous request waits retain notifications instead of discarding them, and `browser-events poll`
+uses a barrier request to drain pending frames before cursor/filter evaluation. Idle-event tests showed
+that this barrier model preserves the current poll-based contract, including explicit bounded-loss
+reporting under ring overflow, so Jelly intentionally does not add a background reader to
+`BrowserSession` itself.
+
+### Download tracking and guarded routines
+
+Download lifecycle is the deliberate exception at the browser-service layer. `browser_launcher` opens a
+separate browser-level CDP connection, enables `Browser.downloadWillBegin`/`Browser.downloadProgress`
+through `Browser.setDownloadBehavior`, and persists bounded download records under a file lock so
+system-tool processes can list, wait, cancel, and finalize downloads independently of any one
+`BrowserSession`. This tracker does not feed the browser-events ring. JSON routines are guarded directed
+graphs: evidence is stored in context, edges can branch/loop/jump, and typed failures can select
+recovery paths.
+
+A graph that starts Chromium owns that browser and finalizes it on terminal completion or unhandled
+failure; HITL suspension preserves the session for continuation.
+
+### Agent entrypoints and MCP tool publication
+
+Executable agent entrypoints live in Cargo's native `src/bin/` layout. Standalone system tools continue
+to execute through the agent-tool dispatch path, which lets them manage process lifetime, files,
+human-intervention transport, or other concerns that do not belong in a `BrowserSession` handler.
+`src/agent/` owns the validated Agent Tool Catalog and native agent-facing builtins. `config/jelly.toml`
+`[mcp].surface` selects one validated catalog at MCP startup.
+
+The selected catalog is frozen for the process lifetime, projected into `tools/list`, and used unchanged
+as the `tools/call` execution allowlist. `large-surface` exposes individual browser primitives plus
+system tools; `small-surface` is the supported default and replaces only the browser primitives with
+`browser-schema`, `browser-call`, and `browser-events`. Both surfaces intentionally project the exact
+same ordered system-tool registry and bindings. Lifecycle/artifact/routine aggregation, HITL exposure,
+and operator/admin capabilities such as profile import are separate design questions and are not coupled
+to the browser API cutover.
+
+Internal primitive/system registries remain canonical implementation metadata rather than the remote
+transport surface itself. The `.agent/` tree is reserved for declarative or generated agent-facing
+resources such as routines and the generated tool index.
 
 <div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

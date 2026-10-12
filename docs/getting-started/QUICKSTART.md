@@ -110,7 +110,7 @@ For connection and OAuth details, see [MCP Server](../reference/MCP.md). Review 
 
 ## Optional: explore the simulated demo
 
-**Try the actual interaction without touching the host:**
+**Preview the simulated setup without touching the host:**
 
 ```bash
 ./scripts/dev.sh demo                         # Simulated menu and editable inputs
@@ -120,7 +120,16 @@ For connection and OAuth details, see [MCP Server](../reference/MCP.md). Review 
 ./scripts/dev.sh demo --hero                  # Original full 97-column logo
 ```
 
-In the demo, choose a sample computer with Docker, Podman, both, or neither; enter a hosting URL; select OAuth/bearer authentication; choose Chromium sandbox, restrictions, profile and CDP exposure; test a candidate; and accept or reject the final review. Results and browser/service state follow **your choices** within the same demo session. In an interactive terminal, each transition **clears and redraws the current screen with the full Jelly hero**; results remain visible until you press Enter. In a redirected transcript or `--tour`, screen clearing and Enter-to-continue are disabled, and selected sample inputs are echoed so the transcript remains readable. Nothing is read from the real Docker/Podman daemons or applied to Jelly's configuration. `--tour` fills in those same prompts with a preselected example.
+The simulated demo lets you explore the same kinds of decisions without changing your computer:
+
+- Choose a sample host with Docker, Podman, both, or neither.
+- Enter a fictional hosting URL and choose OAuth or bearer authentication.
+- Select a Chromium sandbox request, container restrictions, profile, and CDP exposure.
+- Run a simulated candidate test and accept or reject the final review.
+
+Results follow **your choices**, but the demo does not inspect real Docker/Podman daemons or modify Jelly configuration.
+
+In an interactive terminal, each transition clears and redraws the Jelly hero; the result stays visible until Enter is pressed. With redirected input or `--tour`, screen clearing and Enter-to-continue are disabled. The `--tour` option provides preselected sample answers and echoes them in the transcript.
 
 The demo's **Tests → Browser integration** choice uses the sample MCP and browser state. If no browser is selected or the sample MCP service is stopped, it reports **NOT RUN** and identifies the missing prerequisite. You can separately explore an example PASS or an intentionally failing integration with its diagnostics; neither is evidence of a live test.
 

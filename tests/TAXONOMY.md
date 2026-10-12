@@ -50,7 +50,14 @@ A test with complete input-to-output behavior may be called *end-to-end* in ever
 
 `functional` checks behavior; `non-functional` checks quantitative or quality attributes (performance, reliability, resource consumption, security properties); `tooling` represents static quality gates or checks of the repository toolchain. A test can measure secondary concerns, but this field stores one *primary* intent.
 
-**Migration status:** The 91 scenarios have provisional scope/size/focus metadata inherited from their groups and an **individual source-level review of their observable contracts and assertions** for maintenance triage. The original guessed triage was corrected after comparing actual implementation boundaries. **All 91 remain provisional for runtime verification**, and inline `#[cfg(test)]` Rust tests are not yet represented as individual records in this shell scenario catalog. Rust unit tests continue to run with `cargo test --lib` or `cargo test --all-targets`. Do not interpret absence of `scope=unit` from the shell catalog as absence of unit tests in Jelly.
+**Migration status:** The 91 scenarios have provisional scope/size/focus metadata inherited from their
+groups and an **individual source-level review of their observable contracts and assertions** for
+maintenance triage. The original guessed triage was corrected after comparing actual implementation
+boundaries. **All 91 remain provisional for runtime verification**, and inline `#[cfg(test)]` Rust tests
+are not yet represented as individual records in this shell scenario catalog. Rust unit tests continue
+to run with `cargo test --lib` or `cargo test --all-targets`.
+
+Do not interpret absence of `scope=unit` from the shell catalog as absence of unit tests in Jelly.
 
 ### Querying
 
@@ -110,7 +117,18 @@ Filters on different axes intersect. The same filter may occur multiple times in
 
 ### Execution boundaries and duplicate work
 
-`./scripts/dev.sh check` owns formatting, Clippy (including all auxiliary Rust crate manifests), docs/security/architecture validation and selected offline tooling checks. `./scripts/dev.sh test` is the **single canonical** `cargo test --all-targets --locked` execution, covering library **and** binary targets; CI must not repeat selected binary tests. `./scripts/dev.sh ci` is only `check` followed by `test`. `QLT-001`, `QLT-003` and `QLT-004` delegate to these canonical commands if an operator explicitly selects them; that is an alternative entry point, not a separate duplicate implementation. The legacy `quality` group remains callable explicitly for compatibility, but **`deterministic` and `fast` no longer embed it**, avoiding automatic repeated builds, lint and Cargo tests. The `network` batch is optional and never a deterministic CI gate. `test --isolated` runs a distinct disposable MCP/Chromium integration harness. Distinct gate names in different entry points do not imply distinct evidence.
+`./scripts/dev.sh check` owns formatting, Clippy (including all auxiliary Rust crate manifests),
+docs/security/architecture validation and selected offline tooling checks. `./scripts/dev.sh test` is
+the **single canonical** `cargo test --all-targets --locked` execution, covering library **and** binary
+targets; CI must not repeat selected binary tests. `./scripts/dev.sh ci` is only `check` followed by
+`test`. `QLT-001`, `QLT-003` and `QLT-004` delegate to these canonical commands if an operator
+explicitly selects them; that is an alternative entry point, not a separate duplicate implementation.
+
+The legacy `quality` group remains callable explicitly for compatibility, but **`deterministic` and
+`fast` no longer embed it**, avoiding automatic repeated builds, lint and Cargo tests. The `network`
+batch is optional and never a deterministic CI gate. `test --isolated` runs a distinct disposable
+MCP/Chromium integration harness. Distinct gate names in different entry points do not imply distinct
+evidence.
 
 The suite runner's selection contract is **union among --test, --suite, --group, --batch**, **intersection across classification dimensions**, and **union of repeated values within a dimension**. The catalog preview and execution use identical selection semantics; invalid selectors fail explicitly.
 

@@ -56,7 +56,16 @@ suffix = ""
 signature = "⏺️ Recorded with <b>Jelly</b>"
 ```
 
-The Rust loader requires `config/jelly.toml` and does not read environment-variable overrides for its technical settings. **Exception for per-request routing:** MCP tools can accept `browser_id` when the remote CDP backend is enabled; CLI processes can use `JELLY_BROWSER_ID`. The separately generated (gitignored) `config/browsers.toml` stores quick-registered remote endpoints, including their UUID, optional `name`, `connection_mode = "address" | "subnet"`, and download settings. Both files are read at MCP startup; adding a browser requires restarting MCP. The fields shown above are required, except that `mcp.connections` is optional and defaults to an empty list. Missing required sections or invalid values cause startup errors. Environment variables still configure deployment settings and secrets (see [`.env`](#env)).
+The Rust loader requires `config/jelly.toml` and does not read environment-variable overrides for its
+technical settings. **Exception for per-request routing:** MCP tools can accept `browser_id` when the
+remote CDP backend is enabled; CLI processes can use `JELLY_BROWSER_ID`. The separately generated
+(gitignored) `config/browsers.toml` stores quick-registered remote endpoints, including their UUID,
+optional `name`, `connection_mode = "address" | "subnet"`, and download settings. Both files are read at
+MCP startup; adding a browser requires restarting MCP.
+
+The fields shown above are required, except that `mcp.connections` is optional and defaults to an empty
+list. Missing required sections or invalid values cause startup errors. Environment variables still
+configure deployment settings and secrets (see [`.env`](#env)).
 
 > [!WARNING]
 > The checked-in `raw_cdp = true` enables privileged Chromium DevTools Protocol commands for **all authenticated MCP clients**; it is not restricted to ChatGPT or a particular token. Set `[mcp].raw_cdp = false` if trusted clients do not require direct CDP access, and restart the server after changing it. See [Raw CDP trust boundary](../reference/MCP.md#raw-cdp-trust-boundary).
@@ -81,14 +90,14 @@ method = "local-http"
 auth = "bearer-token"
 ```
 
-Supported provider values are `chatgpt` and `generic-mcp` (the latter is the
-Rust API default). New providers can be added without changing browser
-primitives. Connection methods are `local-http` and `remote-http`, and client
-auth methods are `bearer-token` and `oauth`. `stdio` and `none` are reserved
-enum variants but are rejected at startup because those modes are not yet
-implemented. All explicit profiles require a loopback MCP listener; explicit
-remote HTTP profiles additionally require an HTTPS public URL. The remote HTTPS endpoint
-normally forwards to Jelly's HTTP listener through a tunnel or proxy.
+Supported provider values are `chatgpt` and `generic-mcp` (the latter is the Rust API default). New
+providers can be added without changing browser primitives. Connection methods are `local-http` and
+`remote-http`, and client auth methods are `bearer-token` and `oauth`. `stdio` and `none` are reserved
+enum variants but are rejected at startup because those modes are not yet implemented. All explicit
+profiles require a loopback MCP listener; explicit remote HTTP profiles additionally require an HTTPS
+public URL.
+
+The remote HTTPS endpoint normally forwards to Jelly's HTTP listener through a tunnel or proxy.
 
 Profiles currently validate intended client setup choices. **They do not
 restrict the server's existing accepted credential types**, provision a tunnel,

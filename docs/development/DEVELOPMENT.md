@@ -7,13 +7,20 @@
 - [Design rules](#design-rules)
 - [Unified developer CLI](#unified-developer-cli)
 - [Tests](#tests)
+  - [Isolated Functional Core / Imperative Shell integration](#isolated-functional-core-imperative-shell-integration)
+  - [Jelly web UI smoke test](#jelly-web-ui-smoke-test)
 - [Agent instruction and tool-selection evaluation](#agent-instruction-and-tool-selection-evaluation)
 - [Script organization](#script-organization)
 - [Shell maintenance conventions](#shell-maintenance-conventions)
 - [Project website and GitHub Pages](#project-website-and-github-pages)
+  - [Site source and responsibilities](#site-source-and-responsibilities)
+  - [Deployment and publication](#deployment-and-publication)
 - [Documentation validation](#documentation-validation)
+  - [Documentation writing standards](#documentation-writing-standards)
 - [Generated tool documentation](#generated-tool-documentation)
 - [Browser performance diagnostics](#browser-performance-diagnostics)
+  - [Performance profiling and regression checks](#performance-profiling-and-regression-checks)
+  - [Interactive target resolution](#interactive-target-resolution)
 - [Runtime cleanup](#runtime-cleanup)
 
 **Audience:** Contributors and maintainers extending or testing Jelly.
@@ -100,7 +107,16 @@ Inspect the executable catalog and activation state:
 ./scripts/dev.sh test --suite --catalog --json
 ```
 
-The legacy `quality` scenario group is not included in default browser batches. The canonical offline commands are `./scripts/dev.sh check` (root and auxiliary Rust formatting/lint, docs, security and tooling) and `./scripts/dev.sh test` (root Rust library/binary targets and the independent `test-jelly` wrapper UI tests, each once). CI executes exactly those commands; it no longer separately recompiles fixture binaries or repeats targeted binary tests. `deterministic` includes installed MCP `session`/`rollback` tests, whereas `browser` omits them; neither is safe to run on a shared installed browser. Classifications now also record `lifecycle`, maintenance `triage`, `related_ids` and `triage_reason`; review these before introducing overlapping assertions. All existing classifications remain provisional.
+The legacy `quality` scenario group is not included in default browser batches. The canonical offline
+commands are `./scripts/dev.sh check` (root and auxiliary Rust formatting/lint, docs, security and
+tooling) and `./scripts/dev.sh test` (root Rust library/binary targets and the independent `test-jelly`
+wrapper UI tests, each once). CI executes exactly those commands; it no longer separately recompiles
+fixture binaries or repeats targeted binary tests. `deterministic` includes installed MCP
+`session`/`rollback` tests, whereas `browser` omits them; neither is safe to run on a shared installed
+browser.
+
+Classifications now also record `lifecycle`, maintenance `triage`, `related_ids` and `triage_reason`;
+review these before introducing overlapping assertions. All existing classifications remain provisional.
 
 Tests/groups can be persistently disabled through `tests/suite/config/disabled-tests.txt` and `disabled-groups.txt`; `--include-disabled` overrides those files for an explicit diagnostic run. Batch definitions live in `tests/suite/config/batches.tsv`. See `tests/INDEX.md` for the group/batch map and `tests/suite/README.md` for the harness rationale, metadata contract, result schema, and selection rules.
 
@@ -116,27 +132,25 @@ Run the MCP/Chromium integration tests in a separate sandbox:
 JELLY_FCIS_KEEP_SANDBOX=true ./scripts/dev.sh test --isolated
 ```
 
-The test harness builds the working tree in a new `/data/jelly-fcis-isolated-*`
-directory. It omits `.env`, rewrites **only the copied** `config/jelly.toml`
-and Cargo target directory, and compiles separate test binaries. The Rust
-harness `src/bin/jelly-fcis-probe.rs` refuses to run if its config,
-`.env` or directory checks fail. Chromium uses disposable profiles and a
-loopback-only CDP endpoint, and the MCP server binds a temporary loopback
-port with synthetic credentials. The test driver terminates only the
-subprocess groups it started; it does **not** invoke `systemctl`, Jelly's
-browser launcher, the installed service, or any cleanup against the active
-runtime. The wrapper removes its own sandbox afterward unless retention is
-explicitly requested.
+The test harness builds the working tree in a new `/data/jelly-fcis-isolated-*` directory. It omits
+`.env`, rewrites **only the copied** `config/jelly.toml` and Cargo target directory, and compiles
+separate test binaries. The Rust harness `src/bin/jelly-fcis-probe.rs` refuses to run if its config,
+`.env` or directory checks fail. Chromium uses disposable profiles and a loopback-only CDP endpoint, and
+the MCP server binds a temporary loopback port with synthetic credentials.
 
-Integration checks cover Agent API batches and target/session behavior over
-real CDP, ranking via the actual CLI, routine graph decisions and state
-suspend/resume (the external HITL delivery adapter is **stubbed in the
-sandbox**), download records/artifacts/collision policies on isolated disk,
-OAuth code grants, refresh rotation/replay and persisted OAuth reload via
-HTTP, plus cache invalidation and reconnect to a replacement Chromium without
-restarting MCP. The on-disk Rust download test is marked `#[ignore]` and
-**refuses I/O** unless its compiled runtime root matches the explicit
-`JELLY_FCIS_ISOLATION_ROOT` sandbox opt-in. The harness also runs Chromium ranking fixture tests.
+The test driver terminates only the subprocess groups it started; it does **not** invoke `systemctl`,
+Jelly's browser launcher, the installed service, or any cleanup against the active runtime. The wrapper
+removes its own sandbox afterward unless retention is explicitly requested.
+
+Integration checks cover Agent API batches and target/session behavior over real CDP, ranking via the
+actual CLI, routine graph decisions and state suspend/resume (the external HITL delivery adapter is
+**stubbed in the sandbox**), download records/artifacts/collision policies on isolated disk, OAuth code
+grants, refresh rotation/replay and persisted OAuth reload via HTTP, plus cache invalidation and
+reconnect to a replacement Chromium without restarting MCP. The on-disk Rust download test is marked
+`#[ignore]` and **refuses I/O** unless its compiled runtime root matches the explicit
+`JELLY_FCIS_ISOLATION_ROOT` sandbox opt-in.
+
+The harness also runs Chromium ranking fixture tests.
 
 These checks do **not** substitute for a real browser-originated CDP download
 notification sequence, genuine third-party HITL delivery, OAuth persistence
@@ -201,9 +215,25 @@ The `QLT-019` test covers environment parsing and cleanup path validation.
 
 ## Project website and GitHub Pages
 
+### Site source and responsibilities
+
 The static website is maintained in the top-level [`site/`](../../site) directory, separate from the Markdown documentation under `docs/` and the application's runtime branding assets under `assets/`. Website CSS and JavaScript live in `site/assets/css/style.css` and `site/assets/js/main.js`; media and favicon are under `site/assets/images/` and `site/favicon.svg`. The public site also serves standalone pages for Getting Started, Clients, MCP Tools, Examples, and Troubleshooting. Security details are maintained in `SECURITY.md`. The runtime server's `/connections`, `/dashboard` and OAuth approval interface is separate from the static GitHub Pages site.
 
-[`.github/workflows/pages.yml`](../../.github/workflows/pages.yml) publishes the contents of `site/` directly using GitHub Actions on pushes to `main` affecting the site or publishing workflow, or via manual dispatch. The Pages workflow checks out the repository, packages the static site, and deploys it without website-validation steps. The separate [documentation workflow](../../.github/workflows/docs.yml) validates project Markdown and agent guidance, not the static website. To enable deployment, set **Settings → Pages → Build and deployment → Source → GitHub Actions** in the GitHub repository. The public project URL remains `https://fabioflorey.github.io/jelly/`. A `CNAME` file is deliberately absent because there is no configured custom domain; GitHub Pages ignores `CNAME` files when using the custom Actions deployment workflow. If adopting a custom domain, configure it in the repository's Pages settings and update the site URLs and `/jelly/`-based 404 assets accordingly.
+### Deployment and publication
+
+[`.github/workflows/pages.yml`](../../.github/workflows/pages.yml) publishes the contents of `site/`
+directly using GitHub Actions on pushes to `main` affecting the site or publishing workflow, or via
+manual dispatch. The Pages workflow checks out the repository, packages the static site, and deploys it
+without website-validation steps. The separate [documentation
+workflow](../../.github/workflows/docs.yml) validates project Markdown and agent guidance, not the
+static website. To enable deployment, set **Settings → Pages → Build and deployment → Source → GitHub
+Actions** in the GitHub repository. The public project URL remains
+`https://fabioflorey.github.io/jelly/`.
+
+A `CNAME` file is deliberately absent because there is no configured custom domain; GitHub Pages ignores
+`CNAME` files when using the custom Actions deployment workflow. If adopting a custom domain, configure
+it in the repository's Pages settings and update the site URLs and `/jelly/`-based 404 assets
+accordingly.
 
 ## Documentation validation
 
@@ -216,6 +246,19 @@ cargo run --locked --bin jelly-maint -- check docs
 The Rust documentation checker verifies local links and anchors, the documentation index, fenced JSON/TOML examples, and basic Mermaid structure. This does **not** prove that a diagram will render on GitHub. The dedicated `.github/workflows/docs.yml` additionally installs Mermaid CLI and renders all tracked Markdown Mermaid diagrams in Chromium with `scripts/maintenance/check_mermaid.py`. CI fails if any diagram cannot be rendered.
 
 The rendering check can also be run locally when Mermaid CLI is installed, by passing its binary path to the script and setting `PUPPETEER_EXECUTABLE_PATH` to the path of Chromium or Chrome. Structural checks and successful renders do **not** replace reviewing technical claims against the Rust implementation.
+
+### Documentation writing standards
+
+Documentation must explain the system, not merely enumerate its identifiers:
+
+- **Name the audience and purpose.** State whether a page is a tutorial, operator guide, API contract, or maintainer reference. Point beginners to the right entry page.
+- **Organize by question or task.** Use descriptive chapters and subchapters; keep the ToC in sync with meaningful headings.
+- **Explain before presenting syntax.** Define terms such as a tool surface, CDP connection, or artifact before showing configuration keys or raw JSON.
+- **Keep prose scannable.** Prefer short paragraphs, numbered workflows for sequences, bullets for independent rules, and tables for genuine comparisons.
+- **Show the outcome and limits.** Tell readers what success looks like, what a check does **not** establish, and which commands change browser or system state.
+- **Retain precise contracts.** Simplifying exposition must not change authentication rules, defaults, security boundaries, expected errors, or test evidence.
+
+Generated documentation is updated through its generator. A passing Markdown link check is not a substitute for reviewing wording and the rendered page.
 
 ## Generated tool documentation
 
@@ -247,11 +290,29 @@ These switches are diagnostic rollback paths, not separate supported execution m
 
 Logical browser target labels are runtime state shared by MCP and CLI processes. The mapping is persisted atomically in `/data/jelly-runtime/state/logical_targets.json` under an OS file lock, reconciled from live `Target.getTargets` data, and reset with the browser lifecycle. Temp files use a process/nonce identity, are synced before rename, and the state directory is synced after replacement. Only logical-label/target-ID state is persisted; attached CDP session IDs remain in-memory because they are ephemeral connection state.
 
-Each `BrowserSession` also owns a bounded in-memory CDP notification ring and its runtime-scoped event subscriptions. The default limits are 1,024 retained notifications and 4 MiB of incoming notification bytes. Every observed notification consumes a monotonic sequence number; count/byte eviction increments `dropped`, the latest dropped sequence is tracked for precise cursor-loss detection, and stream resets are counted separately. `browser-events poll` drains pending websocket traffic with a browser-scoped `Target.getTargets` barrier before applying target/method filters. The receive loop remains synchronous: no background reader drains events while the browser session is idle.
+Each `BrowserSession` also owns a bounded in-memory CDP notification ring and its runtime-scoped event
+subscriptions. The default limits are 1,024 retained notifications and 4 MiB of incoming notification
+bytes. Every observed notification consumes a monotonic sequence number; count/byte eviction increments
+`dropped`, the latest dropped sequence is tracked for precise cursor-loss detection, and stream resets
+are counted separately. `browser-events poll` drains pending websocket traffic with a browser-scoped
+`Target.getTargets` barrier before applying target/method filters.
 
-This synchronous design was retained deliberately after idle-event measurements. A real Chromium probe scheduled 64 target-scoped Runtime console notifications after the scheduling request returned, performed no websocket reads during the idle period, and recovered all 64 in order on the next poll with no drop/reset/cursor loss. A 1,500-event idle burst also drained successfully; the 1,024-entry ring retained the newest 1,024 events and reported exactly 476 bounded evictions with `cursor_lost=true`. These measurements support the current poll-based contract without introducing a concurrent reader. They do not promise continuous low-latency delivery while Jelly is idle; a future requirement for that behavior, or evidence of loss before ring admission, would justify revisiting the driver architecture.
+The receive loop remains synchronous: no background reader drains events while the browser session is
+idle.
 
-BrowserSession enables Target discovery plus flattened auto-attach filtered to `page` targets. Each live page therefore has an in-memory CDP session binding alongside its persisted logical identity (`main`, `tab-N`). Session IDs are never persisted or exposed through the Agent API. Target-scoped raw CDP addressed to a logical target uses that target's attached session directly and does not activate/switch the page. `Target.targetInfoChanged` preserves the session across navigation metadata churn; detach/crash invalidates the session binding; destroy removes the logical target while the retained destroy event keeps its pre-removal logical label.
+This synchronous design was retained deliberately after idle-event measurements. A real Chromium probe
+scheduled 64 target-scoped Runtime console notifications after the scheduling request returned,
+performed no websocket reads during the idle period, and recovered all 64 in order on the next poll with
+no drop/reset/cursor loss. A 1,500-event idle burst also drained successfully; the 1,024-entry ring
+retained the newest 1,024 events and reported exactly 476 bounded evictions with `cursor_lost=true`.
+These measurements support the current poll-based contract without introducing a concurrent reader.
+
+They do not promise continuous low-latency delivery while Jelly is idle; a future requirement for that
+behavior, or evidence of loss before ring admission, would justify revisiting the driver architecture.
+
+`BrowserSession` discovers targets and uses flattened auto-attach for page targets only. Each page has an in-memory CDP session binding and a persisted logical identity (`main` or `tab-N`). Session IDs are ephemeral: Jelly neither persists them nor exposes them through the Agent API.
+
+Target-scoped raw CDP calls use the selected logical target's attached session without activating or switching pages. `Target.targetInfoChanged` preserves the binding during navigation metadata changes. Detach or crash invalidates the binding; destroy removes the target but leaves the retained destroy event labeled with its previous logical identity.
 
 The no-argument `snapshot-interactive` call intentionally remains unlimited for compatibility. A bounded default would silently hide targets because the current array result does not carry a truncation/cursor envelope. Prefer `snapshot-interactive <limit> [offset]` or `find-interactive <query> [limit] [offset]` when an agent does not need the entire interactive surface.
 

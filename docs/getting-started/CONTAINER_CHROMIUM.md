@@ -4,9 +4,15 @@
 
 ## Table of Contents
 
+- [Connection modes and container creation](#connection-modes-and-container-creation)
+  - [What container creation changes](#what-container-creation-changes)
 - [Guided setup based on this host](#guided-setup-based-on-this-host)
 - [Profiles](#profiles)
+  - [Shared download directory ownership](#shared-download-directory-ownership)
+  - [Optional image build networking](#optional-image-build-networking)
 - [Networking and security constraints](#networking-and-security-constraints)
+  - [Host-to-container CDP connectivity](#host-to-container-cdp-connectivity)
+  - [Sandbox, restrictions, and port exposure](#sandbox-restrictions-and-port-exposure)
 - [Security diagnosis](#security-diagnosis)
 - [Existing native Chromium](#existing-native-chromium)
 
@@ -15,6 +21,8 @@
 **Audience:** Operators choosing native Chromium, Docker/Podman, or an externally managed CDP browser.
 
 For a first-time installation, use [Getting Started](./QUICKSTART.md). This guide is for choosing or changing the browser backend after understanding the basic quickstart.
+
+## Connection modes and container creation
 
 Choose one of three connection strategies from `./scripts/dev.sh browser`:
 
@@ -48,7 +56,19 @@ Or run the noninteractive command:
 ./scripts/dev.sh browser add --engine podman --profile ephemeral
 ```
 
-Each invocation creates **another Chromium container** and registers it with Jelly using an immutable UUID and an automatic Jelly-* dessert name. The helper builds the local `containers/chromium/Containerfile`, creates (if needed) the dedicated **`jelly-browsers` bridge network**, obtains the container's bridge IP, checks `/json/version`, and registers the browser-level CDP WebSocket. By default no CDP port is published to the host or LAN; operators can choose `--publish IPv4:PORT`. The container network subnet is allocated by Docker/Podman, avoiding hard-coded ranges that could overlap an existing network. Chromium 154+ may bind DevTools only to its loopback interface; the image uses an unprivileged `socat` forwarder **inside the container namespace** from port 9222 to Chromium's loopback CDP port 9223. This does not publish a host port.
+### What container creation changes
+
+Each invocation creates **another Chromium container** and registers it with Jelly using an immutable
+UUID and an automatic Jelly-* dessert name. The helper builds the local
+`containers/chromium/Containerfile`, creates (if needed) the dedicated **`jelly-browsers` bridge
+network**, obtains the container's bridge IP, checks `/json/version`, and registers the browser-level
+CDP WebSocket. By default no CDP port is published to the host or LAN; operators can choose `--publish
+IPv4:PORT`. The container network subnet is allocated by Docker/Podman, avoiding hard-coded ranges that
+could overlap an existing network.
+
+Chromium 154+ may bind DevTools only to its loopback interface; the image uses an unprivileged `socat`
+forwarder **inside the container namespace** from port 9222 to Chromium's loopback CDP port 9223. This
+does not publish a host port.
 
 To inspect or stop an individual container:
 
@@ -78,7 +98,15 @@ Users can test a configuration before registering a browser:
   --profile isolated --publish 127.0.0.1:19400
 ```
 
-The explicit probe builds the local image, creates a temporary private bridge and disposable profile/download volumes (or tmpfs for `ephemeral`), starts Chromium, checks CDP and removes its container, bridge and volumes. **It does not update browser registrations or start/stop Jelly services.** For a published configuration it uses a **random loopback-only port** even if an operator selected a different address: this validates loopback transport, **not LAN exposure or a specific port**. Probes of `shared` mode do **not** verify its bind-mounted downloads. Rootless Podman requires the operator to select `--publish 127.0.0.1:PORT` explicitly; Jelly does not silently substitute publication for a selected subnet connection.
+The explicit probe builds the local image, creates a temporary private bridge and disposable
+profile/download volumes (or tmpfs for `ephemeral`), starts Chromium, checks CDP and removes its
+container, bridge and volumes. **It does not update browser registrations or start/stop Jelly
+services.** For a published configuration it uses a **random loopback-only port** even if an operator
+selected a different address: this validates loopback transport, **not LAN exposure or a specific
+port**. Probes of `shared` mode do **not** verify its bind-mounted downloads.
+
+Rootless Podman requires the operator to select `--publish 127.0.0.1:PORT` explicitly; Jelly does not
+silently substitute publication for a selected subnet connection.
 
 Only real probe PASS/FAIL results are cached privately under `${XDG_CACHE_HOME:-~/.cache}/jelly/browser-probes/`. The cache key covers host OS/kernel, engine version and rootless/rootful mode, source Dockerfile/entrypoint and built image identity, sandbox/restrictions, profile, build network, bridge DNS and **subnet versus loopback** topology. Changes invalidate prior evidence. Shared-volume semantics or publication beyond `127.0.0.1` are never marked as fully verified by the CDP probe. Cache data is a local convenience, not a machine-verifiable security attestation.
 
@@ -92,7 +120,20 @@ The menu lists **local PASS choices first**, followed by reference-PASS candidat
 | shared | `--profile shared` | Persistent engine volume | Bind-mounted `.jelly-downloads/<container>/`, readable from the host |
 | ephemeral | `--profile ephemeral` | Temporary tmpfs | Temporary tmpfs, deleted when the container is removed |
 
-For `shared`, the download directory must appear owned by UID 10001 **inside the container's user namespace**. Under rootful Docker/Podman, that normally means `sudo chown 10001:10001 <directory>`; under rootless Podman, UID 10001 maps to a subordinate host UID, so use `podman unshare chown 10001:10001 <directory>`. The helper checks the correct namespace and prints the applicable ownership command rather than making the directory world-writable. Host reads also depend on the permissions of files created by Chromium; this was validated with an ordinary readable file on the test host. The other profiles require no host download-directory permissions. Persistent profiles use a nonblocking volume lock to prevent concurrent browser instances and to discard stale Chromium `Singleton*` markers when a stopped container is recreated. Ephemeral profile/download mounts use sticky `tmpfs` permissions (`mode=1777`) so the unprivileged Chromium UID can write them; they remain private to the container mount namespace.
+### Shared download directory ownership
+
+For `shared`, the download directory must appear owned by UID 10001 **inside the container's user
+namespace**. Under rootful Docker/Podman, that normally means `sudo chown 10001:10001 <directory>`;
+under rootless Podman, UID 10001 maps to a subordinate host UID, so use `podman unshare chown
+10001:10001 <directory>`. The helper checks the correct namespace and prints the applicable ownership
+command rather than making the directory world-writable.
+
+Host reads also depend on the permissions of files created by Chromium; this was validated with an
+ordinary readable file on the test host. The other profiles require no host download-directory
+permissions. Persistent profiles use a nonblocking volume lock to prevent concurrent browser instances
+and to discard stale Chromium `Singleton*` markers when a stopped container is recreated. Ephemeral
+profile/download mounts use sticky `tmpfs` permissions (`mode=1777`) so the unprivileged Chromium UID
+can write them; they remain private to the container mount namespace.
 
 ### Optional image build networking
 
@@ -106,9 +147,36 @@ This choice affects **image build RUN steps only**, not Chromium's runtime netwo
 
 ## Networking and security constraints
 
-**Direct host-to-container bridge-IP connectivity is expected on Linux rootful Docker/Podman when ports are not published.** Rootless Podman and Docker Desktop do not guarantee that the host can route to private bridge IPs. The helper offers an explicit `--publish IPv4:PORT` alternative for these environments and tests actual HTTP connectivity before registering a browser. In a headless rootless Podman session with no user systemd bus, creating a custom bridge with the `aardvark-dns` plugin can fail. `--bridge-dns auto` (default) selects `--disable-dns` for that case **with a visible notice**; outbound DNS and HTTP were confirmed to work, but container-name DNS on that bridge is unavailable. The operator can choose `--bridge-dns enabled` or `--bridge-dns disabled` explicitly instead. This is a DNS-networking choice, not a sandbox or host-port security fallback. For rootless/Desktop, operators can choose explicit host publication, a VPN/tunnel, or an externally managed CDP URL. Jelly reports the implications and validates reachability without imposing a security configuration.
+### Host-to-container CDP connectivity
 
-The helper allows independent security choices: `--sandbox enabled|disabled`, `--engine-security restricted|standard`, and optional `--publish IPv4:PORT` to bind CDP explicitly (including LAN-facing addresses if the operator chooses). Defaults are `disabled`, `restricted`, and **no publication**. The container uses UID 10001. Chromium sandbox compatibility depends on the host kernel and container restrictions; selecting `enabled` does not guarantee it can start. CDP publication, particularly beyond loopback, grants broad remote browser control: protect it appropriately for your environment. These are informed user choices, not blanket prohibitions. The bridge network is private in the sense of having no host port publication, but other workloads attached to it could still contact CDP; do not attach untrusted containers. Limit the network to Jelly-managed browser containers and control access to the host.
+**Direct host-to-container bridge-IP connectivity is expected on Linux rootful Docker/Podman when ports
+are not published.** Rootless Podman and Docker Desktop do not guarantee that the host can route to
+private bridge IPs. The helper offers an explicit `--publish IPv4:PORT` alternative for these
+environments and tests actual HTTP connectivity before registering a browser.
+
+In a headless rootless Podman session with no user systemd bus, creating a custom bridge with the
+`aardvark-dns` plugin can fail. `--bridge-dns auto` (default) selects `--disable-dns` for that case
+**with a visible notice**; outbound DNS and HTTP were confirmed to work, but container-name DNS on that
+bridge is unavailable. The operator can choose `--bridge-dns enabled` or `--bridge-dns disabled`
+explicitly instead. This is a DNS-networking choice, not a sandbox or host-port security fallback.
+
+For rootless/Desktop, operators can choose explicit host publication, a VPN/tunnel, or an externally
+managed CDP URL. Jelly reports the implications and validates reachability without imposing a security
+configuration.
+
+### Sandbox, restrictions, and port exposure
+
+The helper allows independent security choices: `--sandbox enabled|disabled`, `--engine-security
+restricted|standard`, and optional `--publish IPv4:PORT` to bind CDP explicitly (including LAN-facing
+addresses if the operator chooses). Defaults are `disabled`, `restricted`, and **no publication**. The
+container uses UID 10001. Chromium sandbox compatibility depends on the host kernel and container
+restrictions; selecting `enabled` does not guarantee it can start. CDP publication, particularly beyond
+loopback, grants broad remote browser control: protect it appropriately for your environment. These are
+informed user choices, not blanket prohibitions.
+
+The bridge network is private in the sense of having no host port publication, but other workloads
+attached to it could still contact CDP; do not attach untrusted containers. Limit the network to
+Jelly-managed browser containers and control access to the host.
 
 This quickstart does **not** provide the HTTP(S) artifact bridge for remote `transfer` download mode. For that, configure an operator-managed HTTP(S) file service as described in [Remote CDP](../guides/REMOTE_CDP.md). The `isolated` and `ephemeral` quickstart profiles use `remote-only` downloads and the `shared` profile uses `shared-volume`.
 
@@ -121,7 +189,16 @@ The interactive menu asks separately for Chromium sandbox, engine restrictions a
 ./scripts/dev.sh browser diagnose --engine docker --container jelly-chromium-1
 ```
 
-The diagnostic report distinguishes requested settings from observed container state and leaves effective Chromium sandbox activation **unverified**. To inspect Chromium's own sandbox report, open `chrome://sandbox` in that browser. On the tested Arch Linux host, **Podman rootless + sandbox enabled + standard restrictions** reported active namespaces and Seccomp-BPF; **Docker (standard/restricted)** and **Podman (restricted)** could not launch Chromium with sandbox enabled. Those are host-specific observations, not universal compatibility promises. Failure output includes engine logs and actionable suggestions without automatic fallback. For the complete compatibility/verification contract, see [Browser deployment and security choices](../reference/BROWSER_DEPLOYMENT.md).
+The diagnostic report distinguishes requested settings from observed container state and leaves
+effective Chromium sandbox activation **unverified**. To inspect Chromium's own sandbox report, open
+`chrome://sandbox` in that browser. On the tested Arch Linux host, **Podman rootless + sandbox enabled +
+standard restrictions** reported active namespaces and Seccomp-BPF; **Docker (standard/restricted)** and
+**Podman (restricted)** could not launch Chromium with sandbox enabled. Those are host-specific
+observations, not universal compatibility promises. Failure output includes engine logs and actionable
+suggestions without automatic fallback.
+
+For the complete compatibility/verification contract, see [Browser deployment and security
+choices](../reference/BROWSER_DEPLOYMENT.md).
 
 ## Existing native Chromium
 

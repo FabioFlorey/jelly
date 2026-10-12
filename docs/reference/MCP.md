@@ -4,12 +4,27 @@
 
 ## Table of Contents
 
+- [HTTP endpoints and status checks](#http-endpoints-and-status-checks)
+  - [Service and administration endpoints](#service-and-administration-endpoints)
 - [Setup](#setup)
+  - [Manual startup and profile validation](#manual-startup-and-profile-validation)
 - [Tool mapping](#tool-mapping)
+  - [Browser routing and tool surfaces](#browser-routing-and-tool-surfaces)
+  - [Raw CDP trust boundary](#raw-cdp-trust-boundary)
+  - [Installed system tools and rollout compatibility](#installed-system-tools-and-rollout-compatibility)
+  - [Browser operations and artifacts](#browser-operations-and-artifacts)
+  - [Cookies and page storage](#cookies-and-page-storage)
 - [Tool result contract](#tool-result-contract)
 - [Protocol surface](#protocol-surface)
+  - [Browser-session continuity](#browser-session-continuity)
 - [Authentication](#authentication)
+  - [ChatGPT local approval](#chatgpt-local-approval)
+  - [Pairing fallback](#pairing-fallback)
+  - [Client registration and bearer tokens](#client-registration-and-bearer-tokens)
 - [Hosting modes](#hosting-modes)
+  - [Temporary HTTPS tunnel](#temporary-https-tunnel)
+  - [Direct HTTPS with nip.io](#direct-https-with-nipio)
+  - [Fixed Cloudflare tunnel](#fixed-cloudflare-tunnel)
 - [Local bearer smoke test](#local-bearer-smoke-test)
 
 **Audience:** Operators configuring an MCP client and developers implementing or auditing Jelly's HTTP API. For a first installation, use [Getting Started](../getting-started/QUICKSTART.md); this page is the detailed protocol and security reference.
@@ -21,6 +36,10 @@ Jelly exposes browser primitives and system tools through a Streamable HTTP Mode
 ```text
 http://127.0.0.1:8787/mcp
 ```
+
+## HTTP endpoints and status checks
+
+### Service and administration endpoints
 
 Service, operational, and OAuth endpoints are also exposed:
 
@@ -44,9 +63,20 @@ Service, operational, and OAuth endpoints are also exposed:
 /token
 ```
 
-`/` is the Jelly home page (`/index` remains a compatibility alias), and `/connections` lists configured MCP provider profiles without exposing credentials or claiming an authenticated session. All HTML pages share the Jelly logo, fonts, honey palette and `assets/jelly.css`. Unknown routes use the same branded 404 shell.
+The endpoints serve different purposes. A successful service probe does not establish that Chromium is connected.
 
-`/health` and `/ready` are **public, minimal service probes**. `/ready` reports readiness to accept MCP requests, not browser availability. Browser readiness and runtime diagnostics are separate, private information. Detailed `/dashboard` and `/status.json` now require a paired owner session or a bootstrap/static bearer token; `/status` is a backward-compatible JSON alias with the **same authorization requirement**. OAuth access tokens alone do not grant administration access. The dashboard polls `/status.json` every two seconds and reports runtime paths, process metrics, browser/recording state and OAuth counts only to authorized owners. If using paired consent, visit `/pair` to authorize the dashboard; in browser-password consent mode, use an authorized local API client for detailed JSON diagnostics. Existing scripts make authenticated status requests.
+| Endpoint | Access | Purpose |
+| --- | --- | --- |
+| `/`, `/index` | Public | Jelly's branded homepage; `/index` is a compatibility alias. |
+| `/connections` | Public | Configured client profiles, with tokens and authorization proofs hidden. |
+| `/health` | Public | Minimal server-liveness check. |
+| `/ready` | Public | Confirms that MCP can accept requests, **not** that a browser is ready. |
+| `/dashboard`, `/status.json`, `/status` | Owner session or administrative bearer | Runtime paths, processes, browser/recording status and OAuth counts. `/status` is the legacy JSON alias. |
+| `/pair` | Owner pairing flow | Authorizes the owner's browser where paired consent is enabled. |
+
+OAuth access tokens alone **do not** authorize the administrative status endpoints. The dashboard refreshes `/status.json` every two seconds. In paired-consent mode, visit `/pair` to authorize the dashboard; in browser-password mode, use an authorized local API client for private diagnostics. Jelly's own scripts send authenticated status requests.
+
+The HTML pages share the Jelly logo, typography, honey palette, and `assets/jelly.css`. Unknown paths return the branded 404 page.
 
 `POST /admin/cleanup-inactive` is the destructive operational exception and requires a valid paired-owner session cookie, so it is actionable only when `JELLY_OAUTH_CONSENT_MODE=paired`. On Linux it revalidates candidate PIDs against the running Jelly MCP executable and sends `SIGTERM` only to same-executable Jelly MCP processes that have no listening socket; non-Linux process discovery yields no cleanup candidates.
 
@@ -87,7 +117,18 @@ The default listener is `127.0.0.1:8787`; override it with `JELLY_MCP_ADDR` if n
 
 ## Tool mapping
 
-**Remote browser routing:** with `[browser].backend = "remote-cdp"`, published MCP tool input schemas gain an optional top-level `browser_id` (stable UUID or the registered `Jelly-*` alias). Browser operations, including `browser-call`, `browser-events`, `download`, `open-browser` and `close-browser`, are routed to the selected browser state. Without a selector, `JELLY_BROWSER_ID` remains the process fallback. This is different from `target`, which selects a page *within* a browser. The remote `close-browser` operation detaches Jelly but does not stop the externally managed Chromium. See [Browser deployment](./BROWSER_DEPLOYMENT.md) for connection modes and limitations. Download actions include `list`, `status`, `wait`, `transfer` (explicit HTTP(S) artifact materialization) and `cancel`; `remote-only` waits may complete without a Jelly-local file.
+### Browser routing and tool surfaces
+
+**Remote browser routing:** with `[browser].backend = "remote-cdp"`, published MCP tool input schemas
+gain an optional top-level `browser_id` (stable UUID or the registered `Jelly-*` alias). Browser
+operations, including `browser-call`, `browser-events`, `download`, `open-browser` and `close-browser`,
+are routed to the selected browser state. Without a selector, `JELLY_BROWSER_ID` remains the process
+fallback. This is different from `target`, which selects a page *within* a browser. The remote
+`close-browser` operation detaches Jelly but does not stop the externally managed Chromium. See [Browser
+deployment](./BROWSER_DEPLOYMENT.md) for connection modes and limitations.
+
+Download actions include `list`, `status`, `wait`, `transfer` (explicit HTTP(S) artifact
+materialization) and `cancel`; `remote-only` waits may complete without a Jelly-local file.
 
 The MCP adapter publishes a validated **Agent Tool Catalog**. The catalog is a projection layer: bindings still point to Jelly's canonical browser-primitive/system-tool definitions or to native Agent API builtins, but publication and execution use the same catalog allowlist rather than iterating internal registries directly. Remote clients discover this published surface through `tools/list`; the generated `.agent/tools/index.md` and `agent-discover` describe internal capabilities instead and are not substitutes for MCP discovery.
 
@@ -105,8 +146,14 @@ raw_cdp = false
 
 The current repository configuration sets `raw_cdp = true`. All authenticated MCP clients can therefore access the privileged raw-CDP capability unless the operator disables it and restarts Jelly.
 
-`[mcp].raw_cdp` applies to both browser surfaces. In large-surface mode, enabling it publishes a dedicated raw-only `cdp-call` tool alongside the individual semantic primitives. In small-surface mode, enabling it adds raw CDP method forms to `browser-call`. Invalid values fail startup in either mode.
-The setting is process-wide and takes effect at MCP startup: the active Agent Tool Catalog is frozen for the process lifetime, so changing `[mcp].raw_cdp` requires an MCP restart. Jelly currently publishes one OAuth scope, `jelly`; therefore raw-CDP enablement is not per-client; every authenticated client with that scope sees the same raw capability when it is enabled.
+`[mcp].raw_cdp` applies to both browser surfaces. In large-surface mode, enabling it publishes a
+dedicated raw-only `cdp-call` tool alongside the individual semantic primitives. In small-surface mode,
+enabling it adds raw CDP method forms to `browser-call`. Invalid values fail startup in either mode. The
+setting is process-wide and takes effect at MCP startup: the active Agent Tool Catalog is frozen for the
+process lifetime, so changing `[mcp].raw_cdp` requires an MCP restart.
+
+Jelly currently publishes one OAuth scope, `jelly`; therefore raw-CDP enablement is not per-client;
+every authenticated client with that scope sees the same raw capability when it is enabled.
 
 ### Raw CDP trust boundary
 
@@ -148,6 +195,8 @@ flowchart LR
 
 Browser primitive bindings get named MCP arguments from their existing `ArgSpec` definitions through the canonical named-argument adapter. System tools keep their registry metadata and map structured MCP arguments onto their CLI forms. A capability omitted from the selected Agent Tool Catalog is neither advertised nor executable by guessing its internal name.
 
+### Installed system tools and rollout compatibility
+
 System-tool execution normally requires the matching `agent-<tool>` binary beside the running `jelly-mcp` executable. Jelly does not silently fall back to compiling/running the checkout, because that could make a release server execute source-tree code different from the installed build. For explicit development workflows only, `[mcp].allow_cargo_fallback = true` enables the old `cargo run` fallback.
 
 The current system-tool mappings are intentionally identical in both large-surface and small-surface browser modes:
@@ -174,7 +223,11 @@ Future review separately considers: lifecycle tools (`open-browser`, `close-brow
 
 ### Browser operations and artifacts
 
-`screenshot` captures browser-rendered content and can target a specific page element without scrolling the live page as a side effect. `highlight` draws a subtle Jelly-honey, pointer-transparent overlay around a visible target; `clear-highlight` removes it. Because the overlay is rendered in the page, it appears naturally in viewport screenshots and browser recordings without modifying the target element itself. `record-browser` supports `continuous` mode for renderer-frame video and `steps` mode for an action trace video built from browser screenshots held for a configurable duration. Both use FFmpeg and neither records the desktop. `download` is the first-class browser download lifecycle tool: `list`/`status` expose Chromium GUIDs, progress, suggested filenames and terminal state; `cancel` requests `Browser.cancelDownload`; `wait` waits for a terminal result, registers the managed download as an artifact, and can copy it into an explicit destination directory under `fail`, `overwrite`, or race-safe `uniquify` collision policy. The managed GUID-named original is retained.
+Jelly provides distinct tools for visual evidence, recording, and downloading:
+
+- **Screenshots and highlighting:** `screenshot` captures Chromium-rendered content, including a specific element, without scrolling the live page. `highlight` places a pointer-transparent Jelly-honey overlay around a visible target; `clear-highlight` removes it. The overlay appears in viewport screenshots and recordings without modifying the underlying element.
+- **Browser recording:** `record-browser` supports `continuous` video from renderer frames and `steps` video assembled from browser screenshots, each held for a configurable duration. Both use FFmpeg and neither records the desktop.
+- **Managed downloads:** `download` exposes `list` and `status` (GUID, progress, suggested filename, and terminal state), `cancel` (requests `Browser.cancelDownload`), and `wait` (waits for completion and registers an artifact). An explicit destination copies the file under the `fail`, `overwrite`, or race-safe `uniquify` collision policy. Jelly keeps the original GUID-named file.
 
 `downloads` remains the legacy filesystem listing, and `wait-download` remains compatible with timestamp/name workflows while preferring matching lifecycle state before falling back to the filesystem heuristic. `hitl` is transport-agnostic at the MCP/routine surface. Telegram is its current implementation and can attach either the browser viewport or a requested page target.
 
@@ -212,13 +265,15 @@ tools/call
 notifications such as notifications/initialized
 ```
 
+### Browser-session continuity
+
 The HTTP MCP transport is stateless. Browser continuity comes from Jelly's persistent Chromium process and runtime state. In native mode, the MCP server caches one `BrowserSession` by default; in remote-CDP mode, sessions are cached separately per-browser UUID to avoid cross-browser target, event and artifact state. Clients selecting the same browser UUID can still share that browser's retained event ring and `browser-events` subscriptions: isolation is per browser, **not per OAuth client**. An explicit `browser_id` selects the remote browser UUID or easy name.
 
 The session maintains page-only flattened auto-attach mappings internally, so Agent API calls and `browser-events` use logical targets (`main`, `tab-N`) rather than CDP `sessionId` values. Set `[mcp].persistent_session = false` to disable that cache for rollback diagnostics. Runtime-scoped `browser-events` subscriptions require the cached persistent BrowserSession; when persistent sessions are disabled, that builtin returns `unsupported` rather than creating an ID that could not survive to the next poll.
 
 ## Authentication
 
-Jelly separates OAuth policy into the same three concerns used by PiLink:
+Three settings control how clients register and how a person approves OAuth access:
 
 ```text
 JELLY_OAUTH_CONSENT_MODE=browser|paired
@@ -232,11 +287,20 @@ JELLY_BOOTSTRAP_SECRET=<secret>
 
 ### ChatGPT local approval
 
-When paired consent and public ChatGPT dynamic client registration (DCR) are enabled, the installer calls `POST /admin/oauth/setup/open` **with the bootstrap bearer secret** on the loopback-only admin listener and receives a five-minute `/connect?setup=...` capability. The installer opens that link in the browser. A plain `GET /connect` only displays information: it **never starts or renews setup**. The bootstrap secret is not sent to or displayed by the browser. The local `/connect` and `/approve` pages use the same branded assets and restrictive content-security policy. `/connect` displays the MCP URL.
+When paired consent and public ChatGPT dynamic client registration (DCR) are enabled, the installer calls `POST /admin/oauth/setup/open` **with the bootstrap bearer secret** on the loopback-only admin listener and receives a five-minute `/connect?setup=...` capability. The installer opens that link in the browser.
+
+A plain `GET /connect` only displays information: it **never starts or renews setup**. The bootstrap secret is not sent to or displayed by the browser. The local `/connect` and `/approve` pages use the same branded assets and restrictive content-security policy. `/connect` displays the MCP URL.
 
 When `JELLY_CHATGPT_PLUGIN_URL` is configured, its main action opens that private Jelly plugin directly in ChatGPT; otherwise it falls back to copying the MCP URL and opening the generic ChatGPT custom-MCP setup, where OAuth should be selected instead of a bearer token.
 
-After ChatGPT starts the DCR and Proof Key for Code Exchange (PKCE) OAuth flow, Jelly recognizes that exact authorization while the setup session is active and redirects the browser from the public `/authorize` endpoint to loopback `/approve?setup=...&id=...`. The approval page shows the client, callback, and requested access with explicit **Yes, allow** and **No, deny** controls. The setup token and approval ID are unguessable, short-lived capabilities tied to the pending request. Submitting either choice consumes the pending request and completes the authorization decision, returning the browser to ChatGPT's registered callback in the same flow.
+After ChatGPT starts the DCR and Proof Key for Code Exchange (PKCE) OAuth flow, Jelly recognizes that
+exact authorization while the setup session is active and redirects the browser from the public
+`/authorize` endpoint to loopback `/approve?setup=...&id=...`. The approval page shows the client,
+callback, and requested access with explicit **Yes, allow** and **No, deny** controls. The setup token
+and approval ID are unguessable, short-lived capabilities tied to the pending request.
+
+Submitting either choice consumes the pending request and completes the authorization decision,
+returning the browser to ChatGPT's registered callback in the same flow.
 
 The local connect/approval UI is served only by a second loopback listener (`JELLY_MCP_ADMIN_ADDR`, default `127.0.0.1:8788`) that is started only for `paired` + public ChatGPT DCR; non-loopback binds are rejected and these routes are not mounted on the public MCP/OAuth listener.
 
@@ -278,11 +342,25 @@ JELLY_HOSTING_MODE=cloudflare-fixed
 
 `local` starts only the loopback MCP server.
 
-`quick-tunnel` behaves like PiLink's temporary hosting path. Jelly starts `cloudflared tunnel --url ...`, waits for the generated `https://*.trycloudflare.com` URL, sets that URL as the OAuth issuer/resource, and only then starts the MCP server. No Cloudflare account or tunnel token is required. The URL changes when the tunnel is recreated, so ChatGPT must reconnect and OAuth resource-bound tokens from the old URL no longer apply.
+### Temporary HTTPS tunnel
+
+`quick-tunnel` creates a temporary public HTTPS endpoint. Jelly starts `cloudflared tunnel --url ...`, waits for the generated `https://*.trycloudflare.com` URL, sets that URL as the OAuth issuer/resource, and only then starts the MCP server. No Cloudflare account or tunnel token is required. The URL changes when the tunnel is recreated, so ChatGPT must reconnect and OAuth resource-bound tokens from the old URL no longer apply.
+
+### Direct HTTPS with nip.io
 
 `nip-io` exposes the machine directly over HTTPS using Caddy and a hostname derived from the public IPv4 address, for example `https://jelly-203-0-113-10.nip.io`. Caddy listens on local TCP 8080/8443 and reverse-proxies the loopback MCP server. The router must expose public TCP 80 to local 8080 and public TCP 443 to local 8443.
 
-`JELLY_NIP_IO_NETWORK=manual` assumes those forwards already exist. `JELLY_NIP_IO_NETWORK=auto` attempts temporary mappings through `upnpc` after inspecting existing router mappings; it refuses to overwrite known mappings. NAT-PMP automatic mapping is disabled because mapping ownership cannot be verified safely; use manual forwarding when only `natpmpc` is available. If inspection or mapping fails, the launcher stops with manual-forwarding instructions. Direct nip.io hosting requires a reachable public IPv4 address and will not work behind CGNAT. `JELLY_PUBLIC_IPV4` and `JELLY_NIP_IO_HOSTNAME` can override discovery/derivation. Caddy is resolved from `JELLY_CADDY_BIN`, `caddy` on PATH, or PiLink's private Caddy binary if present.
+`JELLY_NIP_IO_NETWORK=manual` assumes those forwards already exist. `JELLY_NIP_IO_NETWORK=auto` attempts
+temporary mappings through `upnpc` after inspecting existing router mappings; it refuses to overwrite
+known mappings. NAT-PMP automatic mapping is disabled because mapping ownership cannot be verified
+safely; use manual forwarding when only `natpmpc` is available. If inspection or mapping fails, the
+launcher stops with manual-forwarding instructions. Direct nip.io hosting requires a reachable public
+IPv4 address and will not work behind CGNAT. `JELLY_PUBLIC_IPV4` and `JELLY_NIP_IO_HOSTNAME` can
+override discovery/derivation.
+
+Caddy is resolved from `JELLY_CADDY_BIN`, `caddy` on PATH, or PiLink's private Caddy binary if present.
+
+### Fixed Cloudflare tunnel
 
 `cloudflare-fixed` is the persistent path. Configure:
 

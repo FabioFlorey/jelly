@@ -85,7 +85,15 @@ Use the read-only catalog filters to inspect the migrated metadata:
 ./scripts/dev.sh test --acceptance-report
 ```
 
-A source-level contract/assertion review of all 91 scenarios revised the preliminary triage to **79 retain, 10 consolidate, 2 reassess**. The 10 consolidation candidates concern duplicate execution of quality gates, **not** necessarily redundant assertions. The 2 reassess cases are `QLT-015` (intentional MCP surface-ratio thresholds to review when the API grows) and `WEB-003` (volatile live Porsche consent flow). All remain `active` and `provisional`: runtime behavior of the native browser cases was **not** verified by this audit, and no tests were retired. The Rust inline unit tests are separate from this scenario catalog. See [Test Taxonomy](./TAXONOMY.md) before treating counts as verified levels.
+A source-level contract/assertion review of all 91 scenarios revised the preliminary triage to **79
+retain, 10 consolidate, 2 reassess**. The 10 consolidation candidates concern duplicate execution of
+quality gates, **not** necessarily redundant assertions. The 2 reassess cases are `QLT-015` (intentional
+MCP surface-ratio thresholds to review when the API grows) and `WEB-003` (volatile live Porsche consent
+flow). All remain `active` and `provisional`: runtime behavior of the native browser cases was **not**
+verified by this audit, and no tests were retired.
+
+The Rust inline unit tests are separate from this scenario catalog. See [Test Taxonomy](./TAXONOMY.md)
+before treating counts as verified levels.
 
 ## Test groups
 
