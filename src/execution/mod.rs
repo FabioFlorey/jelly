@@ -16,8 +16,9 @@ pub use registry::{
     ArgKind, ArgSpec, CATEGORIES as category_specs, CategorySpec, PRIMITIVES as primitive_specs,
     PrimitiveSpec,
 };
-pub use routine_capture::active_trace_id;
 pub(crate) use routine_capture::manage as manage_routine_capture;
+pub(crate) use routine_capture::with_capture_id;
+pub use routine_capture::{active_trace_id, validate_capture_id};
 pub use tools::{
     TOOL_CATEGORIES as tool_category_specs, TOOLS as tool_specs, ToolCategorySpec, ToolSpec,
 };
@@ -94,6 +95,9 @@ pub fn run_cli_primitive(name: &str) -> Result<(), Error> {
         Err("help") => return print_cli_primitive_help(name),
         Err(_) => unreachable!(),
     };
+    if let Ok(id) = env::var("JELLY_CAPTURE_ID") {
+        routine_capture::validate_capture_id(&id)?;
+    }
     let mut browser = BrowserSession::connect()?;
     let output = execute_browser_primitive(&mut browser, name, &args)?;
     if !output.is_empty() {

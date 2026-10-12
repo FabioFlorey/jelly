@@ -564,6 +564,19 @@ fn system_args_are_mapped_to_existing_cli_shape() {
         .is_err()
     );
     assert!(system_cli_args("call-routine",json!({"action":"capture","operation":"start","capture_id":"capture-0123456789abcdef0123456789abcdef"}).as_object().unwrap()).is_err());
+    let isolated = json!({"action":"capture","operation":"start","scope":"isolated"});
+    assert_eq!(
+        system_cli_args("call-routine", isolated.as_object().unwrap()).unwrap(),
+        vec!["--capture", "start-isolated"]
+    );
+    let parameterized = json!({"action":"crystallize","name":"sample","expected_revision":1,
+        "trace_id":"trace-123","parameters":{"invoice_selector":"css:#invoice-2026"}});
+    let args = system_cli_args("call-routine", parameterized.as_object().unwrap()).unwrap();
+    assert_eq!(args[0..4], ["--crystallize", "sample", "1", "trace-123"]);
+    assert_eq!(
+        serde_json::from_str::<Value>(&args[4]).unwrap(),
+        parameterized["parameters"]
+    );
     let crystallize = json!({"action":"crystallize","name":"sample","expected_revision":1,"trace_id":"trace-123"});
     assert_eq!(
         system_cli_args("call-routine", crystallize.as_object().unwrap()).unwrap(),

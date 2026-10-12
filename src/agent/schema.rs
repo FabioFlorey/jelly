@@ -139,6 +139,8 @@ pub(crate) fn system_input_schema(name: &str) -> Option<Value> {
                 "action":{"type":"string","enum":["save","list","search","describe","status","claim","renew","release","versions","revise","promote","crystallize","capture"],"description":"Optional management operation. Omit to execute a saved graph."},
                 "query":{"type":"string","minLength":1,"maxLength":200,"description":"Case-insensitive substring of routine name or description for action=search."},
                 "operation":{"type":"string","enum":["start","status","stop"],"description":"Capture management operation, when action=capture."},
+                "scope":{"type":"string","enum":["isolated"],"description":"Opt-in: start an isolated capture, selected explicitly by capture_id per MCP browser call or JELLY_CAPTURE_ID for CLI. No authenticated agent identity is implied."},
+                "parameters":{"type":"object","maxProperties":12,"additionalProperties":{"type":"string"},"description":"Optional crystallization bindings: required-input-name -> exact previously recorded argument. No inference or defaults."},
                 "capture_id":{"type":"string","pattern":"^capture-[0-9a-f]{32}$","description":"Capture identifier from start, required for stop and optional for historical status."},
                 "trace_id":{"type":"string","minLength":1,"maxLength":128,"description":"Shared trace ID from Jelly actions.jsonl; used by action=crystallize. No arbitrary file path accepted."},
                 "revision":{"type":"integer","minimum":1,"maximum":1000000,"description":"Revision to activate; use versions to discover."},

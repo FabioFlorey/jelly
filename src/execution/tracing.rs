@@ -448,6 +448,13 @@ pub fn redact_tool_args(tool: &str, args: &[String]) -> Vec<String> {
             {
                 *token = "<redacted>".into();
             }
+            // Explicit crystallization bindings can contain values observed
+            // on a user's page. Never duplicate that mapping in wrapper logs.
+            if args.first().map(String::as_str) == Some("--crystallize")
+                && let Some(mapping) = out.get_mut(4)
+            {
+                *mapping = "<redacted-parameter-bindings>".into();
+            }
         }
         _ => {}
     }
@@ -502,6 +509,23 @@ pub fn redact_args(args: &[String]) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn crystallization_argument_mapping_is_redacted_from_wrapper_log() {
+        let args = vec![
+            "--crystallize",
+            "sample",
+            "1",
+            "capture-123",
+            r#"{"invoice_selector":"css:#invoice-2026"}"#,
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+        let logged = redact_tool_args("call-routine", &args);
+        assert!(!logged.join(" ").contains("invoice-2026"));
+        assert_eq!(logged[4], "<redacted-parameter-bindings>");
+    }
 
     #[test]
     fn trace_redaction_removes_url_credentials_query_and_fragment() {

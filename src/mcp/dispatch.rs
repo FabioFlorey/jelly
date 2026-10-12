@@ -44,6 +44,47 @@ fn with_remote_browser_selector(mut input_schema: Value, remote: bool) -> Value 
 }
 
 #[cfg(test)]
+mod capture_selector_schema_tests {
+    use super::*;
+    #[test]
+    fn capture_selector_is_only_exposed_for_browser_operations() {
+        let primitive = crate::primitive_specs
+            .iter()
+            .find(|spec| spec.name == "click")
+            .unwrap();
+        let tool = json!({"type":"object","properties":{"target":{"type":"string"}},
+            "required":["target"],"additionalProperties":false});
+        let with =
+            with_capture_selector(tool.clone(), AgentToolBinding::BrowserPrimitive(primitive));
+        assert_eq!(with["properties"]["capture_id"]["type"], "string");
+        let catalog = AgentToolCatalog::large_surface().unwrap();
+        let invalid = execute_tool_from_catalog(
+            &catalog,
+            "click",
+            &json!({
+                "target":"css:button",
+                "capture_id":"capture-00000000000000000000000000000000"
+            }),
+        )
+        .unwrap_err();
+        assert_eq!(invalid.kind, ErrorKind::InvalidArguments);
+        assert!(
+            with_capture_selector(
+                tool,
+                AgentToolBinding::SystemTool(
+                    crate::tool_specs
+                        .iter()
+                        .find(|spec| spec.name == "downloads")
+                        .unwrap()
+                )
+            )["properties"]
+                .get("capture_id")
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
 mod browser_selector_schema_tests {
     use super::*;
     #[test]
@@ -66,12 +107,26 @@ mod browser_selector_schema_tests {
     }
 }
 
+fn with_capture_selector(mut schema: Value, tool: AgentToolBinding) -> Value {
+    if matches!(
+        tool,
+        AgentToolBinding::BrowserPrimitive(_)
+            | AgentToolBinding::Builtin(crate::AgentBuiltin::BrowserCall { .. })
+    ) {
+        schema["properties"]["capture_id"] = json!({
+            "type":"string", "pattern":"^capture-[0-9a-f]{32}$",
+            "description":"Optional isolated Routine Capture ID. Selects this capture for the current browser call; not an authenticated agent identity."
+        });
+    }
+    schema
+}
+
 pub(super) fn mcp_tools_from_catalog(catalog: &AgentToolCatalog) -> Vec<Value> {
     catalog
         .iter()
         .map(|tool| {
             let input_schema = with_remote_browser_selector(
-                tool.input_schema().clone(),
+                with_capture_selector(tool.input_schema().clone(), tool.binding()),
                 crate::config::config().browser.backend
                     == crate::browser_backend::BrowserBackendKind::RemoteCdp,
             );
@@ -247,12 +302,44 @@ pub(super) fn execute_tool_from_catalog(
             ));
         }
     }
+    let capture_id = match object.get("capture_id") {
+        Some(Value::String(id)) => {
+            if !matches!(
+                catalog.get(name).map(|tool| tool.binding()),
+                Some(
+                    AgentToolBinding::BrowserPrimitive(_)
+                        | AgentToolBinding::Builtin(crate::AgentBuiltin::BrowserCall { .. })
+                )
+            ) {
+                return Err(ToolFailure::new(
+                    ErrorKind::InvalidArguments,
+                    "capture_id is accepted only for browser primitives and browser-call",
+                    false,
+                ));
+            }
+            crate::validate_capture_id(id).map_err(|error| {
+                ToolFailure::new(ErrorKind::InvalidArguments, error.to_string(), false)
+            })?;
+            Some(id.as_str())
+        }
+        Some(_) => {
+            return Err(ToolFailure::new(
+                ErrorKind::InvalidArguments,
+                "capture_id must be a string",
+                false,
+            ));
+        }
+        None => None,
+    };
     let mut clean_arguments = arguments.clone();
     if let Some(fields) = clean_arguments.as_object_mut() {
         fields.remove("browser_id");
+        fields.remove("capture_id");
     }
     crate::config::with_browser_id(browser_id, || {
-        execute_tool_routed(catalog, name, &clean_arguments)
+        crate::with_capture_id(capture_id, || {
+            execute_tool_routed(catalog, name, &clean_arguments)
+        })
     })
 }
 

@@ -79,12 +79,12 @@ pub use execution::{
     ArgKind, ArgSpec, CategorySpec, PrimitiveSpec, ToolCategorySpec, ToolSpec, active_trace_id,
     capabilities, category_specs, execute_named_browser_primitive, lightweight_tools, new_id,
     primitive_specs, record_step, redact_tool_args, run_cli_primitive, search_tools,
-    tool_category_specs, tool_schema, tool_specs, tools_in,
+    tool_category_specs, tool_schema, tool_specs, tools_in, validate_capture_id,
 };
 pub(crate) use execution::{
     browser_capabilities, browser_operation_schema, execute_browser_primitive,
     is_browser_primitive, manage_routine_capture, named_primitive_input_schema,
-    prepare_named_primitive_args, search_browser_operations,
+    prepare_named_primitive_args, search_browser_operations, with_capture_id,
 };
 
 /// Error type shared by Jelly's command and browser execution surfaces.

@@ -263,6 +263,16 @@ pub(super) fn system_cli_args(
                     "capture" => {
                         let operation = string("operation")?.ok_or("capture requires operation")?;
                         let id = string("capture_id")?;
+                        let scope = string("scope")?;
+                        if operation == "start"
+                            && scope.as_deref() == Some("isolated")
+                            && object.len() == 3
+                        {
+                            return Ok(vec!["--capture".into(), "start-isolated".into()]);
+                        }
+                        if scope.is_some() {
+                            return Err("capture scope is supported only for start".into());
+                        }
                         match (operation.as_str(), id) {
                             ("start", None) if object.len() == 2 =>
                                 Ok(vec!["--capture".into(), "start".into()]),
@@ -275,7 +285,7 @@ pub(super) fn system_cli_args(
                         }
                     }
 
-                    "crystallize" if object.len() == 4 => {
+                    "crystallize" if (4..=5).contains(&object.len()) => {
                         let name = string("name")?.ok_or("crystallize requires name")?;
                         let expected = integer("expected_revision")?
                             .ok_or("crystallize requires expected_revision")?;
@@ -284,12 +294,17 @@ pub(super) fn system_cli_args(
                         if expected < 1 {
                             return Err("expected_revision must be positive".into());
                         }
-                        Ok(vec![
-                            "--crystallize".into(),
-                            name,
-                            expected.to_string(),
-                            trace_id,
-                        ])
+                        let mut args =
+                            vec!["--crystallize".into(), name, expected.to_string(), trace_id];
+                        if let Some(parameters) = object.get("parameters") {
+                            if !parameters.is_object() {
+                                return Err("parameters must be an object".into());
+                            }
+                            args.push(
+                                serde_json::to_string(parameters).map_err(|e| e.to_string())?,
+                            );
+                        }
+                        Ok(args)
                     }
                     "versions" if object.len() == 2 => Ok(vec![
                         "--versions".into(),

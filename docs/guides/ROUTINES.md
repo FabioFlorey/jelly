@@ -595,8 +595,8 @@ agent-run call-routine --capture status "capture-0123456789abcdef0123456789abcde
 `status` without an ID returns `idle` when no capture is active; with an ID
 it inspects a previous session. Status returns primitive and verification
 counts, failed event counts, wrapper event counts, and unsupported primitive
-counts; it does **not** return raw arguments. Only one capture is active per
-Jelly runtime, and the capture metadata is persisted privately under the
+counts; it does **not** return raw arguments. Only one **shared** capture is active per
+Jelly runtime (additional isolated captures can coexist), and the capture metadata is persisted privately under the
 runtime's `routines/captures` directory (mode 0700, files 0600). The active
 capture survives restarts until explicitly stopped. Start and stop are
 serialized across processes using a per-runtime filesystem lock.
@@ -609,6 +609,28 @@ capture. Stop after all relevant calls have completed; a command still
 in flight at stop time may not be included. The log uses existing argument
 redaction; never assume that web text or other recorded values cannot contain
 sensitive content.
+
+**Per-agent isolation (opt-in):** start with
+`{"action":"capture","operation":"start","scope":"isolated"}`, or run
+`agent-run call-routine --capture start-isolated`. This creates a separate
+capture from any shared capture or other isolated capture. Pass the returned
+`capture_id` to **each** browser primitive or `browser-call` invocation in
+MCP; for CLI commands, set `JELLY_CAPTURE_ID=<returned-id>` in that agent's
+environment. Different agents can capture simultaneously without mixing log
+events, even when using the same Jelly runtime. Each explicit selector is
+validated against a currently active isolated capture *before* the browser
+operation. A stopped or unknown capture fails instead of writing to some
+other session.
+
+Isolated captures are selected explicitly: `capture status` without an ID
+still reports only the legacy shared capture (or idle), so pass `capture_id`
+to inspect an isolated capture. This is isolation by possession of a session
+ID, **not verified MCP caller identity or cryptographic authorization**.
+Any authorized user of the Jelly runtime holding the ID can write to and
+stop the capture. Underlying browser state is still shared, so actions from
+distinct agents can affect one another even though their traces remain
+separate. Capturing does not prohibit concurrent operations or imply safe
+replay. Shared-mode capture remains supported for compatibility.
 
 The resulting `capture_id` can then be provided as `trace_id` to the existing
 `crystallize` operation to stage a **candidate**, after first creating or
@@ -662,6 +684,28 @@ selectors and inputs generalize, test the proposed revision in a safe
 environment, and only then use explicit `promote` with the expected active
 revision. For side-effecting actions, a successful check in one run does not
 guarantee the action is safe or idempotent in later runs.
+
+**Explicit parameterization (opt-in):** provide a `parameters` object to
+`crystallize`, mapping **input names to exact, previously observed argument
+strings**. For example:
+
+```json
+{"action":"crystallize","name":"my-routine","expected_revision":1,
+ "trace_id":"capture-0123456789abcdef0123456789abcdef",
+ "parameters":{"invoice_selector":"css:#invoice-2026"}}
+```
+
+The converter replaces exact argument matches with `{{invoice_selector}}`,
+declares a required string input in the candidate graph and records the number
+of declared parameters, without persisting the original binding values in
+that graph. Execute a staged routine as `my-routine@v2` with
+`vars: {"invoice_selector":"css:#invoice-2027"}`. Inputs have **no
+defaults**, and the caller must supply them on every run. Substring or
+unobserved replacements are rejected. Up to 12 parameters are supported;
+values that failed earlier evidence safety checks (secrets, redacted inputs,
+URLs, ephemeral element references) cannot be parameterized with this first
+implementation. This is an operator-declared mapping, **not automatic
+parameter inference**.
 
 The converter does not infer variables, branches, loops, recovery policies,
 correctness from screenshots, or an optimal procedure. It requires explicit

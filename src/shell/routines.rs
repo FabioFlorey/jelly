@@ -819,7 +819,7 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
             return Ok(());
         }
 
-        Some("--crystallize") if args.len() == 4 => {
+        Some("--crystallize") if (4..=5).contains(&args.len()) => {
             let expected = args[2].parse::<u64>()?;
             let name = &args[1];
             let graph = load_routine(name)?;
@@ -830,7 +830,16 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             let trace_file = std::path::Path::new(LOG_DIR).join("actions.jsonl");
-            let candidate = routine_crystallize::candidate(&trace_file, &args[3], &graph)?;
+            let parameters = args
+                .get(4)
+                .map(|text| serde_json::from_str::<Value>(text))
+                .transpose()?;
+            let candidate = routine_crystallize::candidate_with_parameters(
+                &trace_file,
+                &args[3],
+                &graph,
+                parameters.as_ref(),
+            )?;
             println!(
                 "{}",
                 routine_versions::stage(std::path::Path::new(ROUTINES), name, expected, candidate)?

@@ -1,7 +1,7 @@
 //! Conservatively convert a trace of *observed* browser primitives into an
 //! immutable, reviewable auto-routine candidate. This never executes or promotes.
 //! These log events are evidence of a past attempt, NOT proof of future safety.
-use crate::core::routines::validate_routine_definition;
+use crate::core::routines::{valid_routine_name, validate_routine_definition};
 use serde_json::{Map, Value, json};
 use std::{
     error::Error,
@@ -165,8 +165,65 @@ fn evidence(log: &Path, trace_id: &str) -> Result<Vec<Step>, Box<dyn Error>> {
     Ok(steps)
 }
 
+#[cfg(test)]
 pub(crate) fn candidate(log: &Path, trace_id: &str, base: &Value) -> Result<Value, Box<dyn Error>> {
-    let steps = evidence(log, trace_id)?;
+    candidate_with_parameters(log, trace_id, base, None)
+}
+
+/// Each declared input maps to an exact, previously observed argument string.
+/// No substrings, inference, default values or original literals are stored
+/// inside the proposed graph; the original trace remains separate evidence.
+pub(crate) fn candidate_with_parameters(
+    log: &Path,
+    trace_id: &str,
+    base: &Value,
+    parameters: Option<&Value>,
+) -> Result<Value, Box<dyn Error>> {
+    let mut steps = evidence(log, trace_id)?;
+    let mut inputs = Map::new();
+    if let Some(parameters) = parameters {
+        let declared = parameters
+            .as_object()
+            .ok_or("parameters must be an object")?;
+        if declared.len() > 12 {
+            return Err("crystallization supports at most 12 declared parameters".into());
+        }
+        let mut observed = std::collections::HashSet::new();
+        for (name, literal) in declared {
+            if !valid_routine_name(name) {
+                return Err(format!("invalid parameter name: {name}").into());
+            }
+            let value = literal
+                .as_str()
+                .ok_or("parameter literal must be a string")?;
+            if value.is_empty()
+                || value.len() > 256
+                || value.contains("{{")
+                || value.contains("}}")
+                || value.to_ascii_lowercase().contains("redacted")
+            {
+                return Err(format!("parameter {name} has invalid literal evidence").into());
+            }
+            if !observed.insert(value.to_owned()) {
+                return Err("two parameters cannot replace the same observed value".into());
+            }
+            let mut matches = 0usize;
+            for step in &mut steps {
+                for arg in &mut step.args {
+                    if arg == value {
+                        *arg = format!("{{{{{name}}}}}");
+                        matches += 1;
+                    }
+                }
+            }
+            if matches == 0 {
+                return Err(
+                    format!("parameter {name} was not observed as an exact argument").into(),
+                );
+            }
+            inputs.insert(name.clone(), json!({"type":"string","required":true}));
+        }
+    }
     let mut nodes = Map::new();
     let mut last_kind: Option<bool> = None; // true: verified, false: action
     let mut actions = 0;
@@ -222,6 +279,11 @@ pub(crate) fn candidate(log: &Path, trace_id: &str, base: &Value) -> Result<Valu
             "limits":"allowlisted actions and one explicit check per action"
         }
     });
+    let mut graph = graph;
+    if !inputs.is_empty() {
+        graph["inputs"] = json!(inputs);
+        graph["crystallization"]["parameter_count"] = json!(inputs.len());
+    }
     validate_routine_definition(&graph, Some(name))?;
     Ok(graph)
 }
@@ -312,7 +374,13 @@ mod tests {
                 event("trace-A", "assert-visible", &["text:Confirmed"], true),
             ],
             |path| {
-                let graph = candidate(path, "trace-A", &base()).unwrap();
+                let graph = candidate_with_parameters(
+                    path,
+                    "trace-A",
+                    &base(),
+                    Some(&json!({"submit_button":"css:#submit"})),
+                )
+                .unwrap();
                 let staged =
                     crate::shell::routine_versions::stage(&dir.0, "sample", 1, graph).unwrap();
                 assert_eq!(staged["revision"], 2);
@@ -322,9 +390,57 @@ mod tests {
                 assert_eq!(new["mode"], "auto");
                 assert_eq!(new["crystallization"]["trace_id"], "trace-A");
                 assert_eq!(new["crystallization"]["reviewed"], false);
+                assert_eq!(new["inputs"]["submit_button"]["required"], true);
+                assert_eq!(new["nodes"]["step_000"]["args"][0], "{{submit_button}}");
+                assert!(!new.to_string().contains("css:#submit"));
+                let mut inputs = Map::new();
+                assert!(crate::core::routines::validate_inputs(&new, &inputs).is_err());
+                inputs.insert("submit_button".into(), json!("css:#new-submit"));
+                crate::core::routines::validate_inputs(&new, &inputs).unwrap();
                 let versions = crate::shell::routine_versions::versions(&dir.0, "sample").unwrap();
                 assert_eq!(versions["active_revision"], 1);
                 assert!(crate::shell::routine_versions::promote(&dir.0, "sample", 2, 99).is_err());
+            },
+        );
+    }
+
+    #[test]
+    fn explicit_parameters_replace_only_exact_arguments_without_storing_literals() {
+        with_log(
+            &[
+                event("t1", "click", &["css:#invoice-2026"], true),
+                event("t1", "assert-visible", &["text:Invoice ready"], true),
+            ],
+            |path| {
+                let base = base();
+                let parameters = json!({"invoice_selector":"css:#invoice-2026"});
+                let graph =
+                    candidate_with_parameters(path, "t1", &base, Some(&parameters)).unwrap();
+                assert_eq!(graph["inputs"]["invoice_selector"]["required"], true);
+                assert_eq!(
+                    graph["nodes"]["step_000"]["args"][0],
+                    "{{invoice_selector}}"
+                );
+                assert!(!graph.to_string().contains("css:#invoice-2026"));
+                assert_eq!(graph["crystallization"]["parameter_count"], 1);
+                assert!(
+                    candidate_with_parameters(
+                        path,
+                        "t1",
+                        &base,
+                        Some(&json!({"invoice_selector":"2026"}))
+                    )
+                    .is_err()
+                );
+                assert!(
+                    candidate_with_parameters(
+                        path,
+                        "t1",
+                        &base,
+                        Some(&json!({"a":"css:#invoice-2026","b":"css:#invoice-2026"}))
+                    )
+                    .is_err()
+                );
             },
         );
     }

@@ -2,6 +2,11 @@
 //! A single active capture covers the runtime's concurrent callers; capturing
 //! does not itself launch Chromium, record video, or execute a routine.
 use serde_json::{Value, json};
+use std::cell::RefCell;
+
+thread_local! {
+    static SELECTED_CAPTURE: RefCell<Option<String>> = const { RefCell::new(None) };
+}
 use std::{
     error::Error,
     fs::{self, File, OpenOptions},
@@ -115,10 +120,41 @@ fn active(dir: &Path) -> Result<Option<Value>, Box<dyn Error>> {
     }
 }
 
-/// Used by the per-primitive logger and the agent-run CLI wrapper. Read-only,
-/// fallible state inspection never blocks ordinary tool execution.
+/// Explicit isolation selector. A declared capture ID is *not* an authenticated
+/// agent identity; callers with access to an ID can attach events to it.
+pub fn validate_capture_id(id: &str) -> Result<(), Box<dyn Error>> {
+    validate_capture_in(&root(), id)
+}
+
+fn validate_capture_in(dir: &Path, id: &str) -> Result<(), Box<dyn Error>> {
+    let state = read_state(dir, id)?;
+    if state["status"] != "capturing" || state["scope"] != "isolated" {
+        return Err("capture must be an active isolated session".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn with_capture_id<T>(id: Option<&str>, f: impl FnOnce() -> T) -> T {
+    SELECTED_CAPTURE.with(|selection| {
+        let previous = selection.replace(id.map(str::to_owned));
+        struct Restore<'a>(&'a RefCell<Option<String>>, Option<String>);
+        impl Drop for Restore<'_> {
+            fn drop(&mut self) {
+                self.0.replace(self.1.take());
+            }
+        }
+        let _restore = Restore(selection, previous);
+        f()
+    })
+}
+
+/// Explicit capture selection takes precedence over legacy shared capture.
+/// A caller can supply JELLY_CAPTURE_ID or a per-tool MCP capture_id.
 pub fn active_trace_id() -> Option<String> {
-    active_id_in(&root())
+    SELECTED_CAPTURE
+        .with(|selected| selected.borrow().clone())
+        .or_else(|| std::env::var("JELLY_CAPTURE_ID").ok())
+        .or_else(|| active_id_in(&root()))
 }
 
 fn active_id_in(dir: &Path) -> Option<String> {
@@ -212,20 +248,24 @@ fn manage_in(
     id: Option<&str>,
 ) -> Result<Value, Box<dyn Error>> {
     match operation {
-        "start" => {
+        "start" | "start-isolated" => {
             if id.is_some() {
                 return Err("capture start does not accept an ID".into());
             }
+            let isolated = operation == "start-isolated";
             let _guard = lock(dir)?;
-            if active(dir)?.is_some() {
-                return Err("another routine capture is already active; stop it first".into());
+            if !isolated && active(dir)?.is_some() {
+                return Err(
+                    "another shared routine capture is already active; stop it first".into(),
+                );
             }
             // The old marker may remain after a crash between stopping a
             // capture and removing it. It is safe to replace if no longer live.
             let name = format!("capture-{:032x}", rand::random::<u128>());
             let state = json!({"capture_id":name,"status":"capturing",
                 "started_at_ms":timestamp_ms(),"stopped_at_ms":null,
-                "source":"Jelly actions.jsonl"});
+                "source":"Jelly actions.jsonl",
+                "scope":if isolated {"isolated"} else {"shared"}});
             let new_file = state_file(dir, &name);
             let mut file = OpenOptions::new()
                 .write(true)
@@ -234,7 +274,9 @@ fn manage_in(
                 .open(&new_file)?;
             file.write_all(&serde_json::to_vec_pretty(&state)?)?;
             file.sync_all()?;
-            if let Err(error) = atomic_json(dir, "active.json", &json!({"capture_id":name})) {
+            if !isolated
+                && let Err(error) = atomic_json(dir, "active.json", &json!({"capture_id":name}))
+            {
                 let _ = fs::remove_file(&new_file);
                 return Err(error);
             }
@@ -258,9 +300,15 @@ fn manage_in(
         "stop" => {
             let id = id.ok_or("capture stop requires capture_id")?;
             let _guard = lock(dir)?;
-            let current = active(dir)?.ok_or("no routine capture is active")?;
-            if current["capture_id"] != id {
-                return Err("capture ID does not match active session".into());
+            let current = read_state(dir, id)?;
+            if current["status"] != "capturing" {
+                return Err("capture is already stopped".into());
+            }
+            if current["scope"] != "isolated" {
+                let shared = active(dir)?.ok_or("no shared routine capture is active")?;
+                if shared["capture_id"] != id {
+                    return Err("capture ID does not match active shared session".into());
+                }
             }
             let mut finished = current;
             finished["status"] = json!("stopped");
@@ -274,7 +322,9 @@ fn manage_in(
                 }
             };
             atomic_json(dir, &format!("{id}.json"), &finished)?;
-            let _ = fs::remove_file(dir.join("active.json"));
+            if finished["scope"] != "isolated" {
+                let _ = fs::remove_file(dir.join("active.json"));
+            }
             Ok(finished)
         }
         _ => Err("capture operation must be start, status or stop".into()),
@@ -341,6 +391,84 @@ mod tests {
         assert_eq!(historic["status"], "stopped");
         assert_eq!(historic["evidence"]["primitives"], 2);
         assert!(manage_in(&sessions, &log, "stop", Some(id)).is_err());
+    }
+
+    #[test]
+    fn independent_isolated_captures_do_not_mix_or_depend_on_shared_marker() {
+        let root = Root::new();
+        let sessions = root.0.join("captures");
+        let log = root.0.join("actions.jsonl");
+        let first = manage_in(&sessions, &log, "start-isolated", None).unwrap();
+        let second = manage_in(&sessions, &log, "start-isolated", None).unwrap();
+        let first_id = first["capture_id"].as_str().unwrap();
+        let second_id = second["capture_id"].as_str().unwrap();
+        assert_ne!(first_id, second_id);
+        assert!(active_id_in(&sessions).is_none());
+        validate_capture_in(&sessions, first_id).unwrap();
+        validate_capture_in(&sessions, second_id).unwrap();
+        fs::write(
+            &log,
+            format!(
+                "{}\n{}\n",
+                json!({"trace_id":first_id,"event":"primitive.completed",
+                "tool":"agent-click","ok":true}),
+                json!({"trace_id":second_id,"event":"primitive.completed",
+                "tool":"agent-assert-visible","ok":true})
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            manage_in(&sessions, &log, "status", Some(first_id)).unwrap()["evidence"]["primitives"],
+            1
+        );
+        assert_eq!(
+            manage_in(&sessions, &log, "status", Some(second_id)).unwrap()["evidence"]["verifications"],
+            1
+        );
+        manage_in(&sessions, &log, "stop", Some(first_id)).unwrap();
+        assert!(validate_capture_in(&sessions, first_id).is_err());
+        validate_capture_in(&sessions, second_id).unwrap();
+        let shared = manage_in(&sessions, &log, "start", None).unwrap();
+        assert_eq!(shared["scope"], "shared");
+        assert_eq!(
+            active_id_in(&sessions).as_deref(),
+            shared["capture_id"].as_str()
+        );
+        manage_in(&sessions, &log, "stop", Some(second_id)).unwrap();
+        assert!(active_id_in(&sessions).is_some());
+        manage_in(&sessions, &log, "stop", shared["capture_id"].as_str()).unwrap();
+        assert!(active_id_in(&sessions).is_none());
+    }
+
+    #[test]
+    fn nested_capture_selector_restores_previous_selection() {
+        let original = SELECTED_CAPTURE.with(|slot| slot.borrow().clone());
+        with_capture_id(Some("capture-11111111111111111111111111111111"), || {
+            assert_eq!(
+                SELECTED_CAPTURE
+                    .with(|slot| slot.borrow().clone())
+                    .as_deref(),
+                Some("capture-11111111111111111111111111111111")
+            );
+            with_capture_id(Some("capture-22222222222222222222222222222222"), || {
+                assert_eq!(
+                    SELECTED_CAPTURE
+                        .with(|slot| slot.borrow().clone())
+                        .as_deref(),
+                    Some("capture-22222222222222222222222222222222")
+                );
+            });
+            assert_eq!(
+                SELECTED_CAPTURE
+                    .with(|slot| slot.borrow().clone())
+                    .as_deref(),
+                Some("capture-11111111111111111111111111111111")
+            );
+        });
+        assert_eq!(
+            SELECTED_CAPTURE.with(|slot| slot.borrow().clone()),
+            original
+        );
     }
 
     #[test]

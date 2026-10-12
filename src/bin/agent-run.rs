@@ -43,6 +43,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err(format!("tool not found: agent-{tool}").into());
     }
 
+    if let Ok(id) = env::var("JELLY_CAPTURE_ID")
+        && !(tool == "call-routine" && args.get(1).is_some_and(|v| v == "--capture"))
+    {
+        jelly::validate_capture_id(&id)?;
+    }
     let started = SystemTime::now();
     let timer = Instant::now();
     let managing_capture =
