@@ -260,6 +260,10 @@ pub(super) fn system_cli_args(
             if let Some(action) = string("action")? {
                 return match action.as_str() {
                     "list" if object.len() == 1 => Ok(vec!["list".into()]),
+                    "status" if object.len() == 2 => Ok(vec![
+                        "--status".into(),
+                        string("resume_id")?.ok_or("status requires resume_id")?,
+                    ]),
                     "search" if object.len() == 2 => Ok(vec![
                         "--search".into(),
                         string("query")?.ok_or("search requires query")?,

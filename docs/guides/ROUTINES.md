@@ -165,6 +165,50 @@ receiving a tool result; Jelly supplies the explicit instruction and checkpoint.
 No persistent worker, automatic wake-up or provider-managed model session is
 silently assumed.
 
+### Durable status, completion receipts and safe resumption
+
+A caller can check the continuation status at any time, including after an
+external agent has completed it:
+
+```json
+{"action":"status","resume_id":"17917883592861916161836"}
+```
+
+CLI equivalent: `agent-run call-routine --status <resume-id>`.
+This is a **polling interface**: it does not send a push notification to a
+disconnected MCP client. Valid statuses are:
+
+| Status | Meaning |
+| --- | --- |
+| `suspended` | Saved checkpoint awaiting external action or HITL; `awaiting` describes the pending instruction if known |
+| `running` | Another process currently holds the continuation lock |
+| `completed` | The continuation finished and a durable success receipt exists |
+| `failed` | The graph reached an explicit failed terminal |
+| `interrupted` | The process stopped or erred with an uncertain outcome; do **not** blindly retry |
+
+Only one process can hold the advisory lock for a given `resume_id`. Concurrent
+`resume` calls fail without starting a duplicate workflow. After completion,
+a repeated `resume` returns the stored result with `replayed: true`, without
+executing another action. A newly started `resume` marks the checkpoint as
+in-flight *before* running any node: after an unclean process exit, `status`
+reports `interrupted` and the default `resume` refuses unsafe replay.
+The operator must inspect side effects and arrange an explicit recovery;
+automatic recovery from uncertain execution is not implemented.
+
+Checkpoint writes are atomic and owner-readable only. Completion receipts
+are also private (mode 0600), and may contain the full workflow output and
+variables so duplicate deliveries can retrieve the original result. They
+**remain on disk** at the configured runtime directory until the operator
+performs retention maintenance; do not put unnecessary secrets into routine
+variables. Agents must still authenticate to Jelly; continuation IDs and
+advisory locks do not establish cryptographic identity or authorization
+ownership of a particular agent.
+
+This provides **single-writer execution and safe duplicate completion lookup**,
+not exactly-once guarantees for a website's external side effects. An action
+can complete remotely just before an unexpected process crash. Jelly then
+reports uncertainty rather than silently replaying that action.
+
 ## Discover, generate, and save routines
 
 The `call-routine` MCP tool lets an AI client **list**, **describe**, **save**, **run**, and **resume** JSON routines. To generate one, the agent constructs a graph from a previously verified workflow, gives it a meaningful name and description, and invokes `call-routine` with `action: "save"` and a `graph` object.

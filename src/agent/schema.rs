@@ -132,7 +132,7 @@ pub(crate) fn system_input_schema(name: &str) -> Option<Value> {
                 "resume_id":{"type":"string","description":"Continuation ID when resuming a suspended routine."},
                 "handoff_to":{"type":"string","minLength":1,"description":"Optional operator-configured agent profile for this run; omitted or caller routes to the invoking agent. Fixed across resume."},
                 "vars":{"type":"object","additionalProperties":{"type":"string"}},
-                "action":{"type":"string","enum":["save","list","search","describe"],"description":"Optional management operation. Omit to execute a saved graph."},
+                "action":{"type":"string","enum":["save","list","search","describe","status"],"description":"Optional management operation. Omit to execute a saved graph."},
                 "query":{"type":"string","minLength":1,"maxLength":200,"description":"Case-insensitive substring of routine name or description for action=search."},
                 "graph":{"type":"object","description":"Complete JSON graph with name, description, entry and nodes; required for action=save. Saving does not execute."}
             },
@@ -142,6 +142,7 @@ pub(crate) fn system_input_schema(name: &str) -> Option<Value> {
                 {"required":["action","graph"],"properties":{"action":{"const":"save"}}},
                 {"required":["action"],"properties":{"action":{"const":"list"}}},
                 {"required":["action","query"],"properties":{"action":{"const":"search"}}},
+                {"required":["action","resume_id"],"properties":{"action":{"const":"status"}}},
                 {"required":["action","name"],"properties":{"action":{"const":"describe"}}}
             ],
             "additionalProperties":false

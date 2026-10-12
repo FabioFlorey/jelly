@@ -119,7 +119,7 @@ pub static TOOLS: &[ToolSpec] = &[
     ToolSpec {
         name: "call-routine",
         description: "Save, search, inspect, run or resume reusable JSON graphs by name or UUID, with auto/hybrid/jelly execution modes and chained routines. Saving never executes; use browser-call for a simple ordered batch.",
-        usage: "call-routine list | call-routine --search <query> | call-routine describe <name-or-uuid> | call-routine save <graph-json> | call-routine [--handoff-to <profile>] <name-or-uuid> [key=value] | call-routine resume <id> [key=value]",
+        usage: "call-routine list | call-routine --search <query> | call-routine --status <resume-id> | call-routine describe <name-or-uuid> | call-routine save <graph-json> | call-routine [--handoff-to <profile>] <name-or-uuid> [key=value] | call-routine resume <id> [key=value]",
         category: "routines",
     },
     ToolSpec {

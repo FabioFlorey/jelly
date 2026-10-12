@@ -4,6 +4,7 @@ use crate::core::routines::{
     valid_routine_id, valid_routine_name, validate_routine_definition, vars,
 };
 use crate::shell::routine_handoff::{dispatch, select_target};
+use crate::shell::routine_state;
 use crate::{
     BrowserSession, ROUTINE_STATE_DIR, classify_error, error_details, execute_browser_primitive,
     is_browser_primitive,
@@ -165,12 +166,19 @@ impl GraphFinalizer {
         }
     }
 
-    fn finalize(&mut self) -> Result<(), RoutineFailure> {
+    fn finalize(&mut self, outcome: &Value) -> Result<(), RoutineFailure> {
         if self.browser_owned && !self.keep_browser {
             system_tool("close-browser", &[])?;
             self.browser_owned = false;
         }
         if let Some(id) = self.state.as_deref() {
+            routine_state::record(id, outcome).map_err(|error| {
+                RoutineFailure::new(
+                    "internal",
+                    format!("failed to record routine completion {id}: {error}"),
+                    false,
+                )
+            })?;
             remove_state_file(id).map_err(|error| {
                 RoutineFailure::new(
                     "internal",
@@ -197,7 +205,14 @@ impl Drop for GraphFinalizer {
             self.browser_owned = false;
         }
         if let Some(id) = self.state.as_deref() {
-            let _ = remove_state_file(id);
+            // An error after an action may have left a side effect. Never
+            // describe it as a resumable suspension or silently retry it.
+            let uncertain = json!({"status":"interrupted","resume_id":id});
+            if routine_state::record(id, &uncertain).is_ok()
+                || routine_state::receipt(id).ok().flatten().is_some()
+            {
+                let _ = remove_state_file(id);
+            }
         }
     }
 }
@@ -207,6 +222,7 @@ struct RunContinuation {
     state: Option<String>,
     handoff_to: String,
     pending_child: Option<String>,
+    awaiting: Option<Value>,
 }
 
 fn save_graph_state(
@@ -228,12 +244,11 @@ fn save_graph_state(
         "visits":visits,
         "browser_owned":continuation.browser_owned,
         "handoff_to":continuation.handoff_to,
-        "pending_child":continuation.pending_child
+        "pending_child":continuation.pending_child,
+        "awaiting":continuation.awaiting,
+        "inflight":false
     });
-    fs::write(
-        format!("{}/{id}.state", routine_state()),
-        serde_json::to_vec_pretty(&body)?,
-    )?;
+    routine_state::save_checkpoint(id, &body)?;
     Ok(())
 }
 
@@ -296,16 +311,15 @@ fn graph_run(
         match plan_node(&current, node, &context)? {
             PlannedNode::Terminal { success, message } => {
                 if success {
+                    let outcome = json!({"status":"completed","message":message,"context":context});
                     finalizer
-                        .finalize()
+                        .finalize(&outcome)
                         .map_err(|e| format!("cleanup failed: {}", e.message))?;
-                    println!(
-                        "{}",
-                        json!({"status":"completed","message":message,"context":context})
-                    );
+                    println!("{outcome}");
                     return Ok(());
                 }
-                if let Err(cleanup) = finalizer.finalize() {
+                let outcome = json!({"status":"failed","message":message});
+                if let Err(cleanup) = finalizer.finalize(&outcome) {
                     return Err(format!("{message}; cleanup failed: {}", cleanup.message).into());
                 }
                 return Err(message.into());
@@ -326,6 +340,7 @@ fn graph_run(
                         let id = finalizer.state.clone().unwrap_or_else(state_id);
                         continuation.browser_owned = finalizer.browser_owned;
                         continuation.pending_child = None;
+                        continuation.awaiting = Some(json!({"kind":"human","node":current}));
                         save_graph_state(
                             &id,
                             &graph,
@@ -362,6 +377,10 @@ fn graph_run(
                 let id = finalizer.state.clone().unwrap_or_else(state_id);
                 continuation.browser_owned = finalizer.browser_owned;
                 continuation.pending_child = None;
+                continuation.awaiting = Some(json!({
+                    "kind":"agent","node":current,"instruction":instruction,
+                    "verify":verify,"error":context.get("_error")
+                }));
                 save_graph_state(&id, &graph, verify, &context, steps, &visits, &continuation)?;
                 finalizer.state = Some(id.clone());
                 finalizer.suspend();
@@ -407,6 +426,13 @@ fn graph_run(
                     let parent_id = finalizer.state.clone().unwrap_or_else(state_id);
                     continuation.browser_owned = finalizer.browser_owned;
                     continuation.pending_child = Some(child_id.to_owned());
+                    continuation.awaiting = Some(json!({
+                        "kind":child["reason"].as_str().unwrap_or("human"),
+                        "node":current,
+                        "child_routine":child["routine"],
+                        "instruction":child["instruction"],
+                        "verify":child["verify"]
+                    }));
                     save_graph_state(
                         &parent_id,
                         &graph,
@@ -447,10 +473,11 @@ fn graph_run(
                         if let Some(next) = next {
                             current = next;
                         } else {
+                            let outcome = json!({"status":"completed","context":context});
                             finalizer
-                                .finalize()
+                                .finalize(&outcome)
                                 .map_err(|e| format!("cleanup failed: {}", e.message))?;
-                            println!("{}", json!({"status":"completed","context":context}));
+                            println!("{outcome}");
                             return Ok(());
                         }
                     }
@@ -631,17 +658,33 @@ fn start_graph(
             state: None,
             handoff_to: handoff_to.to_owned(),
             pending_child: None,
+            awaiting: None,
         },
     )
 }
 
 fn resume(id: &str, extra: HashMap<String, String>) -> Result<(), Box<dyn std::error::Error>> {
-    if id.is_empty() || !id.bytes().all(|ch| ch.is_ascii_digit()) {
-        return Err("invalid routine resume ID".into());
+    routine_state::validate_resume_id(id)?;
+    let _lock = routine_state::acquire(id)?;
+    if let Some(mut outcome) = routine_state::receipt(id)? {
+        // A repeated resume must never replay potentially irreversible actions.
+        if outcome["status"] != "completed" {
+            return Err(format!("routine already terminated with {}", outcome["status"]).into());
+        }
+        outcome["replayed"] = json!(true);
+        println!("{outcome}");
+        return Ok(());
     }
-    let value: Value =
-        serde_json::from_slice(&fs::read(format!("{}/{id}.state", routine_state()))?)?;
+    let value = routine_state::checkpoint(id)?;
+    if value["inflight"] == true {
+        return Err("routine execution was interrupted; inspect external effects before an operator-controlled recovery".into());
+    }
     if value["kind"] == "graph" {
+        // Mark the checkpoint before performing any further action. A crash or
+        // forced kill now leaves an uncertain state, not a safe retry target.
+        let mut running = value.clone();
+        running["inflight"] = json!(true);
+        routine_state::save_checkpoint(id, &running)?;
         let graph = value["graph"].clone();
         validate_routine_definition(&graph, None)?;
         let current = value["current"]
@@ -668,6 +711,9 @@ fn resume(id: &str, extra: HashMap<String, String>) -> Result<(), Box<dyn std::e
         // Old HITL states had no handoff routing field.
         let handoff_to = value["handoff_to"].as_str().unwrap_or("caller");
         let pending_child = value["pending_child"].as_str().map(str::to_owned);
+        let awaiting = value["awaiting"]
+            .as_object()
+            .map(|_| value["awaiting"].clone());
         return graph_run(
             graph,
             current,
@@ -679,6 +725,7 @@ fn resume(id: &str, extra: HashMap<String, String>) -> Result<(), Box<dyn std::e
                 state: Some(id.to_owned()),
                 handoff_to: handoff_to.to_owned(),
                 pending_child,
+                awaiting,
             },
         );
     }
@@ -703,6 +750,10 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
     };
     match args.first().map(String::as_str) {
         Some("list") if args.len() == 1 => return list_routines(),
+        Some("--status") if args.len() == 2 => {
+            println!("{}", routine_state::inspect(&args[1])?);
+            return Ok(());
+        }
         Some("--search") if args.len() == 2 => return search_routines(&args[1]),
         Some("describe") if args.len() == 2 => return describe_routine(&args[1]),
         Some("save") if args.len() == 2 => return save_routine(&args[1]),
