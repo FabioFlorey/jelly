@@ -260,6 +260,43 @@ pub(super) fn system_cli_args(
             if let Some(action) = string("action")? {
                 return match action.as_str() {
                     "list" if object.len() == 1 => Ok(vec!["list".into()]),
+                    "versions" if object.len() == 2 => Ok(vec![
+                        "--versions".into(),
+                        string("name")?.ok_or("versions requires name")?,
+                    ]),
+                    "revise" if object.len() == 4 => {
+                        let name = string("name")?.ok_or("revise requires name")?;
+                        let expected = integer("expected_revision")?
+                            .ok_or("revise requires expected_revision")?;
+                        if expected < 1 {
+                            return Err("expected_revision must be positive".into());
+                        }
+                        let graph = object.get("graph").ok_or("revise requires graph")?;
+                        if !graph.is_object() {
+                            return Err("graph must be an object".into());
+                        }
+                        Ok(vec![
+                            "--revise".into(),
+                            name,
+                            expected.to_string(),
+                            serde_json::to_string(graph).map_err(|e| e.to_string())?,
+                        ])
+                    }
+                    "promote" if object.len() == 4 => {
+                        let name = string("name")?.ok_or("promote requires name")?;
+                        let revision = integer("revision")?.ok_or("promote requires revision")?;
+                        let expected = integer("expected_revision")?
+                            .ok_or("promote requires expected_revision")?;
+                        if revision < 1 || expected < 1 {
+                            return Err("revision numbers must be positive".into());
+                        }
+                        Ok(vec![
+                            "--promote".into(),
+                            name,
+                            revision.to_string(),
+                            expected.to_string(),
+                        ])
+                    }
                     "status" if object.len() == 2 => Ok(vec![
                         "--status".into(),
                         string("resume_id")?.ok_or("status requires resume_id")?,

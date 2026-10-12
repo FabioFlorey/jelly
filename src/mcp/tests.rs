@@ -531,6 +531,25 @@ fn system_args_are_mapped_to_existing_cli_shape() {
         )
         .is_err()
     );
+    let versions = json!({"action":"versions","name":"sample"});
+    assert_eq!(
+        system_cli_args("call-routine", versions.as_object().unwrap()).unwrap(),
+        vec!["--versions", "sample"]
+    );
+    let revise = json!({"action":"revise","name":"sample","expected_revision":1,
+        "graph":{"name":"sample","description":"Updated","entry":"done",
+                 "nodes":{"done":{"terminal":"success"}}}});
+    let args = system_cli_args("call-routine", revise.as_object().unwrap()).unwrap();
+    assert_eq!(args[0..3], ["--revise", "sample", "1"]);
+    assert_eq!(
+        serde_json::from_str::<Value>(&args[3]).unwrap(),
+        revise["graph"]
+    );
+    let promote = json!({"action":"promote","name":"sample","revision":2,"expected_revision":1});
+    assert_eq!(
+        system_cli_args("call-routine", promote.as_object().unwrap()).unwrap(),
+        vec!["--promote", "sample", "2", "1"]
+    );
     let describe = json!({"action":"describe","name":"sample"});
     assert_eq!(
         system_cli_args("call-routine", describe.as_object().unwrap()).unwrap(),

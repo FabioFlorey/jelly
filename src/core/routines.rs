@@ -384,6 +384,13 @@ pub(crate) fn validate_routine_definition(
     {
         return Err("routine id must be a lowercase UUID v4".into());
     }
+    if let Some(revision) = graph.get("revision")
+        && !revision
+            .as_u64()
+            .is_some_and(|number| (1..=1_000_000).contains(&number))
+    {
+        return Err("routine revision must be integer 1..=1000000".into());
+    }
     validate_contracts(graph)?;
     validate_graph(graph)
 }

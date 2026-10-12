@@ -2,6 +2,7 @@
 
 pub(crate) mod routine_handoff;
 pub(crate) mod routine_state;
+pub(crate) mod routine_versions;
 
 pub(crate) mod downloads;
 pub(crate) mod routines;

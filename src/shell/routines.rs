@@ -6,6 +6,7 @@ use crate::core::routines::{
 };
 use crate::shell::routine_handoff::{dispatch, select_target};
 use crate::shell::routine_state;
+use crate::shell::routine_versions;
 use crate::{
     BrowserSession, ROUTINE_STATE_DIR, classify_error, error_details, execute_browser_primitive,
     is_browser_primitive,
@@ -590,10 +591,13 @@ fn routine_summary(name: &str, graph: &Value) -> Value {
         crate::core::routines::RoutineMode::Hybrid => "hybrid",
         crate::core::routines::RoutineMode::Jelly => "jelly",
     };
-    json!({"name":name,"id":graph.get("id"),"mode":mode,"description":graph["description"]})
+    json!({"name":name,"id":graph.get("id"),"revision":routine_versions::revision(graph).unwrap_or(1),"mode":mode,"description":graph["description"]})
 }
 
 fn load_routine(identifier: &str) -> Result<Value, Box<dyn std::error::Error>> {
+    if let Some((name, version)) = routine_versions::pinned(identifier) {
+        return routine_versions::exact(std::path::Path::new(ROUTINES), name, version);
+    }
     // A UUID beginning with a-f is also a syntactically valid routine name.
     // Resolve UUIDs first so that every generated ID remains callable.
     if valid_routine_id(identifier) {
@@ -619,6 +623,9 @@ fn save_routine(json_source: &str) -> Result<(), Box<dyn std::error::Error>> {
         return Err("routine graph exceeds the 64 KiB size limit".into());
     }
     let mut graph: Value = serde_json::from_str(json_source)?;
+    if graph.get("revision").is_some() {
+        return Err("omit revision when saving; Jelly assigns revision 1".into());
+    }
     validate_routine_definition(&graph, None)?;
     if graph.get("id").is_none() {
         graph
@@ -626,6 +633,7 @@ fn save_routine(json_source: &str) -> Result<(), Box<dyn std::error::Error>> {
             .unwrap()
             .insert("id".into(), json!(new_routine_id()));
     }
+    graph["revision"] = json!(1);
     for (name, existing) in saved_routines()? {
         if existing["id"] == graph["id"] {
             return Err(format!("routine UUID already belongs to {name}").into());
@@ -803,6 +811,36 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
     };
     match args.first().map(String::as_str) {
         Some("list") if args.len() == 1 => return list_routines(),
+        Some("--versions") if args.len() == 2 => {
+            println!(
+                "{}",
+                routine_versions::versions(std::path::Path::new(ROUTINES), &args[1])?
+            );
+            return Ok(());
+        }
+        Some("--revise") if args.len() == 4 => {
+            let expected = args[2].parse::<u64>()?;
+            let graph: Value = serde_json::from_str(&args[3])?;
+            println!(
+                "{}",
+                routine_versions::stage(std::path::Path::new(ROUTINES), &args[1], expected, graph)?
+            );
+            return Ok(());
+        }
+        Some("--promote") if args.len() == 4 => {
+            let target = args[2].parse::<u64>()?;
+            let expected = args[3].parse::<u64>()?;
+            println!(
+                "{}",
+                routine_versions::promote(
+                    std::path::Path::new(ROUTINES),
+                    &args[1],
+                    target,
+                    expected
+                )?
+            );
+            return Ok(());
+        }
         Some("--status") if args.len() == 2 => {
             println!("{}", routine_state::inspect(&args[1])?);
             return Ok(());
@@ -867,8 +905,11 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
     let name = args
         .first()
         .ok_or("usage: call-routine <name> [key=value]")?;
-    if !valid_routine_name(name) && !valid_routine_id(name) {
-        return Err("invalid routine name or UUID".into());
+    if !valid_routine_name(name)
+        && !valid_routine_id(name)
+        && routine_versions::pinned(name).is_none()
+    {
+        return Err("invalid routine name, UUID or pinned revision".into());
     }
     start_graph(name, vars(&args[1..]), &handoff_to)
 }

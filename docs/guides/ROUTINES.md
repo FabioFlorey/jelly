@@ -7,6 +7,7 @@
 - [Purpose: save a verified workflow](#purpose-save-a-verified-workflow)
 - [Execution modes and agent handoffs](#execution-modes-and-agent-handoffs)
 - [Discover, generate, and save routines](#discover-generate-and-save-routines)
+- [Immutable revisions and promotion](#immutable-revisions-and-promotion)
 - [JSON graph format](#json-graph-format)
 - [Variables, conditions, and loops](#variables-conditions-and-loops)
 - [Optional input/output contracts](#optional-inputoutput-contracts)
@@ -508,5 +509,49 @@ routines retain their captured definition so a later edit to a saved file
 does not retroactively change the suspended graph.
 
 See [Reliability](./RELIABILITY.md) for transition, error, artifact, timeout, and cleanup semantics.
+
+## Immutable revisions and promotion
+
+New routines are saved at revision 1. Existing JSON routines without a
+`revision` field are implicitly revision 1 and remain valid. The active alias
+is still `.agent/routines/<name>.json`; immutable historical revisions live at
+`.agent/routines/.versions/<name>/vN.json`. When sharing routines through Git,
+commit both the active alias and its archived revisions.
+
+Revision management is explicit and never executes a routine. First inspect
+versions with `call-routine` action `versions` and the routine `name`. To stage
+a candidate, call `revise` with `name`, `expected_revision` and the complete
+`graph`; omit `revision` (Jelly assigns it) and keep the same name and UUID.
+Staging does **not** change the active alias.
+
+```json
+{"action":"versions","name":"my-routine"}
+```
+
+```json
+{"action":"revise","name":"my-routine","expected_revision":1,
+ "graph":{"name":"my-routine","description":"New verified procedure",
+          "entry":"done","nodes":{"done":{"terminal":"success"}}}}
+```
+
+After testing/reviewing the staged version, explicitly promote it:
+
+```json
+{"action":"promote","name":"my-routine","revision":2,"expected_revision":1}
+```
+
+Equivalent CLI commands: `call-routine --versions my-routine`,
+`call-routine --revise my-routine 1 '<graph-json>'` and
+`call-routine --promote my-routine 2 1`. To execute or describe a pinned
+revision use `my-routine@v2`; `my-routine` continues to mean the active alias.
+Promoting an older revision is an explicit rollback. All archived revisions
+remain available, and subsequent staging uses the next unused revision number.
+
+A per-routine filesystem lock serializes revision changes. Staging uses
+create-new semantics for immutable archives and promotion atomically replaces
+the active alias. `expected_revision` prevents lost updates against a changed
+active routine. Existing suspended workflows retain their captured definition.
+Versioning does not certify a procedure as safe; reviewing and testing
+candidates before promotion is still required.
 
 <div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

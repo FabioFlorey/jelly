@@ -39,3 +39,7 @@ coverage/
 
 # Local project notes
 IDEAS.md
+
+# Routine revision snapshots are tracked; lock and staging files are local.
+.agent/routines/.versions/*/.lock
+.agent/routines/.versions/*/.*.tmp
