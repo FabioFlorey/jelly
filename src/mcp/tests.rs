@@ -531,6 +531,11 @@ fn system_args_are_mapped_to_existing_cli_shape() {
         )
         .is_err()
     );
+    let crystallize = json!({"action":"crystallize","name":"sample","expected_revision":1,"trace_id":"trace-123"});
+    assert_eq!(
+        system_cli_args("call-routine", crystallize.as_object().unwrap()).unwrap(),
+        vec!["--crystallize", "sample", "1", "trace-123"]
+    );
     let versions = json!({"action":"versions","name":"sample"});
     assert_eq!(
         system_cli_args("call-routine", versions.as_object().unwrap()).unwrap(),

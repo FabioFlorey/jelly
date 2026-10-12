@@ -260,6 +260,22 @@ pub(super) fn system_cli_args(
             if let Some(action) = string("action")? {
                 return match action.as_str() {
                     "list" if object.len() == 1 => Ok(vec!["list".into()]),
+                    "crystallize" if object.len() == 4 => {
+                        let name = string("name")?.ok_or("crystallize requires name")?;
+                        let expected = integer("expected_revision")?
+                            .ok_or("crystallize requires expected_revision")?;
+                        let trace_id =
+                            string("trace_id")?.ok_or("crystallize requires trace_id")?;
+                        if expected < 1 {
+                            return Err("expected_revision must be positive".into());
+                        }
+                        Ok(vec![
+                            "--crystallize".into(),
+                            name,
+                            expected.to_string(),
+                            trace_id,
+                        ])
+                    }
                     "versions" if object.len() == 2 => Ok(vec![
                         "--versions".into(),
                         string("name")?.ok_or("versions requires name")?,

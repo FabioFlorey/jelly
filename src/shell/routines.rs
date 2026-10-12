@@ -4,12 +4,13 @@ use crate::core::routines::{
     system_failure_kind, valid_routine_id, valid_routine_name, validate_inputs,
     validate_routine_definition, vars,
 };
+use crate::shell::routine_crystallize;
 use crate::shell::routine_handoff::{dispatch, select_target};
 use crate::shell::routine_state;
 use crate::shell::routine_versions;
 use crate::{
-    BrowserSession, ROUTINE_STATE_DIR, classify_error, error_details, execute_browser_primitive,
-    is_browser_primitive,
+    BrowserSession, LOG_DIR, ROUTINE_STATE_DIR, classify_error, error_details,
+    execute_browser_primitive, is_browser_primitive,
 };
 use serde_json::{Map, Value, json};
 use std::{
@@ -811,6 +812,24 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
     };
     match args.first().map(String::as_str) {
         Some("list") if args.len() == 1 => return list_routines(),
+        Some("--crystallize") if args.len() == 4 => {
+            let expected = args[2].parse::<u64>()?;
+            let name = &args[1];
+            let graph = load_routine(name)?;
+            if graph["name"] != *name {
+                return Err(
+                    "crystallize requires an active routine name, not UUID or pinned revision"
+                        .into(),
+                );
+            }
+            let trace_file = std::path::Path::new(LOG_DIR).join("actions.jsonl");
+            let candidate = routine_crystallize::candidate(&trace_file, &args[3], &graph)?;
+            println!(
+                "{}",
+                routine_versions::stage(std::path::Path::new(ROUTINES), name, expected, candidate)?
+            );
+            return Ok(());
+        }
         Some("--versions") if args.len() == 2 => {
             println!(
                 "{}",

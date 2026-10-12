@@ -8,6 +8,7 @@
 - [Execution modes and agent handoffs](#execution-modes-and-agent-handoffs)
 - [Discover, generate, and save routines](#discover-generate-and-save-routines)
 - [Immutable revisions and promotion](#immutable-revisions-and-promotion)
+- [Trace crystallization into a staged candidate](#trace-crystallization-into-a-staged-candidate)
 - [JSON graph format](#json-graph-format)
 - [Variables, conditions, and loops](#variables-conditions-and-loops)
 - [Optional input/output contracts](#optional-inputoutput-contracts)
@@ -499,14 +500,13 @@ A saved graph runs **real browser and system operations**. Inspect generated gra
 Saving requires write access to the repository's `.agent/routines/` directory. Generated JSON files are ordinary files in that checkout and should be reviewed before committing to version control. Existing names and UUIDs are not silently replaced. Legacy `.jinja` routines are **not supported**; use JSON graphs for all new and existing workflows.
 
 The current implementation does **not** provide autonomous model invocation,
-a standardized agent wake-up/completion protocol, routine version history, typed routine input/output
-contracts, semantic search, or automatic promotion of agent traces into auto
-routines. Those are separate future steps. Agents must inspect the handoff
-result and explicitly resume; a `panic` in Jelly is not a supported recovery
-trigger. Ensure delegated actions are idempotent or inspect the browser state
-before retrying side effects (submissions, downloads, purchases). Suspended
-routines retain their captured definition so a later edit to a saved file
-does not retroactively change the suspended graph.
+a standardized agent wake-up/completion protocol, typed non-string routine
+inputs, semantic search, or automatic promotion of agent traces. Agents must
+inspect the handoff result and explicitly resume; a `panic` in Jelly is not
+a supported recovery trigger. Ensure delegated actions are idempotent or
+inspect the browser state before retrying side effects (submissions,
+downloads, purchases). Suspended routines retain their captured definition
+so a later edit to a saved file does not retroactively change the run.
 
 See [Reliability](./RELIABILITY.md) for transition, error, artifact, timeout, and cleanup semantics.
 
@@ -553,5 +553,56 @@ the active alias. `expected_revision` prevents lost updates against a changed
 active routine. Existing suspended workflows retain their captured definition.
 Versioning does not certify a procedure as safe; reviewing and testing
 candidates before promotion is still required.
+
+## Trace crystallization into a staged candidate
+
+The `crystallize` management action reconstructs a **candidate auto-routine**
+from Jelly's existing `logs/actions.jsonl` trace events. It does **not** run
+the candidate, change the current active routine, perform model inference, or
+assert that replaying the procedure will succeed.
+
+The agent must have executed browser primitives with a **shared trace ID**
+(for CLI workflows, for example, use the same `JELLY_TRACE_ID` environment
+variable across calls). Independently generated trace IDs cannot be merged
+automatically. The shared trace contains real `primitive.completed` events
+with successful, explicit verification operations after each action. The
+caller supplies the active saved routine's `name` and `expected_revision`:
+
+```json
+{"action":"crystallize","name":"my-routine","expected_revision":1,
+ "trace_id":"trace-example-123"}
+```
+
+CLI equivalent:
+
+```bash
+cargo run --quiet --bin agent-run -- call-routine \
+  --crystallize my-routine 1 trace-example-123
+```
+
+Jelly reads **only** the configured `actions.jsonl`; the API does not accept
+an arbitrary log file path. The first converter deliberately supports just
+`click`, `check`, `select` and `scroll`, each immediately followed by one
+successfully observed `assert-visible`, `assert-text`, `assert-title`,
+`assert-image-ready` or `wait-for` (no JS/URL predicate). It rejects failed
+steps, omitted checks, script execution, form data, navigation, uploads,
+ephemeral `@e...` element references, redacted arguments, secrets, unsupported
+tools, oversized logs/traces and ambiguous sequences. This intentionally
+rejects many legitimate traces instead of inventing a runnable operation.
+
+A passing conversion creates the next **staged, immutable revision**. The
+candidate has `mode: "auto"` and a `crystallization` provenance record
+including `trace_id`, action/verification counts and `reviewed: false`.
+Review `describe my-routine@vN` and the actual log evidence, check that
+selectors and inputs generalize, test the proposed revision in a safe
+environment, and only then use explicit `promote` with the expected active
+revision. For side-effecting actions, a successful check in one run does not
+guarantee the action is safe or idempotent in later runs.
+
+The converter does not infer variables, branches, loops, recovery policies,
+correctness from screenshots, or an optimal procedure. It requires explicit
+recorded assertions, cannot safely reconstruct redacted values, and does not
+replace human/agent review. Future work can add guided capture sessions and
+parameterization before candidate staging.
 
 <div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

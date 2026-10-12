@@ -136,8 +136,9 @@ pub(crate) fn system_input_schema(name: &str) -> Option<Value> {
                 "lease_token":{"type":"string","pattern":"^[0-9a-f]{32}$","description":"Secret returned by claim; required to resume a claimed routine, renew or release it."},
                 "handoff_to":{"type":"string","minLength":1,"description":"Optional operator-configured agent profile for this run; omitted or caller routes to the invoking agent. Fixed across resume."},
                 "vars":{"type":"object","additionalProperties":{"type":"string"}},
-                "action":{"type":"string","enum":["save","list","search","describe","status","claim","renew","release","versions","revise","promote"],"description":"Optional management operation. Omit to execute a saved graph."},
+                "action":{"type":"string","enum":["save","list","search","describe","status","claim","renew","release","versions","revise","promote","crystallize"],"description":"Optional management operation. Omit to execute a saved graph."},
                 "query":{"type":"string","minLength":1,"maxLength":200,"description":"Case-insensitive substring of routine name or description for action=search."},
+                "trace_id":{"type":"string","minLength":1,"maxLength":128,"description":"Shared trace ID from Jelly actions.jsonl; used by action=crystallize. No arbitrary file path accepted."},
                 "revision":{"type":"integer","minimum":1,"maximum":1000000,"description":"Revision to activate; use versions to discover."},
                 "expected_revision":{"type":"integer","minimum":1,"maximum":1000000,"description":"Active revision expected by the caller (compare-and-swap guard)."},
                 "graph":{"type":"object","description":"JSON graph with name, description, entry, nodes; required for save/revise. Neither executes."}
@@ -151,6 +152,7 @@ pub(crate) fn system_input_schema(name: &str) -> Option<Value> {
                 {"required":["action","name"],"properties":{"action":{"const":"versions"}}},
                 {"required":["action","name","expected_revision","graph"],"properties":{"action":{"const":"revise"}}},
                 {"required":["action","name","revision","expected_revision"],"properties":{"action":{"const":"promote"}}},
+                {"required":["action","name","expected_revision","trace_id"],"properties":{"action":{"const":"crystallize"}}},
                 {"required":["action","resume_id"],"properties":{"action":{"const":"status"}}},
                 {"required":["action","resume_id","owner"],"properties":{"action":{"const":"claim"}}},
                 {"required":["action","resume_id","lease_token"],"properties":{"action":{"const":"renew"}}},
