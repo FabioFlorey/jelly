@@ -314,6 +314,8 @@
     .deployment-note strong { color: var(--fg); }
 
     .demo-stage {
+      width: min(100%, 1000px);
+      margin-inline: auto;
       background: #080807;
       padding: 10px;
       box-shadow: 0 24px 70px var(--shadow);
@@ -584,18 +586,68 @@ html { scroll-padding-top: 86px; }
 .doc-page dd { margin-inline-start: 0; margin-bottom: 10px; overflow-wrap: anywhere; }
 .doc-page pre, .docs-terminal pre { padding: 18px 20px; overflow-x: auto; white-space: pre; tab-size: 2; background: #080807; border: 1px solid var(--line); color: #ece8dc; line-height: 1.65; font-size: .85rem; }
 .doc-page pre code { color: inherit; }
-.doc-page video { display: block; width: min(100%, 840px); height: auto; background: #000; margin-block: 22px; }
+.doc-page video { display: block; width: min(100%, 840px); height: auto; background: #000; margin: 22px auto; }
 .doc-page details { margin: 18px 0; padding: 14px 18px; border: 1px solid var(--line); background: var(--panel); }
 .doc-page summary { cursor: pointer; color: var(--honey); }
 .doc-page .tool-record { scroll-margin-top: 100px; }
 .tool-fields { display: grid; grid-template-columns: minmax(120px, 165px) minmax(0, 1fr); column-gap: 18px; }
 .tool-fields dt { grid-column: 1; }
 .tool-fields dd { grid-column: 2; }
-.table-wrap { max-width: 100%; overflow-x: auto; margin: 22px 0; }
-.table-wrap table { width: 100%; border-collapse: collapse; min-width: 660px; text-align: left; font-size: .9rem; }
+.table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 22px auto;
+}
+.table-wrap table {
+  width: 100%;
+  margin-inline: auto;
+  border-collapse: collapse;
+  min-width: 660px;
+  text-align: left;
+  font-size: .9rem;
+}
 .table-wrap th, .table-wrap td { padding: 14px; border: 1px solid var(--line); vertical-align: top; }
 .table-wrap th { background: var(--panel-2); color: var(--honey); }
 .table-wrap td { background: rgba(255,255,255,.01); }
+
+/* Let the five-column API reference use desktop width instead of
+   squeezing every column into the normal prose measure. Center the expanded
+   panel on the viewport; retain accessible horizontal scrolling on mobile. */
+#large-surface > .tool-advanced-details[open] {
+  width: min(1440px, calc(100vw - 48px));
+  max-width: none;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+}
+#large-surface .table-wrap { overscroll-behavior-inline: contain; }
+#large-surface .table-wrap table {
+  min-width: 1320px;
+  table-layout: fixed;
+}
+#large-surface .table-wrap :is(th, td):nth-child(1) { width: 14%; }
+#large-surface .table-wrap :is(th, td):nth-child(2) { width: 31%; }
+#large-surface .table-wrap :is(th, td):nth-child(3) { width: 24%; }
+#large-surface .table-wrap :is(th, td):nth-child(4) { width: 14%; }
+#large-surface .table-wrap :is(th, td):nth-child(5) { width: 17%; }
+#large-surface .table-wrap th { white-space: nowrap; }
+#large-surface .table-wrap td { overflow-wrap: anywhere; }
+#large-surface .table-wrap td:first-child code { white-space: nowrap; }
+#large-surface .table-wrap td small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: .76rem;
+  line-height: 1.5;
+}
+#large-surface .table-wrap td small code { color: var(--honey); }
+.table-scroll-note { color: var(--muted); font-size: .86rem; }
+/* Reference sections are narrower than the document shell; center those
+   containing wide tables or videos so the media itself sits on the page axis. */
+.doc-page #large-surface,
+.doc-page #generic,
+.doc-page #video { margin-inline: auto; }
 #how-it-works .card, #capabilities .card { min-width: 0; }
 .docs-terminal { margin: 22px 0; }
 @media (max-width: 620px) {
