@@ -89,4 +89,4 @@ jobs:
         run: |
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           test -n "$CHROME"
-          PUPPETEER_EXECUTABLE_PATH="$CHROME" python3 scripts/maintenance/check_mermaid.py "$RUNNER_TEMP/jelly-mermaid/node_modules/.bin/mmdc"
+          PUPPETEER_EXECUTABLE_PATH="$CHROME" bash scripts/maintenance/check_mermaid.sh "$RUNNER_TEMP/jelly-mermaid/node_modules/.bin/mmdc"

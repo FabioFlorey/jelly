@@ -243,7 +243,7 @@ Before submitting documentation changes, run:
 cargo run --locked --bin jelly-maint -- check docs
 ```
 
-The Rust documentation checker verifies local links and anchors, the documentation index, fenced JSON/TOML examples, and basic Mermaid structure. This does **not** prove that a diagram will render on GitHub. The dedicated `.github/workflows/docs.yml` additionally installs Mermaid CLI and renders all tracked Markdown Mermaid diagrams in Chromium with `scripts/maintenance/check_mermaid.py`. CI fails if any diagram cannot be rendered.
+The Rust documentation checker verifies local links and anchors, the documentation index, fenced JSON/TOML examples, and basic Mermaid structure. This does **not** prove that a diagram will render on GitHub. The dedicated `.github/workflows/docs.yml` additionally installs Mermaid CLI and renders all tracked Markdown Mermaid diagrams in Chromium with `scripts/maintenance/check_mermaid.sh`. CI fails if any diagram cannot be rendered.
 
 The rendering check can also be run locally when Mermaid CLI is installed, by passing its binary path to the script and setting `PUPPETEER_EXECUTABLE_PATH` to the path of Chromium or Chrome. Structural checks and successful renders do **not** replace reviewing technical claims against the Rust implementation.
 

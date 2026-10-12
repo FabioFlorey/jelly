@@ -46,7 +46,9 @@ if "$CLI" tools --generate --typo > "$TMP/stdout" 2> "$TMP/stderr"; then fail 'u
 
 # Real quickstart is an interactive operation. An immediate cancellation from
 # a mocked preflight must not install, start, register, or write anything.
-if command -v python3 >/dev/null 2>&1; then
+# Exercise the real quickstart in a PTY; cancellation must not modify services.
+# util-linux script provides a terminal without adding a Python dependency.
+if command -v script >/dev/null 2>&1; then
   mkdir -p "$TMP/quickstart-bin"
   for helper in cargo rustc systemd-run; do
     cat > "$TMP/quickstart-bin/$helper" <<'MOCK'
@@ -64,51 +66,16 @@ MOCK
 MOCK
   chmod +x "$TMP/quickstart-bin/systemctl"
   export QUICKSTART_FORBIDDEN_CALLS="$TMP/quickstart-systemctl-calls"
-  python3 - "$CLI" "$TMP/quickstart-bin:$PATH" <<'PY'
-import fcntl
-import os
-import pty
-import select
-import struct
-import subprocess
-import sys
-import termios
-import time
 
-cli, cli_path = sys.argv[1:]
-master, slave = pty.openpty()
-fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 34, 120, 0, 0))
-env = dict(os.environ, PATH=cli_path, TERM="xterm", NO_COLOR="1")
-proc = subprocess.Popen([cli], stdin=slave, stdout=slave, stderr=slave, env=env)
-os.close(slave)
-os.write(master, b"0\n")
-output = b""
-deadline = time.monotonic() + 12
-while time.monotonic() < deadline:
-    readable, _, _ = select.select([master], [], [], 0.2)
-    if readable:
-        try:
-            chunk = os.read(master, 32768)
-        except OSError:
-            break
-        if not chunk:
-            break
-        output += chunk
-    if proc.poll() is not None:
-        break
-if proc.poll() is None:
-    proc.terminate()
-proc.wait(timeout=3)
-os.close(master)
-if proc.returncode != 0:
-    raise SystemExit("Bare quickstart failed its safe-cancel PTY test")
-if b"Browser option [0-4]:" not in output or b"Quickstart cancelled." not in output:
-    raise SystemExit("Bare quickstart failed to show live browser choices")
-if b"WHAT WOULD YOU LIKE TO DO?" in output:
-    raise SystemExit("Retired dashboard was displayed")
-if b"Core prerequisites are satisfied." not in output:
-    raise SystemExit("Quickstart did not complete the mock preflight")
-PY
+  if ! printf '0\n' |
+    NO_COLOR=1 TERM=xterm PATH="$TMP/quickstart-bin:$PATH" \
+      timeout 15 script -qefc "$CLI" "$TMP/quickstart-pty" > /dev/null 2>&1; then
+    fail 'bare quickstart failed its safe-cancel PTY test'
+  fi
+  grep -Fq 'Browser option [0-4]:' "$TMP/quickstart-pty" || fail 'quickstart browser choices missing'
+  grep -Fq 'Quickstart cancelled.' "$TMP/quickstart-pty" || fail 'quickstart cancellation missing'
+  grep -Fq 'Core prerequisites are satisfied.' "$TMP/quickstart-pty" || fail 'quickstart preflight missing'
+  if grep -Fq 'WHAT WOULD YOU LIKE TO DO?' "$TMP/quickstart-pty"; then fail 'retired dashboard displayed'; fi
   [[ ! -e "$QUICKSTART_FORBIDDEN_CALLS" ]] || fail 'quickstart cancellation performed systemctl operations'
 fi
 
@@ -239,58 +206,24 @@ grep -Fq '# CLI Processes Diagrams' "$diagram" || fail 'document title missing'
 
 # A real PTY redraws with the original hero and pauses after an outcome.
 # Piped interactions must remain free of clearing and extra input prompts.
-if command -v python3 >/dev/null 2>&1; then
-  python3 - "$CLI" "$DEMO_PATH" <<'PY'
-import fcntl
-import os
-import pty
-import select
-import struct
-import subprocess
-import sys
-import termios
-import time
-
-cli, tool_path = sys.argv[1:]
-master, slave = pty.openpty()
-fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 42, 130, 0, 0))
-env = dict(os.environ, PATH=tool_path, TERM="xterm", NO_COLOR="")
-proc = subprocess.Popen([cli, "demo", "--menu"], stdin=slave, stdout=slave, stderr=slave, env=env)
-os.close(slave)
-# Home -> Tests -> Integration -> example PASS -> acknowledge -> back -> exit.
-os.write(master, b"5\n3\n2\n\n0\n0\n")
-captured = b""
-until = time.monotonic() + 12
-while time.monotonic() < until:
-    readable, _, _ = select.select([master], [], [], 0.2)
-    if readable:
-        try:
-            part = os.read(master, 32768)
-        except OSError:
-            break
-        if not part:
-            break
-        captured += part
-    if proc.poll() is not None:
-        break
-if proc.poll() is None:
-    proc.terminate()
-proc.wait(timeout=3)
-os.close(master)
-if proc.returncode != 0:
-    raise SystemExit("Demo PTY did not exit cleanly")
-if captured.count(b"\x1b[2J\x1b[H") < 4:
-    raise SystemExit("Demo failed to clear and redraw the active screen")
-if captured.decode("utf-8", "replace").count("░") < 16 * 4:
-    raise SystemExit("Demo failed to redraw the original logo")
-if b"Press Enter to continue" not in captured:
-    raise SystemExit("Demo result was not held for confirmation")
-if b"Browser integration PASS" not in captured:
-    raise SystemExit("Demo test result was not visible")
-# NO_COLOR suppresses formatting, but does not prevent intentional redraw.
-if b"\x1b" in captured.replace(b"\x1b[2J\x1b[H", b""):
-    raise SystemExit("Demo PTY emitted unexpected ANSI styling under NO_COLOR")
-PY
+# PTY redraw and acknowledgement checks, without a Python interpreter.
+if command -v script >/dev/null 2>&1; then
+  if ! printf '5\n3\n2\n\n0\n0\n' |
+    NO_COLOR='' TERM=xterm PATH="$DEMO_PATH" \
+      timeout 15 script -qefc "$CLI demo --menu" "$TMP/demo-pty" > /dev/null 2>&1; then
+    fail 'demo PTY did not exit cleanly'
+  fi
+  clear_sequence=$'\033[2J\033[H'
+  [[ "$(grep -oF "$clear_sequence" "$TMP/demo-pty" | wc -l)" -ge 4 ]] ||
+    fail 'demo did not clear and redraw the active screen'
+  [[ "$(grep -o '░' "$TMP/demo-pty" | wc -l)" -ge 64 ]] ||
+    fail 'demo did not redraw its original hero'
+  grep -Fq 'Press Enter to continue' "$TMP/demo-pty" || fail 'demo result was not held for confirmation'
+  grep -Fq 'Browser integration PASS' "$TMP/demo-pty" || fail 'demo test result was not visible'
+  captured="$(cat "$TMP/demo-pty")"
+  if [[ "${captured//$clear_sequence/}" == *$'\033'* ]]; then
+    fail 'demo PTY emitted unexpected ANSI styling under NO_COLOR'
+  fi
 fi
 
 # Stub the service control executable so start/stop tests cannot touch real services.
