@@ -45,4 +45,23 @@ jobs:
           "$CHROME" --version
           echo "JELLY_VALIDATION_CHROMIUM=$CHROME" >> "$GITHUB_ENV"
       - name: Rust tests including real Chromium replay (all targets, once)
-        run: ./scripts/dev.sh test
+        shell: bash
+        run: |
+          set -uo pipefail
+          LOG="$(mktemp)"
+          trap 'rm -f "$LOG"' EXIT
+          if ./scripts/dev.sh test 2>&1 | tee "$LOG"; then
+            if ! grep -Fq 'real_chromium_replays_pinned_candidate_and_detects_failure ... ok' "$LOG"; then
+              echo "::error title=Real Chromium test missing::The mandatory browser test did not run or report success."
+              exit 1
+            fi
+            echo 'PASS: real isolated Chromium replay executed by canonical Rust test suite.'
+          else
+            # Public GitHub check-run annotations expose the failure reason
+            # even when job logs require authenticated access.
+            failure="$(grep -E 'test .* FAILED|panicked at|error:|FAILED' "$LOG" | head -n 3 | tr '\n' ' ' || true)"
+            failure="$(printf '%s' "$failure" | sed 's/%/%25/g')"
+            if [[ -z "$failure" ]]; then failure='Rust suite failed; inspect the job log.'; fi
+            echo "::error title=Rust suite (including Chromium) failed::$failure"
+            exit 1
+          fi
