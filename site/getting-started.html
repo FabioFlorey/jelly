@@ -115,11 +115,12 @@ cd jelly
         <h2>
           4. Set credentials and start services
         </h2>
-        <pre><code>./scripts/dev.sh setup</code></pre>
+        <pre><code>./scripts/dev.sh</code></pre>
         <p>
-          Answer the hosting and authentication prompts. Select installation/startup of the user services. The wizard
-          writes local secrets to the ignored <code>.env</code> file with restricted permissions and installs the
-          configured services. Do not commit or share that file.
+          The real quickstart offers browser selection (or reuse), then prompts for hosting and authentication.
+          Review each change, save the configuration, and explicitly approve service installation and startup.
+          Jelly writes local secrets to the ignored <code>.env</code> file with restricted permissions.
+          Do not commit or share that file.
         </p>
         <p>
           For local HTTP clients, use the configured <code>JELLY_MCP_TOKEN</code>. For remote clients, complete the

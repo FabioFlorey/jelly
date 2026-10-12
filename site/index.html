@@ -12,7 +12,7 @@
     <link rel="canonical" href="https://fabioflorey.github.io/jelly/">
     <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <link rel="alternate icon" type="image/png" href="./assets/images/favicon.png">
-    <link rel="stylesheet" href="./assets/css/style.css?v=1793fb66fbb8">
+    <link rel="stylesheet" href="./assets/css/style.css?v=deployment-20261012">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Jelly">
     <meta property="og:title" content="Jelly | Browser instrumentation for agents">
@@ -62,6 +62,7 @@
             <p class="lede">
               <strong>Your AI doesn't just browse. It gets things done.</strong>
               Jelly gives AI agents a real Chromium browser to navigate websites, take action, and verify results. Powered by Rust.
+              Run Chromium natively, in Docker/Podman, or through an existing CDP endpoint.
             </p>
             <div class="cta-row">
               <a class="btn btn-primary" href="./getting-started.html">Get Started</a>
@@ -141,6 +142,53 @@
                 verify outcomes, and execute multi-step browser workflows.
               </p>
             </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="browser-deployment">
+        <div class="shell">
+          <div class="section-head">
+            <div class="section-kicker">Browser deployment</div>
+            <h2>One Jelly. Three ways to run Chromium.</h2>
+          </div>
+          <p class="section-copy">
+            Match your browser environment to the job: run Chromium directly on Linux, use a dedicated
+            Docker/Podman container, or connect to a browser you already manage elsewhere.
+          </p>
+          <div class="grid">
+            <article class="card">
+              <div class="index">NATIVE CHROMIUM</div>
+              <h3>Start on your machine.</h3>
+              <p>
+                Use Chromium installed on the Jelly host for a straightforward local browser setup,
+                without requiring a container engine.
+              </p>
+            </article>
+            <article class="card">
+              <div class="index">DOCKER / PODMAN</div>
+              <h3>Choose container isolation controls.</h3>
+              <p>
+                Deploy Chromium on a dedicated bridge network with isolated, shared, or ephemeral profiles.
+                Choose Chromium sandbox and container restrictions independently; CDP ports are not published by default.
+              </p>
+            </article>
+            <article class="card">
+              <div class="index">EXTERNAL CDP</div>
+              <h3>Connect an existing browser.</h3>
+              <p>
+                Attach to a separately managed Chromium endpoint over CDP and address individual browsers
+                by UUID or Jelly alias, without handing Jelly control of the external browser lifecycle.
+              </p>
+            </article>
+          </div>
+          <p class="section-copy deployment-note">
+            <strong>Security is configurable, not assumed.</strong> A reachable container does not prove Chromium's
+            sandbox is active. Public CDP exposure requires operator-managed network protections.
+          </p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="./getting-started.html#browser-deployment">Explore deployment options</a>
+            <a class="btn" href="https://github.com/FabioFlorey/jelly/blob/main/docs/reference/BROWSER_DEPLOYMENT.md">Security model</a>
           </div>
         </div>
       </section>
@@ -301,8 +349,8 @@
                 Configure and start
               </h3>
               <p>
-                Install Rust 1.98.1 and Jelly; run <code>./scripts/dev.sh setup</code> to configure MCP authentication and hosting.
-                Use <code>./scripts/dev.sh browser</code> to choose native Chromium, Docker/Podman subnet, or external IP:port.
+                Install Rust 1.98.1 and Jelly, then run <code>./scripts/dev.sh</code> for real
+                browser selection, MCP configuration, and confirmed service installation.
               </p>
               <a href="./getting-started.html">Installation procedure →</a>
             </article>
@@ -421,8 +469,8 @@
           </div>
 
           <p class="section-copy">
-            Check your Linux prerequisites, preview the configuration, then run the interactive installer.
-            The wizard configures authentication, hosting, and managed services.
+            Check your Linux prerequisites, preview MCP settings, then run the real quickstart.
+            Select a browser runtime, configure authentication and hosting, and confirm service installation.
           </p>
 
           <div class="quickstart-stage">
@@ -447,8 +495,8 @@
 <span class="dim"># preview setup without changing services or secrets</span>
 <span class="prompt">$</span> ./scripts/dev.sh setup --dry-run
 
-<span class="dim"># run the interactive setup</span>
-<span class="prompt">$</span> ./scripts/dev.sh setup</pre>
+<span class="dim"># configure browser, MCP, and start Jelly after review</span>
+<span class="prompt">$</span> ./scripts/dev.sh</pre>
             </div>
           </div>
 

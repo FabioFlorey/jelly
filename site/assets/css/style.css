@@ -296,6 +296,13 @@
       font-size: .98rem;
     }
 
+    .deployment-note {
+      margin: 24px 0 0;
+      max-width: 860px;
+    }
+
+    .deployment-note strong { color: var(--fg); }
+
     .demo-stage {
       background: #080807;
       padding: 10px;
