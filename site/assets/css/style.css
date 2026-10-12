@@ -222,6 +222,14 @@
       border-color: #ffd13d;
     }
 
+    .hero-github-link {
+      align-self: center;
+      color: var(--fg);
+      font-size: .86rem;
+      text-decoration-color: var(--muted);
+      text-underline-offset: 3px;
+    }
+
     .hero-mark {
       position: relative;
       min-height: 390px;
@@ -487,11 +495,11 @@
         min-width: 0;
         width: auto;
         flex-wrap: nowrap;
-        gap: 16px;
+        gap: 7px;
         overflow-x: auto;
         overflow-y: hidden;
         white-space: nowrap;
-        font-size: .80rem;
+        font-size: .77rem;
         scrollbar-width: none;
         -webkit-overflow-scrolling: touch;
       }
@@ -713,7 +721,7 @@ html { scroll-padding-top: 86px; }
 /* Practical use cases, distinct from the technical capability grid. */
 .possibilities-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
 }
 .possibility {
@@ -729,6 +737,6 @@ html { scroll-padding-top: 86px; }
 }
 .possibility h3 { margin: 0 0 10px; font-size: 1.08rem; }
 .possibility p { margin: 0; color: var(--muted); font-size: .9rem; }
-@media (max-width: 700px) {
+@media (max-width: 860px) {
   .possibilities-grid { grid-template-columns: 1fr; }
 }

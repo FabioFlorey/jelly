@@ -12,7 +12,7 @@
     <link rel="canonical" href="https://fabioflorey.github.io/jelly/">
     <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <link rel="alternate icon" type="image/png" href="./assets/images/favicon.png">
-    <link rel="stylesheet" href="./assets/css/style.css?v=centered-media-tables-20261012">
+    <link rel="stylesheet" href="./assets/css/style.css?v=homepage-flow-20261012">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Jelly">
     <meta property="og:title" content="Jelly | Browser instrumentation for agents">
@@ -61,12 +61,13 @@
             </p>
             <p class="lede">
               <strong>Your AI doesn't just browse. It gets things done.</strong>
-              Jelly gives AI agents a real Chromium browser to navigate websites, take action, and verify results. Powered by Rust.
-              Run Chromium natively, in Docker/Podman, or through an existing CDP endpoint.
+              Give AI agents a real Chromium browser to navigate interactive websites, click and type,
+              complete multi-step tasks, and verify what actually happened.
             </p>
             <div class="cta-row">
               <a class="btn btn-primary" href="./getting-started.html">Get Started</a>
-              <a class="btn" href="https://github.com/FabioFlorey/jelly">View on GitHub</a>
+              <a class="btn" href="#demo">Watch demo</a>
+              <a class="hero-github-link" href="https://github.com/FabioFlorey/jelly">GitHub ↗</a>
             </div>
           </div>
         </div>
@@ -79,70 +80,73 @@
           </div>
 
           <p class="section-copy">
-            From research to action, Jelly gives AI agents the browser capabilities to get things done.
-            Modern websites are interactive, dynamic, and often impossible to navigate through simple web requests.
-            Jelly gives AI agents access to a real Chromium browser so they can explore websites,
-            interact with applications, and complete complex tasks.
+            Modern websites have forms, dashboards, and dynamically loaded content. Jelly helps AI agents
+            work with these real pages instead of relying on static web requests.
           </p>
 
           <div class="possibilities-grid">
             <article class="possibility">
-              <div class="index">BROWSER AUTOMATION</div>
-              <h3>Let AI handle the repetitive work.</h3>
+              <div class="index">WORKFLOW AUTOMATION</div>
+              <h3>Get repetitive website tasks done.</h3>
               <p>
-                Automate everyday tasks across websites and business applications. Fill forms, update records,
-                navigate dashboards, process requests, and complete multi-step workflows.
+                Fill forms, navigate dashboards, update records, and connect steps across business
+                applications without a custom integration for every site.
               </p>
             </article>
 
             <article class="possibility">
-              <div class="index">AI-POWERED RESEARCH</div>
-              <h3>Explore the web beyond what search engines can see.</h3>
+              <div class="index">RESEARCH AND EXTRACTION</div>
+              <h3>Explore interactive information.</h3>
               <p>
-                Give your AI access to JavaScript-heavy websites, interactive dashboards, and dynamically loaded
-                content. Research competitors, compare products, investigate markets, and gather information
-                from multiple sources.
+                Work with JavaScript-heavy pages, apply filters, navigate paginated results,
+                and gather information from dashboards and dynamic websites.
               </p>
             </article>
 
             <article class="possibility">
               <div class="index">BROWSER TESTING</div>
-              <h3>Test your website the way real people use it.</h3>
+              <h3>Check the result, not just the click.</h3>
               <p>
-                Automate user journeys in a real browser. Test forms, navigation, and interactive features,
-                verify expected results, and capture screenshots to investigate problems.
-              </p>
-            </article>
-
-            <article class="possibility">
-              <div class="index">DATA EXTRACTION</div>
-              <h3>Turn complex websites into useful information.</h3>
-              <p>
-                Collect information from interactive tables, paginated results, and web applications.
-                Navigate through pages, apply filters, retrieve documents, and organize the results
-                for further analysis.
-              </p>
-            </article>
-
-            <article class="possibility">
-              <div class="index">BUSINESS PROCESS AUTOMATION</div>
-              <h3>Connect the steps your business depends on.</h3>
-              <p>
-                Automate workflows across CRM systems, customer portals, reporting tools, and back-office
-                applications. Reduce repetitive manual work without requiring a dedicated integration
-                for every website.
-              </p>
-            </article>
-
-            <article class="possibility">
-              <div class="index">AI AGENTS</div>
-              <h3>Give your agents the ability to act, not just answer.</h3>
-              <p>
-                Connect Jelly through MCP to let AI agents navigate websites, interact with applications,
-                verify outcomes, and execute multi-step browser workflows.
+                Follow real user journeys through forms and navigation, verify the expected page state,
+                and capture screenshots when you need evidence.
               </p>
             </article>
           </div>
+        </div>
+      </section>
+
+      <section id="demo">
+        <div class="shell">
+          <div class="section-head">
+            <div class="section-kicker">Browser recording</div>
+            <h2>Work around the click!</h2>
+          </div>
+
+          <p class="section-copy">
+            Jelly doesn't just automate the browser. It shows its work, capturing and captioning
+            every move as it happens.
+          </p>
+
+          <div class="demo-stage">
+            <video
+              autoplay
+              loop
+              muted
+              playsinline
+              controls
+              preload="auto"
+              poster="./assets/images/porsche-718-spyder-rs-demo-20261008-poster.png"
+              aria-label="Jelly configuring a Racing Yellow Porsche 718 Spyder RS, step by step"
+            >
+              <source src="./assets/images/porsche-718-spyder-rs-demo-20261008.mp4" type="video/mp4">
+              Your browser cannot play this video.
+              <a href="./assets/images/porsche-718-spyder-rs-demo-20261008.mp4">Open the recording</a>.
+            </video>
+          </div>
+
+          <p class="demo-caption">
+            <strong>Every move, on the record.</strong> Real browser actions, documented by Jelly itself.
+          </p>
         </div>
       </section>
 
@@ -204,8 +208,9 @@
             </h2>
           </div>
           <p class="section-copy">
-            The current small MCP surface publishes three browser tools plus thirteen system tools. Use the runtime
-            <code>tools/list</code> response for the active set.
+            Behind these use cases are tools for reading and interacting with pages, observing browser events,
+            verifying artifacts, and coordinating workflows. Explore the <a href="./tools.html">Tools guide</a>
+            for what each operation does.
           </p>
           <div class="grid">
             <article class="card">
@@ -296,41 +301,6 @@
           </div>
         </div>
       </section>
-      <section id="demo">
-        <div class="shell">
-          <div class="section-head">
-            <div class="section-kicker">Browser recording</div>
-            <h2>Work around the click!</h2>
-          </div>
-
-          <p class="section-copy">
-            Jelly doesn't just automate the browser. It shows its work, capturing and captioning
-            every move as it happens.
-          </p>
-
-          <div class="demo-stage">
-            <video
-              autoplay
-              loop
-              muted
-              playsinline
-              controls
-              preload="auto"
-              poster="./assets/images/porsche-718-spyder-rs-demo-20261008-poster.png"
-              aria-label="Jelly configuring a Racing Yellow Porsche 718 Spyder RS, step by step"
-            >
-              <source src="./assets/images/porsche-718-spyder-rs-demo-20261008.mp4" type="video/mp4">
-              Your browser cannot play this video.
-              <a href="./assets/images/porsche-718-spyder-rs-demo-20261008.mp4">Open the recording</a>.
-            </video>
-          </div>
-
-          <p class="demo-caption">
-            <strong>Every move, on the record.</strong> Real browser actions, documented by Jelly itself.
-          </p>
-        </div>
-      </section>
-
       <section id="how-it-works">
         <div class="shell">
           <div class="section-head">
