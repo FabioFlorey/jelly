@@ -596,6 +596,25 @@ html { scroll-padding-top: 86px; }
 .doc-page pre, .docs-terminal pre { padding: 18px 20px; overflow-x: auto; white-space: pre; tab-size: 2; background: #080807; border: 1px solid var(--line); color: #ece8dc; line-height: 1.65; font-size: .85rem; }
 .doc-page pre code { color: inherit; }
 .doc-page video { display: block; width: min(100%, 840px); height: auto; background: #000; margin: 22px auto; }
+
+/* Beginner-friendly first message: readable on mobile and easy to copy. */
+.startup-prompt { margin-top: 32px; }
+.startup-prompt h3 { margin: 0 0 12px; font-size: 1.16rem; }
+.startup-prompt-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin: 20px 0 12px;
+}
+.startup-prompt-actions button { cursor: pointer; font: inherit; }
+#jelly-startup-copy-status { font-size: .86rem; color: var(--muted); }
+.startup-prompt pre {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  line-height: 1.65;
+}
+
 .doc-page details { margin: 18px 0; padding: 14px 18px; border: 1px solid var(--line); background: var(--panel); }
 .doc-page summary { cursor: pointer; color: var(--honey); }
 .doc-page .tool-record { scroll-margin-top: 100px; }

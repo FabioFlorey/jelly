@@ -12,7 +12,7 @@
     <link rel="canonical" href="https://fabioflorey.github.io/jelly/getting-started.html">
     <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <link rel="alternate icon" type="image/png" href="./assets/images/favicon.png">
-    <link rel="stylesheet" href="./assets/css/style.css?v=homepage-flow-20261012">
+    <link rel="stylesheet" href="./assets/css/style.css?v=first-ai-prompt-20261012">
     <meta property="og:title" content="Get Started with Jelly · Browser automation for AI agents">
     <meta property="og:description" content="Start Jelly on Linux: install, choose native or containerized Chromium, connect an AI client, and verify your MCP server.">
     <meta property="og:url" content="https://fabioflorey.github.io/jelly/getting-started.html">
@@ -50,6 +50,7 @@
           <a href="#browser-deployment">Browser choices</a> ·
           <a href="#client">AI connection</a> ·
           <a href="#verify">Check it works</a> ·
+          <a href="#first-message">First AI prompt</a> ·
           <a href="#troubleshooting">Get help</a>
         </p>
       </div>
@@ -214,6 +215,48 @@ curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
           use <code>http://127.0.0.1:8787/mcp</code> and the configured bearer token.
           Follow the <a href="./clients.html">connection guide</a> for client-specific steps.
         </p>
+        <div id="first-message" class="startup-prompt">
+          <h3>Your first message to Jelly</h3>
+          <p>
+            Once your AI client is connected, <strong>copy this prompt into the AI chat</strong>.
+            It checks whether the Jelly MCP tools really respond and discovers the correct browser
+            operations without opening or changing a browser session.
+          </p>
+          <div class="startup-prompt-actions">
+            <button type="button" class="btn btn-primary" id="copy-jelly-startup-prompt">Copy startup prompt</button>
+            <span id="jelly-startup-copy-status" role="status" aria-live="polite"></span>
+          </div>
+          <pre id="jelly-startup-prompt"><code>Check my Jelly MCP connection and prepare to use its browser tools.
+
+1. Inspect the tools actually available to you in this chat.
+   Do not assume Jelly is connected just because I mentioned it.
+2. If browser-schema is available, CALL it with action="capabilities".
+   A real successful tool result verifies MCP tool execution.
+   If instead individual browser tools are published, report them
+   from the tools you can actually access.
+3. Identify whether Jelly exposes its small or large tool surface,
+   or say "unknown" when you cannot establish this.
+4. For later browser tasks, discover operations by intent with
+   browser-schema action="search", then inspect their exact input
+   contract with action="schema" before using browser-call.
+   For a large surface, use the published tool schemas.
+5. Do not open, close, navigate, click, type, download, or run any
+   routine yet. Ask before testing a real browser session.
+6. Report separately:
+   - MCP connection: verified or not verified, with evidence.
+   - Available Jelly tools and tool surface.
+   - Browser/Chromium readiness: NOT TESTED.
+   - Next safe step and any connection issue.
+
+Never invent tools, claim a browser is ready from tool discovery,
+or ask me to reveal authentication tokens.</code></pre>
+          <p>
+            <strong>What success means:</strong> Your assistant names Jelly tools it actually sees
+            and receives a successful discovery response. This tests the <em>MCP connection</em>,
+            not whether Chromium is reachable. Browser readiness requires a separate,
+            explicitly approved browser action.
+          </p>
+        </div>
         <p>To try Jelly's browser CLI directly on an idle or dedicated browser, run:</p>
         <pre><code>cargo run --quiet --bin agent-run -- open-browser https://example.com
 cargo run --quiet --bin agent-run -- read-page</code></pre>
@@ -265,5 +308,6 @@ cargo run --quiet --bin agent-run -- read-page</code></pre>
         </span>
       </div>
     </footer>
+    <script defer src="./assets/js/copy-startup-prompt.js?v=1"></script>
   </body>
 </html>
