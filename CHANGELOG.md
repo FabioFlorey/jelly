@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Named and described JSON graph routines can be generated and saved through the existing `call-routine` MCP tool, listed and inspected before execution, and reused with variables, bounded loops, conditional branches, and chained routine calls.
 - Initial repository structure.
 - Base GitHub community files.
 - Agent workspace directory.
@@ -38,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Removed legacy `.jinja` line-based routine execution. Jelly now runs saved JSON graphs only; legacy suspended Jinja routine state cannot be resumed. Saving a routine validates and stores it without running or overwriting it.
 - Jelly's public and local administration pages now share its logo, typography and honey-toned CSS, including styled OAuth/approval error pages. Routes are grouped by interface/operations/protocol, and `/connections` lists provider profiles without leaking credentials. Detailed `/dashboard` and `/status.json` (legacy `/status`) require owner or administrative access; `/health` and `/ready` remain public service probes. Added an isolated Chromium web UI screenshot smoke test.
 - Active ChatGPT authorization detection now checks the registered ChatGPT OAuth client rather than assuming any stored refresh token belongs to ChatGPT; installer setup uses an authenticated loopback POST and does not create sessions through GET navigation.
 

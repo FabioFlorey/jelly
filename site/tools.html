@@ -1029,7 +1029,8 @@
           <code>call-routine</code>
         </h2>
         <p>
-          Start or resume a saved guarded workflow.
+          Save, list, inspect, run, or resume named JSON graph workflows. Routines
+          can have descriptions, variables, conditions, loops, and calls to other routines.
           <a href="./examples.html#routines">See a practical routine example →</a>
         </p>
         <details class="tool-advanced-details">
@@ -1039,7 +1040,9 @@
             Parameters
           </dt>
           <dd>
-            Exactly one of name: string or resume_id: string; vars?: object&lt;string,string&gt;
+            Run with <code>name</code> and optional string <code>vars</code>; resume with
+            <code>resume_id</code>; or use <code>action: "list" | "describe" | "save"</code>.
+            Saving requires a JSON <code>graph</code> with its name, description, entry, and nodes.
           </dd>
           <dt>
             Permissions
@@ -1051,7 +1054,8 @@
             Side effects
           </dt>
           <dd>
-            Executes arbitrary workflow steps, may modify browser state
+            Running a routine may modify browser state. Saving validates and writes a new
+            JSON file without executing it or overwriting an existing routine.
           </dd>
           <dt>
             Expected failures

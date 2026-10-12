@@ -184,7 +184,7 @@ interval).
 
 JSON graph routines live beside legacy routines in `.agent/routines/`. A graph declares an `entry` node and a `nodes` object. Nodes can execute tools, evaluate guards, jump directly, suspend for HITL, or terminate.
 
-For a complete, editable workflow definition with executable commands, see [Graph routines](./ROUTINES.md#graph-routines). That guide is the canonical source of routine examples; this section specifies the behavior relevant to recovery and verification.
+For a complete, editable workflow definition with executable commands, see [JSON graph format](./ROUTINES.md#json-graph-format). That guide is the canonical source of routine examples; this section specifies the behavior relevant to recovery and verification.
 
 Cycles are valid. `max_steps` bounds total node executions, `max_visits` can bound a particular recovery node, and `max_duration_ms` bounds wall-clock execution for one run (default: 300000 ms).
 

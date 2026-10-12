@@ -216,10 +216,11 @@ curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
       <section id="routines">
         <h2>Example 3: Run a routine that checks its work</h2>
         <p>
-          <strong>What is a routine?</strong> Instead of requesting one action at a time,
-          you give Jelly a saved set of steps. A routine can <strong>check a page before acting</strong>,
-          wait and retry when an element is missing, branch on results, record evidence,
-          and stop with an explicit success or failure. Some routines can also pause for a person.
+          <strong>What is a routine?</strong> Once an AI has verified a repeatable workflow,
+          Jelly can save it as a <strong>named, described JSON graph</strong>.
+          Instead of rediscovering the steps next time, call the saved routine with new variables.
+          It can branch on conditions, loop with budgets, verify results, call other routines,
+          or pause for human input.
         </p>
         <p>
           Jelly already includes <code>verified-screenshot.json</code>, so you do not need to
@@ -259,6 +260,15 @@ curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
             Inspect the actual result; a valid request is not proof that a browser operation succeeded.
           </p>
         </details>
+        <h3>Save a workflow for next time</h3>
+        <p>
+          Jelly's <code>call-routine</code> MCP tool accepts <code>action: "save"</code> and a
+          generated JSON <code>graph</code> with a name, description, steps, and error paths.
+          Saving only validates and stores the graph; it <strong>does not execute</strong> it.
+          The agent can later <code>list</code> or <code>describe</code> saved routines before
+          calling one by name. Existing routines can be chained together with variables.
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/docs/guides/ROUTINES.md#discover-generate-and-save-routines">See how to generate and save a routine →</a>
+        </p>
         <h3>What else can routines do?</h3>
         <div class="grid connection-options">
           <article class="card">

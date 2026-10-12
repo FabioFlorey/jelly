@@ -33,37 +33,6 @@ pub(crate) fn vars(args: &[String]) -> HashMap<String, String> {
         .collect()
 }
 
-pub(crate) fn render_legacy(mut s: String, vars: &HashMap<String, String>) -> String {
-    for (k, v) in vars {
-        s = s
-            .replace(&format!("{{{{ {k} }}}}"), v)
-            .replace(&format!("{{{{{k}}}}}"), v);
-    }
-    s
-}
-
-pub(crate) fn split(line: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut cur = String::new();
-    let mut quote = None;
-    for c in line.chars() {
-        match (quote, c) {
-            (Some(q), c) if c == q => quote = None,
-            (None, '\'' | '"') => quote = Some(c),
-            (None, c) if c.is_whitespace() => {
-                if !cur.is_empty() {
-                    out.push(std::mem::take(&mut cur));
-                }
-            }
-            _ => cur.push(c),
-        }
-    }
-    if !cur.is_empty() {
-        out.push(cur)
-    }
-    out
-}
-
 pub(crate) fn system_failure_kind(name: &str) -> &'static str {
     match name {
         "open-browser" | "close-browser" | "browser-task" => "browser_unavailable",
@@ -232,6 +201,44 @@ pub(crate) fn guard_matches(
             ));
         }
     })
+}
+
+pub(crate) fn valid_routine_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name
+            .bytes()
+            .next()
+            .is_some_and(|ch| ch.is_ascii_lowercase())
+        && name
+            .bytes()
+            .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == b'-' || ch == b'_')
+        && !matches!(name, "save" | "list" | "describe" | "resume")
+}
+
+/// Validate a persistent, named JSON graph before saving or executing it.
+pub(crate) fn validate_routine_definition(
+    graph: &Value,
+    expected_name: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let name = graph
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or("routine requires name")?;
+    if !valid_routine_name(name) {
+        return Err("routine name must start with a lowercase letter and contain only a-z, 0-9, '-' or '_' (max 64 characters)".into());
+    }
+    if expected_name.is_some_and(|expected| expected != name) {
+        return Err("routine name does not match requested filename".into());
+    }
+    let description = graph
+        .get("description")
+        .and_then(Value::as_str)
+        .ok_or("routine requires description")?;
+    if description.trim().is_empty() || description.len() > 400 {
+        return Err("routine description must contain 1-400 characters".into());
+    }
+    validate_graph(graph)
 }
 
 pub(crate) fn validate_graph(graph: &Value) -> Result<(), Box<dyn std::error::Error>> {
@@ -625,19 +632,63 @@ mod tests {
     }
 
     #[test]
-    fn parse_and_template_helpers_preserve_original_values() {
+    fn parse_output_preserves_original_values() {
         assert_eq!(parse_output("{\"ok\":true}"), json!({"ok":true}));
         assert_eq!(parse_output("not-json"), json!("not-json"));
-        assert_eq!(
-            render_legacy(
-                "{{ hello }}".into(),
-                &HashMap::from([("hello".into(), "there".into())])
-            ),
-            "there"
+    }
+
+    #[test]
+    fn graph_definitions_require_safe_names_and_descriptions() {
+        let graph = json!({
+            "name":"verified-task",
+            "description":"Verify the task outcome before returning.",
+            "entry":"done",
+            "nodes":{"done":{"terminal":"success"}}
+        });
+        validate_routine_definition(&graph, Some("verified-task")).unwrap();
+        assert!(validate_routine_definition(&graph, Some("wrong-name")).is_err());
+        assert!(
+            validate_routine_definition(
+                &json!({
+                    "name":"../escape", "description":"Unsafe", "entry":"done",
+                    "nodes":{"done":{"terminal":"success"}}
+                }),
+                None
+            )
+            .is_err()
         );
+        assert!(
+            validate_routine_definition(
+                &json!({
+                    "name":"missing-description", "entry":"done",
+                    "nodes":{"done":{"terminal":"success"}}
+                }),
+                None
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn routine_chaining_interpolates_variables_for_child_graph() {
+        let node = json!({
+            "tool":"call-routine",
+            "args":["verified-screenshot","url={{ url }}","target={{ target }}"]
+        });
+        let context = json!({"url":"https://example.com/", "target":"css:main"})
+            .as_object()
+            .unwrap()
+            .clone();
         assert_eq!(
-            split("fill 'hello world' text"),
-            vec!["fill", "hello world", "text"]
+            plan_node("call", &node, &context).unwrap(),
+            PlannedNode::Tool {
+                name: "call-routine".into(),
+                args: vec![
+                    "verified-screenshot".into(),
+                    "url=https://example.com/".into(),
+                    "target=css:main".into()
+                ]
+            }
         );
     }
 }

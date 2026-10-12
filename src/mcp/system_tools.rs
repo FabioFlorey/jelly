@@ -257,6 +257,24 @@ pub(super) fn system_cli_args(
             Ok(args)
         }
         "call-routine" => {
+            if let Some(action) = string("action")? {
+                return match action.as_str() {
+                    "list" if object.len() == 1 => Ok(vec!["list".into()]),
+                    "describe" if object.len() == 2 => Ok(vec![
+                        "describe".into(),
+                        string("name")?.ok_or("describe requires name")?,
+                    ]),
+                    "save" if object.len() == 2 => {
+                        let graph = object.get("graph").ok_or("save requires graph")?;
+                        if !graph.is_object() {
+                            return Err("graph must be an object".into());
+                        }
+                        let text = serde_json::to_string(graph).map_err(|e| e.to_string())?;
+                        Ok(vec!["save".into(), text])
+                    }
+                    _ => Err("invalid call-routine management action or extra fields".into()),
+                };
+            }
             let name = string("name")?;
             let resume_id = string("resume_id")?;
             if name.is_some() == resume_id.is_some() {

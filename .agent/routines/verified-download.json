@@ -4,20 +4,27 @@
   "nodes": {
     "open": {
       "tool": "open-browser",
-      "args": ["{{ url }}"],
+      "args": [
+        "{{ url }}"
+      ],
       "next": "verify_url",
       "on_error": "fail"
     },
     "verify_url": {
       "tool": "assert-url",
-      "args": ["{{ url }}", "exact"],
+      "args": [
+        "{{ url }}",
+        "exact"
+      ],
       "save": "page",
       "next": "verify_trigger",
       "on_error": "fail"
     },
     "verify_trigger": {
       "tool": "assert-visible",
-      "args": ["{{ target }}"],
+      "args": [
+        "{{ target }}"
+      ],
       "save": "trigger_evidence",
       "next": "baseline",
       "on_error": {
@@ -28,28 +35,39 @@
     },
     "wait_trigger": {
       "tool": "wait-for",
-      "args": ["visible", "{{ target }}", "5"],
+      "args": [
+        "visible",
+        "{{ target }}",
+        "5"
+      ],
       "max_visits": 2,
       "next": "verify_trigger",
       "on_error": "fail"
     },
     "baseline": {
       "tool": "evaluate-js",
-      "args": ["Date.now()"],
+      "args": [
+        "Date.now()"
+      ],
       "save": "download_started",
       "next": "trigger",
       "on_error": "fail"
     },
     "trigger": {
       "tool": "click",
-      "args": ["{{ target }}"],
+      "args": [
+        "{{ target }}"
+      ],
       "save": "trigger_action",
       "next": "wait_download",
       "on_error": "fail"
     },
     "wait_download": {
       "tool": "wait-download",
-      "args": ["{{ download_started }}", "30"],
+      "args": [
+        "{{ download_started }}",
+        "30"
+      ],
       "save": "artifact",
       "next": "verify_artifact",
       "on_error": "fail"
@@ -75,5 +93,7 @@
       "terminal": "failure",
       "message": "verified download failed: {{ _error.message }}"
     }
-  }
+  },
+  "name": "verified-download",
+  "description": "Open a page, check its download link, download the file and verify its artifact."
 }

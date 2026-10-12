@@ -142,9 +142,7 @@ FFmpeg is part of the recording pipeline, **not** a general-purpose MCP shell to
 
 ## 7. Routines
 
-Use `call-routine` when the workflow benefits from reusable guarded sequencing, branching, loops, typed-error recovery, HITL suspension/resume, or ownership cleanup.
-
-Do not turn a short browser sequence into a routine merely because `browser-call` can batch semantic operations. Routines and browser-call solve different problems.
+Use `call-routine` for reusable, verified JSON graphs with names, descriptions, variables, conditions, loops, and chaining. List existing routines before repeating work. Save a generated graph with `action: "save"` (never executes); review before running. Use `browser-call` for one-off batches.
 
 ## 8. HITL
 

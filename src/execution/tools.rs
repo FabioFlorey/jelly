@@ -41,7 +41,7 @@ pub static TOOL_CATEGORIES: &[ToolCategorySpec] = &[
     },
     ToolCategorySpec {
         name: "routines",
-        description: "Run and resume reusable multi-step workflows.",
+        description: "Discover, save, run and resume named JSON graph workflows with variables, branches, loops and calls to other routines.",
     },
     ToolCategorySpec {
         name: "hitl",
@@ -118,8 +118,8 @@ pub static TOOLS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "call-routine",
-        description: "Execute or resume guarded workflows with branching, loops, budgets, HITL continuation, or cleanup. Use browser-call for a simple ordered action batch.",
-        usage: "call-routine <name> [key=value] | call-routine resume <id> [key=value]",
+        description: "Save, discover, inspect, run or resume reusable named JSON graphs with descriptions, variables, conditions, loops and chained routines. Saving never executes; use browser-call for a simple ordered batch.",
+        usage: "call-routine list | call-routine describe <name> | call-routine save <graph-json> | call-routine <name> [key=value] | call-routine resume <id> [key=value]",
         category: "routines",
     },
     ToolSpec {

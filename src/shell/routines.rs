@@ -1,7 +1,7 @@
 use crate::core::routines::{
     PlannedNode, PlannedToolOutcome, RoutineFailure, context_from_vars, error_transition,
-    error_value, parse_output, plan_node, plan_tool_outcome, render_legacy, split,
-    system_failure_kind, validate_graph, vars,
+    error_value, parse_output, plan_node, plan_tool_outcome, system_failure_kind,
+    valid_routine_name, validate_routine_definition, vars,
 };
 use crate::{
     BrowserSession, ROUTINE_STATE_DIR, classify_error, error_details, execute_browser_primitive,
@@ -11,12 +11,13 @@ use serde_json::{Map, Value, json};
 use std::{
     collections::HashMap,
     env, fs,
+    io::Write,
     process::Command,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 #[cfg(test)]
-use crate::core::routines::{guard_matches, render_text};
+use crate::core::routines::{guard_matches, render_text, validate_graph};
 
 const ROUTINES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/.agent/routines");
 
@@ -62,11 +63,33 @@ fn system_tool(name: &str, args: &[String]) -> Result<String, RoutineFailure> {
             false,
         ));
     }
-    let bin = bin_dir.join("agent-run");
-    let mut command = Command::new(bin);
-    command.arg(name).args(args);
+    let mut command = if name == "call-routine" {
+        // A chained graph executes through the same validated routine binary;
+        // it does not need an agent-run wrapper process in between.
+        let mut command = Command::new(&target);
+        command.args(args);
+        command
+    } else {
+        let mut command = Command::new(bin_dir.join("agent-run"));
+        command.arg(name).args(args);
+        command
+    };
     if name == "screenshot" && !args.iter().any(|arg| arg == "--json") {
         command.arg("--json");
+    }
+    if name == "call-routine" {
+        let depth = env::var("JELLY_ROUTINE_CALL_DEPTH")
+            .ok()
+            .and_then(|value| value.parse::<u8>().ok())
+            .unwrap_or(0);
+        if depth >= 8 {
+            return Err(RoutineFailure::new(
+                "invalid_arguments",
+                "routine chain depth limit (8) exceeded",
+                false,
+            ));
+        }
+        command.env("JELLY_ROUTINE_CALL_DEPTH", (depth + 1).to_string());
     }
     let out = command
         .output()
@@ -110,81 +133,6 @@ fn execute_tool(
     } else {
         system_tool(name, args)
     }
-}
-
-fn legacy_run(
-    lines: &[String],
-    start: usize,
-    mut vars: HashMap<String, String>,
-    id: Option<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    fs::create_dir_all(routine_state())?;
-    let mut browser: Option<BrowserSession> = None;
-    for (i, raw) in lines.iter().enumerate().skip(start) {
-        let line = render_legacy(raw.trim().to_owned(), &vars);
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let parts = split(&line);
-        if parts.is_empty() {
-            continue;
-        }
-        match parts[0].as_str() {
-            "signal" => {
-                let cmd = parts.get(1).ok_or("signal requires a tool")?;
-                let output = execute_tool(&mut browser, cmd, &parts[2..])
-                    .map_err(|e| format!("{}: {}", e.kind, e.message))?;
-                println!(
-                    "[signal:{cmd}]
-{}",
-                    output.trim()
-                );
-            }
-            "handoff" => {
-                let sid = id.clone().unwrap_or_else(state_id);
-                let message = parts[1..].join(" ");
-                let body = json!({"kind":"legacy","next":i+1,"lines":lines,"vars":vars});
-                fs::write(
-                    format!("{}/{sid}.state", routine_state()),
-                    serde_json::to_vec(&body)?,
-                )?;
-                println!("handoff {sid} {message}");
-                return Ok(());
-            }
-            "hitl" => {
-                let message = parts.get(1..).unwrap_or_default().join(" ");
-                if message.is_empty() {
-                    return Err("hitl requires a message".into());
-                }
-                system_tool("hitl", &parts[1..])
-                    .map_err(|e| format!("{}: {}", e.kind, e.message))?;
-                let sid = id.clone().unwrap_or_else(state_id);
-                let body = json!({"kind":"legacy","next":i+1,"lines":lines,"vars":vars});
-                fs::write(
-                    format!("{}/{sid}.state", routine_state()),
-                    serde_json::to_vec(&body)?,
-                )?;
-                println!("hitl {sid} {message}");
-                return Ok(());
-            }
-            "set" => {
-                let kv = parts.get(1).ok_or("set requires name=value")?;
-                let (k, v) = kv.split_once('=').ok_or("set requires name=value")?;
-                vars.insert(k.to_owned(), v.to_owned());
-            }
-            cmd => {
-                let output = execute_tool(&mut browser, cmd, &parts[1..])
-                    .map_err(|e| format!("{}: {}", e.kind, e.message))?;
-                if !output.trim().is_empty() {
-                    println!("{}", output.trim())
-                }
-            }
-        }
-    }
-    if let Some(id) = id {
-        remove_state_file(&id)?;
-    }
-    Ok(())
 }
 
 fn remove_state_file(id: &str) -> Result<(), std::io::Error> {
@@ -432,13 +380,73 @@ fn graph_run(
     }
 }
 
+/// Saving a routine never runs it. Refuse overwrites and unsafe names.
+fn save_routine(json_source: &str) -> Result<(), Box<dyn std::error::Error>> {
+    if json_source.len() > 64 * 1024 {
+        return Err("routine graph exceeds the 64 KiB size limit".into());
+    }
+    let graph: Value = serde_json::from_str(json_source)?;
+    validate_routine_definition(&graph, None)?;
+    let name = graph["name"].as_str().unwrap();
+    let path = format!("{ROUTINES}/{name}.json");
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)?;
+    file.write_all(serde_json::to_string_pretty(&graph)?.as_bytes())?;
+    file.write_all(b"\n")?;
+    println!(
+        "{}",
+        json!({"status":"saved","name":name,"description":graph["description"],"path":path})
+    );
+    Ok(())
+}
+
+fn list_routines() -> Result<(), Box<dyn std::error::Error>> {
+    let mut routines = Vec::new();
+    for entry in fs::read_dir(ROUTINES)? {
+        let path = entry?.path();
+        if path.extension().is_none_or(|ext| ext != "json") {
+            continue;
+        }
+        let Some(name) = path.file_stem().and_then(|part| part.to_str()) else {
+            continue;
+        };
+        if !valid_routine_name(name) {
+            continue;
+        }
+        let Ok(data) = fs::read(&path) else {
+            continue;
+        };
+        let Ok(graph) = serde_json::from_slice::<Value>(&data) else {
+            continue;
+        };
+        if validate_routine_definition(&graph, Some(name)).is_ok() {
+            routines.push(json!({"name":name,"description":graph["description"]}));
+        }
+    }
+    routines.sort_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
+    println!("{}", json!({"routines":routines}));
+    Ok(())
+}
+
+fn describe_routine(name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    if !valid_routine_name(name) {
+        return Err("invalid routine name".into());
+    }
+    let graph: Value = serde_json::from_slice(&fs::read(format!("{ROUTINES}/{name}.json"))?)?;
+    validate_routine_definition(&graph, Some(name))?;
+    println!("{}", serde_json::to_string_pretty(&graph)?);
+    Ok(())
+}
+
 fn start_graph(
     name: &str,
     extra: HashMap<String, String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let path = format!("{ROUTINES}/{name}.json");
     let graph: Value = serde_json::from_slice(&fs::read(path)?)?;
-    validate_graph(&graph)?;
+    validate_routine_definition(&graph, Some(name))?;
     let entry = graph["entry"].as_str().unwrap().to_owned();
     graph_run(
         graph,
@@ -452,11 +460,14 @@ fn start_graph(
 }
 
 fn resume(id: &str, extra: HashMap<String, String>) -> Result<(), Box<dyn std::error::Error>> {
+    if id.is_empty() || !id.bytes().all(|ch| ch.is_ascii_digit()) {
+        return Err("invalid routine resume ID".into());
+    }
     let value: Value =
         serde_json::from_slice(&fs::read(format!("{}/{id}.state", routine_state()))?)?;
     if value["kind"] == "graph" {
         let graph = value["graph"].clone();
-        validate_graph(&graph)?;
+        validate_routine_definition(&graph, None)?;
         let current = value["current"]
             .as_str()
             .ok_or("bad graph state")?
@@ -489,26 +500,18 @@ fn resume(id: &str, extra: HashMap<String, String>) -> Result<(), Box<dyn std::e
         );
     }
 
-    let start = value["next"].as_u64().ok_or("bad state")? as usize;
-    let lines = value["lines"]
-        .as_array()
-        .ok_or("bad state")?
-        .iter()
-        .filter_map(|x| x.as_str().map(str::to_owned))
-        .collect::<Vec<_>>();
-    let mut saved_vars = value["vars"]
-        .as_object()
-        .ok_or("bad state")?
-        .iter()
-        .filter_map(|(k, v)| v.as_str().map(|v| (k.clone(), v.to_owned())))
-        .collect::<HashMap<_, _>>();
-    saved_vars.extend(extra);
-    legacy_run(&lines, start, saved_vars, Some(id.to_owned()))
+    Err("legacy Jinja routine state is no longer supported; rerun a named JSON graph".into())
 }
 
 /// Run or resume a Jelly routine using the current process arguments and environment.
 pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().skip(1).collect();
+    match args.first().map(String::as_str) {
+        Some("list") if args.len() == 1 => return list_routines(),
+        Some("describe") if args.len() == 2 => return describe_routine(&args[1]),
+        Some("save") if args.len() == 2 => return save_routine(&args[1]),
+        _ => {}
+    }
     if args.first().map(String::as_str) == Some("resume") {
         return resume(
             args.get(1)
@@ -520,17 +523,10 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
     let name = args
         .first()
         .ok_or("usage: call-routine <name> [key=value]")?;
-    let graph_path = format!("{ROUTINES}/{name}.json");
-    if std::path::Path::new(&graph_path).is_file() {
-        return start_graph(name, vars(&args[1..]));
+    if !valid_routine_name(name) {
+        return Err("invalid routine name".into());
     }
-
-    let path = format!("{ROUTINES}/{name}.jinja");
-    let lines = fs::read_to_string(path)?
-        .lines()
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    legacy_run(&lines, 0, vars(&args[1..]), None)
+    start_graph(name, vars(&args[1..]))
 }
 
 #[cfg(test)]
@@ -636,7 +632,7 @@ mod tests {
         for name in ["verified-screenshot", "verified-download"] {
             let path = format!("{ROUTINES}/{name}.json");
             let graph: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
-            validate_graph(&graph).unwrap();
+            validate_routine_definition(&graph, Some(name)).unwrap();
         }
     }
 }

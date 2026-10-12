@@ -459,6 +459,42 @@ fn system_args_are_mapped_to_existing_cli_shape() {
         system_cli_args("hitl", hitl.as_object().unwrap()).unwrap(),
         vec!["approve"]
     );
+
+    let graph = json!({"name":"sample","description":"Reusable task",
+        "entry":"done","nodes":{"done":{"terminal":"success"}}});
+    let save = json!({"action":"save","graph":graph});
+    let args = system_cli_args("call-routine", save.as_object().unwrap()).unwrap();
+    assert_eq!(args[0], "save");
+    assert_eq!(serde_json::from_str::<Value>(&args[1]).unwrap(), graph);
+    let list = json!({"action":"list"});
+    assert_eq!(
+        system_cli_args("call-routine", list.as_object().unwrap()).unwrap(),
+        vec!["list"]
+    );
+    let describe = json!({"action":"describe","name":"sample"});
+    assert_eq!(
+        system_cli_args("call-routine", describe.as_object().unwrap()).unwrap(),
+        vec!["describe", "sample"]
+    );
+    let run = json!({"name":"sample","vars":{"url":"https://example.com"}});
+    assert_eq!(
+        system_cli_args("call-routine", run.as_object().unwrap()).unwrap(),
+        vec!["sample", "url=https://example.com"]
+    );
+    assert!(
+        system_cli_args(
+            "call-routine",
+            json!({"action":"save","graph":"bad"}).as_object().unwrap()
+        )
+        .is_err()
+    );
+    assert!(
+        system_cli_args(
+            "call-routine",
+            json!({"action":"list","name":"extra"}).as_object().unwrap()
+        )
+        .is_err()
+    );
 }
 
 #[test]

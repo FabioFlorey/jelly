@@ -35,7 +35,7 @@ This generated reference describes Jelly internal semantic browser primitives an
 | `browser-lifecycle` | Start and stop the persistent Chromium browser service and run scoped browser tasks. |
 | `artifacts` | Capture browser artifacts and inspect or control first-class download lifecycle state. |
 | `network` | Capture and inspect browser network traffic. |
-| `routines` | Run and resume reusable multi-step workflows. |
+| `routines` | Discover, save, run and resume named JSON graph workflows with variables, branches, loops and calls to other routines. |
 | `hitl` | Pause workflows for human intervention. Telegram is the current HITL transport. |
 
 ## Browser primitives
@@ -109,7 +109,7 @@ These tools are executable capabilities that intentionally do not require a shar
 | `verify-artifact` | `artifacts` | `verify-artifact <artifact-id\|path> [--semantic check...]` | Verify a captured artifact still exists, is nonempty, and has valid format-specific integrity metadata. |
 | `wait-download` | `artifacts` | `wait-download <after-ms> [seconds] [name-contains]` | Wait for a completed download newer than a supplied timestamp baseline and register it as an artifact. |
 | `inspect-network` | `network` | `inspect-network <start\|stop\|show> [filters]` | Start, stop, or query persistent browser network capture with optional filters. |
-| `call-routine` | `routines` | `call-routine <name> [key=value] \| call-routine resume <id> [key=value]` | Execute or resume guarded workflows with branching, loops, budgets, HITL continuation, or cleanup. Use browser-call for a simple ordered action batch. |
+| `call-routine` | `routines` | `call-routine list \| call-routine describe <name> \| call-routine save <graph-json> \| call-routine <name> [key=value] \| call-routine resume <id> [key=value]` | Save, discover, inspect, run or resume reusable named JSON graphs with descriptions, variables, conditions, loops and chained routines. Saving never executes; use browser-call for a simple ordered batch. |
 | `hitl` | `hitl` | `hitl <message> [--video path \| --screenshot-target target \| --no-screenshot]` | Request a human decision through Telegram when chat is unavailable; attach a browser screenshot or a local MP4 for delivery. This is not browser-event monitoring. |
 
 ## Internal discovery CLI
