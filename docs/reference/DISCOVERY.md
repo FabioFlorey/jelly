@@ -2,6 +2,12 @@
 
 # Capability and Agent API Discovery
 
+## Table of Contents
+
+- [Internal capability discovery](#internal-capability-discovery)
+- [Published Agent API discovery](#published-agent-api-discovery)
+- [Layer boundary](#layer-boundary)
+
 **Audience:** MCP client implementers and Jelly contributors deciding how to find and invoke browser capabilities.
 
 Jelly has two separate discovery planes. They answer different questions and must not be conflated.

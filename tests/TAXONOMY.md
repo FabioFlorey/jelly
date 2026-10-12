@@ -1,4 +1,14 @@
+<div id="top"></div>
+
 # Test taxonomy, evidence and acceptance
+
+## Table of Contents
+
+- [Test catalog and its metadata](#test-catalog-and-its-metadata)
+- [Governance: decide before creating tests](#governance-decide-before-creating-tests)
+- [Test suites are selections, not classifications](#test-suites-are-selections-not-classifications)
+- [Acceptance criteria are independently governed](#acceptance-criteria-are-independently-governed)
+- [Runtime metadata and gaps](#runtime-metadata-and-gaps)
 
 This document separates three independent concepts: **cataloged tests**, **test suites**, and **acceptance criteria**. Levels, resource sizes, focus areas and environments are different axes. **E2E, UAT, smoke and regression are not interchangeable test levels.**
 
@@ -153,3 +163,5 @@ The runner already produces `run.json` with unique run ID, repository, branch, G
 The key migration rule: **metadata we cannot justify is marked provisional/unclassified, never filled with apparently certain values**.
 
 [Back to Jelly test index](./INDEX.md)
+
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>

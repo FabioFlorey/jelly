@@ -1,4 +1,15 @@
+<div id="top"></div>
+
 # Browser deployment and security choices
+
+## Table of Contents
+
+- [Connection modes](#connection-modes)
+- [Local compatibility recommendations and explicit probes](#local-compatibility-recommendations-and-explicit-probes)
+- [Security option model](#security-option-model)
+- [Verified container compatibility matrix (Arch Linux, 12 October 2026)](#verified-container-compatibility-matrix-arch-linux-12-october-2026)
+- [Download policy (per remote browser)](#download-policy-per-remote-browser)
+- [Current implementation vs follow-up validation](#current-implementation-vs-follow-up-validation)
 
 [Documentation index](../INDEX.md)
 
@@ -163,3 +174,5 @@ An HTTP bridge is permitted by explicit choice; the transfer is unencrypted and 
 **Live-tested on Arch Linux (October 2026):** Docker private bridge/no host publication and Podman rootless loopback publication, real CDP HTTP/WebSocket commands, isolated targets between Docker/Podman instances, ephemeral profile permissions, persistent volume restart with stale-lock recovery and serialized persistent-profile access. Rootless Podman's custom netavark bridge required `--disable-dns` in this headless user session (outbound DNS was verified); `--bridge-dns auto|enabled|disabled` preserves an operator override. Docker's default bridge could not reach Debian mirrors for an image build on this host; `--build-network host` allowed the build with runtime networking unchanged. Chromium's `chrome://sandbox` on Podman rootless (`sandbox=enabled`, `engine-security=standard`) reported `PID namespaces: Yes`, `Network namespaces: Yes`, `Seccomp-BPF sandbox: Yes` and `You are adequately sandboxed`. The enabled/restricted combination could not launch on either runtime, and Docker's enabled/standard combination failed on this host. These compatibility outcomes may differ by kernel and engine policy. **Not yet established by live integration tests:** HTTPS/HTTP artifact-server interoperability or dynamic container runtime matrix in CI. **Not implemented:** automatic container policy remediation, sandbox attestation, dynamic MCP configuration reload, or a managed artifact bridge.
 
 A missing verification is reported as *unverified*, not silently upgraded to *enabled*.
+
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>

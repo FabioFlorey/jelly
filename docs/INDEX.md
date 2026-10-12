@@ -2,6 +2,13 @@
 
 # Jelly Documentation
 
+## Table of Contents
+
+- [Getting started](#getting-started)
+- [Guides](#guides)
+- [Reference](#reference)
+- [Development and architecture](#development-and-architecture)
+
 Start with [Getting Started](./getting-started/QUICKSTART.md) to install Jelly and verify an MCP connection. Use the references for configuration and API contracts, and the guides for browser workflows.
 
 ## Getting started
@@ -20,7 +27,7 @@ Start with [Getting Started](./getting-started/QUICKSTART.md) to install Jelly a
 
 ## Reference
 
-- [CLI Processes Diagrams](./references/diagrams/DEV.SH.md): Mermaid flowcharts for quickstart, connections, browsers, operations, and testing.
+- [CLI Processes Diagrams](./reference/diagrams/DEV.SH.md): Mermaid flowcharts for quickstart, connections, browsers, operations, and testing.
 - [MCP Server](./reference/MCP.md): Protocol endpoints, tools, authentication, and hosting.
 - [Capability Discovery](./reference/DISCOVERY.md): Internal and MCP-facing discovery contracts.
 - [Runtime Layout](./reference/RUNTIME.md): Profiles, artifacts, services, and destructive cleanup.

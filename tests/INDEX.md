@@ -1,4 +1,17 @@
+<div id="top"></div>
+
 # Jelly tests
+
+## Table of Contents
+
+- [Start here](#start-here)
+- [Directory map](#directory-map)
+- [Agent-routing evaluation](#agent-routing-evaluation)
+- [Test taxonomy and acceptance coverage](#test-taxonomy-and-acceptance-coverage)
+- [Test groups](#test-groups)
+- [Named batches](#named-batches)
+- [Execution model](#execution-model)
+- [Validation expectation](#validation-expectation)
 
 This directory is the entry point for Jelly validation. **Before adding a test, read the [anti-duplication and lifecycle rules](./TAXONOMY.md#governance-decide-before-creating-tests).** Reuse tests with the same observable contract; prefer environment parameters over duplicated implementation. [AGENTS.md](../AGENTS.md) is the short coding-agent entry point. For the new classification model and a field-by-field inventory of current/future metadata, see [Test Taxonomy and Acceptance](./TAXONOMY.md).
 
@@ -135,3 +148,5 @@ A selected disabled test is reported as `DISABLED` rather than silently omitted.
 A test implementation is not considered trustworthy merely because its shell function exists. Repository validation should cover the harness itself as well as the product behavior. The `quality` group therefore checks Rust formatting/build/tests/Clippy, generated-tool-index consistency, suite catalog integrity, shell syntax, test-index coverage, and the global suite lock.
 
 For project-level development guidance, see [`../docs/development/DEVELOPMENT.md`](../docs/development/DEVELOPMENT.md).
+
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>

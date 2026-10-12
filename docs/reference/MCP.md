@@ -2,6 +2,16 @@
 
 # MCP Server
 
+## Table of Contents
+
+- [Setup](#setup)
+- [Tool mapping](#tool-mapping)
+- [Tool result contract](#tool-result-contract)
+- [Protocol surface](#protocol-surface)
+- [Authentication](#authentication)
+- [Hosting modes](#hosting-modes)
+- [Local bearer smoke test](#local-bearer-smoke-test)
+
 Jelly exposes browser primitives and system tools through a Streamable HTTP Model Context Protocol (MCP) endpoint. The default loopback address is:
 
 ```text

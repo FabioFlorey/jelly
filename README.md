@@ -14,6 +14,18 @@
 
 </div>
 
+## Table of Contents
+
+- [1. What Jelly does](#1-what-jelly-does)
+- [2. Use cases](#2-use-cases)
+- [3. Quickstart](#3-quickstart)
+- [4. Connect your agent](#4-connect-your-agent)
+- [5. MCP tools](#5-mcp-tools)
+- [6. MCP usage example](#6-mcp-usage-example)
+- [7. Work around the click!](#7-work-around-the-click)
+- [8. Documentation and support](#8-documentation-and-support)
+- [9. Project information](#9-project-information)
+
 ## 1. What Jelly does
 
 **Jelly** is a Rust Model Context Protocol (MCP) server that lets authenticated agents inspect and control a real Chromium browser, verify page state, and retain browser artifacts.
@@ -118,7 +130,7 @@ From research to action, Jelly gives AI agents a real Chromium browser to naviga
 
 **Jelly CLI:** Run **`./scripts/dev.sh`** in a terminal to perform a real quickstart: check prerequisites, select a browser backend, configure MCP identity and hosting, then install/start and verify Jelly after explicit confirmations. **`./scripts/dev.sh demo`** is the only simulated walkthrough. Other CLI subcommands (`setup`, `browser`, `status`, `start`, `stop`, `test`, and so on) perform their named real operations. Noninteractive quickstart refuses to run; use explicit commands for automation.
 
-**CLI Processes Diagrams:** Read the [Markdown process-definition document](./docs/references/diagrams/DEV.SH.md) for five Mermaid flowcharts, chapter explanations, a table of contents and navigation links. `./scripts/dev.sh --demo` is a direct alias for `./scripts/dev.sh demo`.
+**CLI Processes Diagrams:** Read the [Markdown process-definition document](./docs/reference/diagrams/DEV.SH.md) for five Mermaid flowcharts, chapter explanations, a table of contents and navigation links. `./scripts/dev.sh --demo` is a direct alias for `./scripts/dev.sh demo`.
 
 **Browser connection options:** Run `./scripts/dev.sh browser` to select native Chromium, Docker/Podman on a dedicated subnet, or an existing remote Chromium at IP:PORT. Container profiles are isolated/shared/ephemeral; sandbox, container restrictions and CDP publication are independent user choices. Jelly reports what it observes and does not claim that a requested sandbox is active without attestation. See [Browser deployment and security model](./docs/reference/BROWSER_DEPLOYMENT.md). See [Container Chromium quickstart](./docs/getting-started/CONTAINER_CHROMIUM.md). CDP uses an engine-managed private bridge network rather than published host ports.
 

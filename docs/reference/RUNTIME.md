@@ -2,6 +2,11 @@
 
 # Runtime Layout
 
+## Table of Contents
+
+- [Service operations](#service-operations)
+- [Destructive cleanup](#destructive-cleanup)
+
 **Audience:** Operators managing browser state, artifacts, backups, and cleanup.
 
 Jelly keeps browser state, profiles, logs, artifacts, and build output outside the repository. With `[browser].backend = "remote-cdp"`, browser-specific state lives under `<runtime_root>/remote/<browser-uuid>/`, so UUID/easy-name routing does not mingle target labels, downloads and artifacts between remote browsers. The separately managed remote profile and external CDP browser remain outside Jelly's runtime ownership; native mode retains the root-level paths shown below. See [Browser deployment](./BROWSER_DEPLOYMENT.md). The runtime root is configured by `config/jelly.toml` (`/data/jelly-runtime` by default). The tree below describes paths within that runtime root; compiled Cargo output is stored separately at `/data/.jelly-build`. MCP surface selection is startup configuration rather than persisted runtime state and follows the configuration precedence documented in [Configuration](../getting-started/CONFIGURATION.md).

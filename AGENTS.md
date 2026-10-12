@@ -1,4 +1,10 @@
+<div id="top"></div>
+
 # Jelly agent/developer instructions
+
+## Table of Contents
+
+- [Test governance — mandatory](#test-governance-mandatory)
 
 ## Test governance — mandatory
 
@@ -16,3 +22,5 @@ Before writing any new test (Rust, Bash, browser, MCP, mock, or E2E), read [test
 **Existing CI:** `./scripts/dev.sh check` and `./scripts/dev.sh test`. Run targeted checks first. The `quality` test group is a legacy explicit gate, not part of default behavioral batches.
 
 Other project-specific instructions: [docs/development/DEVELOPMENT.md](docs/development/DEVELOPMENT.md), [CONTRIBUTING.md](CONTRIBUTING.md).
+
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>

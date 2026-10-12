@@ -2,6 +2,14 @@
 
 # MCP Surface Benchmarks
 
+## Table of Contents
+
+- [Method](#method)
+- [Published surface](#published-surface)
+- [Warm local runtime](#warm-local-runtime)
+- [Representative workflow](#representative-workflow)
+- [Acceptance](#acceptance)
+
 **Audience:** Maintainers evaluating changes to the published MCP tool surface.
 
 **Measurement status:** Historical, environment-specific results from the recorded comparison. The original run has no recorded commit hash or date in this document. The repository has since added capabilities, so the numbers below **must not** be interpreted as current tool counts, default configuration or CI acceptance thresholds without rerunning the benchmark.

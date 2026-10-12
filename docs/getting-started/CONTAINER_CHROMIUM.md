@@ -1,4 +1,14 @@
+<div id="top"></div>
+
 # Chromium connections: native, subnet, or IP:PORT
+
+## Table of Contents
+
+- [Guided setup based on this host](#guided-setup-based-on-this-host)
+- [Profiles](#profiles)
+- [Networking and security constraints](#networking-and-security-constraints)
+- [Security diagnosis](#security-diagnosis)
+- [Existing native Chromium](#existing-native-chromium)
 
 [Documentation index](../INDEX.md)
 
@@ -118,3 +128,5 @@ Select the local native browser backend via:
 ```
 
 The helper only changes the backend setting; it does not terminate running containers or automatically restart Jelly MCP.
+
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>

@@ -2,6 +2,20 @@
 
 # Development
 
+## Table of Contents
+
+- [Design rules](#design-rules)
+- [Unified developer CLI](#unified-developer-cli)
+- [Tests](#tests)
+- [Agent instruction and tool-selection evaluation](#agent-instruction-and-tool-selection-evaluation)
+- [Script organization](#script-organization)
+- [Shell maintenance conventions](#shell-maintenance-conventions)
+- [Project website and GitHub Pages](#project-website-and-github-pages)
+- [Documentation validation](#documentation-validation)
+- [Generated tool documentation](#generated-tool-documentation)
+- [Browser performance diagnostics](#browser-performance-diagnostics)
+- [Runtime cleanup](#runtime-cleanup)
+
 **Audience:** Contributors and maintainers extending or testing Jelly.
 
 ## Design rules
@@ -29,7 +43,7 @@ test environment. `clean` shows the directories it would delete and requires
 The CLI palette is configured in `config/dev.config.sh`, with artwork in
 `config/brand/full-logo.txt`. Shared Bash functions live in `scripts/lib/`.
 
-**CLI process diagrams:** Open `docs/references/diagrams/DEV.SH.md` directly in
+**CLI process diagrams:** Open `docs/reference/diagrams/DEV.SH.md` directly in
 a Mermaid-compatible Markdown previewer. It defines the quickstart, connection,
 browser, operations and testing processes with a centered title, contents,
 brief chapter introductions and Back to top links. The diagrams do not appear

@@ -2,6 +2,12 @@
 
 # Configuration
 
+## Table of Contents
+
+- [Technical configuration](#technical-configuration)
+- [`.env`](#env)
+- [Runtime state](#runtime-state)
+
 **Audience:** Operators and developers configuring an existing Jelly checkout. This reference describes configuration behavior; for a first run, follow [Getting Started](./QUICKSTART.md).
 
 Jelly separates versioned technical configuration, deployment environment values, and generated runtime state. **Browser execution is a separate operator choice:** native on-host, subnet-connected containers, or arbitrary reachable CDP addresses. See [Browser deployment and security choices](../reference/BROWSER_DEPLOYMENT.md) and the [container quickstart](./CONTAINER_CHROMIUM.md). The deployment helper preserves operator-selected sandbox/restriction/publication options and reports verification limits without silently changing them.

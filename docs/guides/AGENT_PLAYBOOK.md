@@ -2,6 +2,13 @@
 
 # Agent Tool-Selection Playbook
 
+## Table of Contents
+
+- [Choose the smallest applicable capability](#choose-the-smallest-applicable-capability)
+- [Example: select an option and verify it](#example-select-an-option-and-verify-it)
+- [Example: a recorded browser demonstration](#example-a-recorded-browser-demonstration)
+- [Recovery and final-output gate](#recovery-and-final-output-gate)
+
 **Audience:** Agents and maintainers resolving tool ambiguity while operating Jelly.
 
 The short normative bootstrap is [`.agent/instructions/mcp.md`](../../.agent/instructions/mcp.md). This playbook is intentionally retrievable on demand, not part of every MCP `initialize` response. The currently published `tools/list` and `inputSchema` remain authoritative, followed by `browser-schema` for small-surface semantic operations. Examples show patterns, not an alternative API definition.

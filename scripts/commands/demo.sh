@@ -24,7 +24,7 @@ Jelly CLI demo
 You choose actual menu options and enter sample values. All state is kept in
 memory; no Docker/Podman, MCP, network, configuration, filesystem writes,
 installers or tests are run. Business process diagrams are in:
-  docs/references/diagrams/DEV.SH.md
+  docs/reference/diagrams/DEV.SH.md
 HELP
 }
 

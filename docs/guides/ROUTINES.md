@@ -2,6 +2,13 @@
 
 # Routines
 
+## Table of Contents
+
+- [Graph routines](#graph-routines)
+- [HITL](#hitl)
+- [Reference routine](#reference-routine)
+- [Legacy routines](#legacy-routines)
+
 **Audience:** Developers defining reusable browser workflows.
 
 Routines compose focused browser primitives while preserving browser/session context.

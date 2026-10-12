@@ -1,4 +1,19 @@
+<div id="top"></div>
+
 # Jelly test suite
+
+## Table of Contents
+
+- [Test model](#test-model)
+- [Layout](#layout)
+- [Groups and stable IDs](#groups-and-stable-ids)
+- [Execution isolation](#execution-isolation)
+- [Running tests](#running-tests)
+- [Unified Cargo test frontend](#unified-cargo-test-frontend)
+- [Listing and catalog metadata](#listing-and-catalog-metadata)
+- [Activating and deactivating tests](#activating-and-deactivating-tests)
+- [Result artifacts](#result-artifacts)
+- [Test design rationale](#test-design-rationale)
 
 For the test-system map and group index, start at [`../INDEX.md`](../INDEX.md).
 
@@ -223,3 +238,5 @@ Tests are scenario-sized rather than assertion-sized. A stable ID describes one 
 Local fixtures are preferred for deterministic correctness. Live-site tests exist only where a real framework/site adds value that a fixture cannot. Their failures should be interpreted with the saved log and current site state because external deployment changes are not automatically Jelly regressions.
 
 A test should assert observable behavior, not implementation trivia, unless the implementation detail is itself a compatibility/performance contract (for example, no `data-jelly-ref` mutation in optimized runtime mode or one persistent CDP connection).
+
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>

@@ -1,4 +1,10 @@
+<div id="top"></div>
+
 # Changelog
+
+## Table of Contents
+
+- [Unreleased](#unreleased)
 
 All notable changes to this project will be documented in this file.
 
@@ -51,3 +57,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - MCP service installation rebuild freshness now includes the compile-time embedded dashboard stylesheet and font assets.
 - MCP installation and hosting now resolve the release build directory from the shared Cargo configuration, preventing installer/build-stamp drift from Cargo's configured target directory; an empty `JELLY_PUBLIC_URL` falls back to the local bind origin instead of becoming an empty OAuth issuer.
 - Legacy `wait-download` now prefers matching event-backed lifecycle state and uses the historical filesystem completion heuristic only when no lifecycle record exists; graceful browser stop, detected launcher-process exit, restart, and tracker loss convert unfinished downloads to explicit interrupted state, and non-overwrite destination policies reserve paths atomically.
+
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>

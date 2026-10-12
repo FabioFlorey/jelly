@@ -231,7 +231,7 @@ done
 if NO_COLOR=1 PATH="$DEMO_PATH" "$CLI" demo --scenario unsupported > "$TMP/demo-invalid" 2>&1; then fail 'invalid demo scene accepted'; fi
 
 # Business diagrams exist as a standalone Markdown artifact, not a CLI command.
-diagram="$ROOT/docs/references/diagrams/DEV.SH.md"
+diagram="$ROOT/docs/reference/diagrams/DEV.SH.md"
 [[ "$(grep -c '^flowchart TD' "$diagram")" -eq 5 ]] || fail 'expected five Markdown Mermaid trees'
 grep -Fq '# CLI Processes Diagrams' "$diagram" || fail 'document title missing'
 [[ "$(grep -Fc '&uarr; Back to top' "$diagram")" -eq 5 ]] || fail 'chapter nav links missing'

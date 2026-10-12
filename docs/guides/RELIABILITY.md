@@ -2,6 +2,20 @@
 
 # Reliability
 
+## Table of Contents
+
+- [Evidence and transitions](#evidence-and-transitions)
+- [Logical browser targets](#logical-browser-targets)
+- [Browser event subscriptions](#browser-event-subscriptions)
+- [Errors](#errors)
+- [MCP results](#mcp-results)
+- [Artifacts](#artifacts)
+- [Graph routines](#graph-routines)
+- [HITL and challenges](#hitl-and-challenges)
+- [Timeouts](#timeouts)
+- [Profile reuse](#profile-reuse)
+- [Tracing](#tracing)
+
 **Audience:** Developers designing reliable browser automation and diagnosing workflow failures.
 
 Jelly treats successful execution and verified state as different facts.

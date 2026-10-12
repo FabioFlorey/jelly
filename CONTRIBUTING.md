@@ -1,4 +1,10 @@
+<div id="top"></div>
+
 # Contributing to Jelly
+
+## Table of Contents
+
+- [Contributing to Jelly](#contributing-to-jelly)
 
 Jelly is **source-available and proprietary**, with free personal, non-commercial use under the [LICENSE](./LICENSE). Individuals may download, run, and privately modify Jelly for personal use, but may not redistribute it or publish modified versions. Repackaging, rebranding, white-labeling, resale, third-party hosting, and distribution of forks or derivative versions are not permitted under the personal-use grant. Commercial use requires a separate signed paid license with fees and revenue-sharing royalties. Contact [jelly@fabioflorey.com](mailto:jelly@fabioflorey.com) before commercial use.
 
@@ -9,3 +15,5 @@ For ordinary product defects, use [GitHub Issues](https://github.com/FabioFlorey
 **Security vulnerabilities must not be posted publicly.** Follow [SECURITY.md](./SECURITY.md) and contact the maintainer privately.
 
 For authorized development work, consult [docs/development/DEVELOPMENT.md](./docs/development/DEVELOPMENT.md), [docs/INDEX.md](./docs/INDEX.md), and [tests/INDEX.md](./tests/INDEX.md). **Before changing tests**, follow the [mandatory anti-duplication procedure](./tests/TAXONOMY.md#governance-decide-before-creating-tests): identify the observable contract, search existing Rust/scenario/integration tests, and justify reuse vs independent coverage. [AGENTS.md](./AGENTS.md) provides a short entry point for coding agents; the taxonomy remains authoritative. Run `./scripts/dev.sh check` (or `cargo run --locked --bin jelly-maint -- check docs` for docs-only edits) when changing the project. The Pages workflow publishes the static files directly from `site/`.
+
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>

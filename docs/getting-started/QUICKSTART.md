@@ -2,6 +2,18 @@
 
 # Getting Started
 
+## Table of Contents
+
+- [Interactive CLI and product walkthrough](#interactive-cli-and-product-walkthrough)
+- [Prerequisites](#prerequisites)
+- [1. Get the source](#1-get-the-source)
+- [2. Check dependencies and preview setup](#2-check-dependencies-and-preview-setup)
+- [3. Choose the hosting mode](#3-choose-the-hosting-mode)
+- [4. Install and start Jelly](#4-install-and-start-jelly)
+- [5. Verify the service](#5-verify-the-service)
+- [6. Perform a browser operation](#6-perform-a-browser-operation)
+- [Troubleshooting](#troubleshooting)
+
 **Audience:** Developers and operators setting up Jelly on a Linux workstation. This tutorial starts the MCP server, checks its HTTP endpoints, and demonstrates a browser operation.
 
 ## Interactive CLI and product walkthrough
@@ -22,7 +34,7 @@ In the demo, choose a sample computer with Docker, Podman, both, or neither; ent
 
 The demo's **Tests → Browser integration** choice uses the sample MCP and browser state. If no browser is selected or the sample MCP service is stopped, it reports **NOT RUN** and identifies the missing prerequisite. You can separately explore an example PASS or an intentionally failing integration with its diagnostics; neither is evidence of a live test.
 
-**For readers understanding the CLI processes:** Open [CLI Processes Diagrams](../references/diagrams/DEV.SH.md) directly as Markdown. It contains five Mermaid diagrams with a table of contents, brief process definitions and chapter navigation. The diagrams are separate from the interactive demo.
+**For readers understanding the CLI processes:** Open [CLI Processes Diagrams](../reference/diagrams/DEV.SH.md) directly as Markdown. It contains five Mermaid diagrams with a table of contents, brief process definitions and chapter navigation. The diagrams are separate from the interactive demo.
 
 Both CLI flows use the same honey-yellow headings, structured chapter spacing and confirmation language. `NO_COLOR` is respected.
 

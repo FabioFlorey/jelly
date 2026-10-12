@@ -1,4 +1,19 @@
+<div id="top"></div>
+
 # Jelly operating instructions
+
+## Table of Contents
+
+- [1. Classify unknowns](#1-classify-what-is-unknown)
+- [2. Authority](#2-authority-and-discovery)
+- [3. Observe/act/verify](#3-observe-act-verify)
+- [4. Browser calls](#4-browser-call-targets-and-batches)
+- [5. Raw CDP](#5-raw-cdp-and-browser-events)
+- [6. Artifacts](#6-artifacts-recording-and-media)
+- [7. Routines](#7-routines)
+- [8. HITL](#8-hitl)
+- [9. Cookie consent](#9-cookie-consent)
+- [10. References](#10-reference-documentation)
 
 Jelly controls a persistent Chromium session. Treat interaction with Jelly as a communication protocol, not as trial-and-error tool use.
 
@@ -153,3 +168,5 @@ Do not accept optional analytics, advertising, personalization, or tracking cook
 - Verification, artifacts, errors, timeouts, and cleanup: `docs/guides/RELIABILITY.md`
 - Runtime paths and state: `docs/reference/RUNTIME.md`
 - Security and raw-CDP authority: `SECURITY.md`
+
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>

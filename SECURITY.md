@@ -1,4 +1,13 @@
+<div id="top"></div>
+
 # Security
+
+## Table of Contents
+
+- [Reporting](#reporting)
+- [Browser-control authority](#browser-control-authority)
+- [Operator-selected browser security](#operator-selected-browser-security)
+- [Secrets](#secrets)
 
 Jelly controls a real browser and can expose that control through MCP. Treat authentication, OAuth, tunnel, and browser-control bugs as security-sensitive.
 
@@ -40,3 +49,5 @@ Publishing an unauthenticated CDP port can expose broad browser authority to any
 ## Secrets
 
 Never include `.env`, bearer tokens, OAuth secrets, tunnel tokens, Telegram credentials, cookies, or browser profile data in reports.
+
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>

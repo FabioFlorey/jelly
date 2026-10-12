@@ -1,4 +1,11 @@
+<div id="top"></div>
+
 # Remote Chromium (CDP)
+
+## Table of Contents
+
+- [Quick registration (UUID + automatic dessert names)](#quick-registration-uuid-automatic-dessert-names)
+- [Important limitations](#important-limitations)
 
 [Documentation index](../INDEX.md)
 
@@ -69,3 +76,5 @@ Each remote browser has an immutable UUID (`id`) and an optional human-readable 
 - CDP provides broad browser control and access to authenticated sessions. Loopback, VPNs and authenticated tunnels are available protection choices; Jelly does not prohibit an explicitly operator-selected public interface. The operator must evaluate exposure and enforce any required network and authentication controls. This choice is independent of Chromium sandbox configuration.
 - Do not share a browser CDP endpoint between Jelly workers expecting isolated state.
 - Tests must cover remote connection, disconnect/recovery, target isolation and download behavior before declaring feature parity with native browser mode.
+
+<div align="right"><sub><a href="#top">&uarr; Back to top</a></sub></div>

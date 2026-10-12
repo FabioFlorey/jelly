@@ -2,6 +2,11 @@
 
 # Agent Guidance Evaluation
 
+## Table of Contents
+
+- [Deterministic evaluator](#deterministic-evaluator)
+- [End-to-end task outcomes and improvement loop](#end-to-end-task-outcomes-and-improvement-loop)
+
 **Audience:** Maintainers evaluating changes to MCP instructions, tool descriptions, and tool-selection strategies.
 
 Jelly's instructions are an executable operating specification, not a promise of universal model performance. Evaluate **global instructions + current MCP schemas + selection behavior together**, using the [tool-selection playbook](../guides/AGENT_PLAYBOOK.md) and actual published contracts. The evaluator below is offline, requires no browser or credentials, and **does not** execute an LLM.
