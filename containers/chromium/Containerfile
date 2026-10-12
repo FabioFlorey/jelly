@@ -1,0 +1,15 @@
+FROM debian:bookworm-slim
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    chromium ca-certificates fonts-liberation fonts-noto-color-emoji \
+    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends socat chromium-sandbox \
+    && rm -rf /var/lib/apt/lists/*
+RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin jelly \
+    && mkdir -p /data/profile /browser-downloads \
+    && chown -R jelly:jelly /data /browser-downloads
+USER jelly
+EXPOSE 9222
+# A private in-container TCP forwarder exposes Chromium's loopback-only CDP to the engine network.
+# Publishing a host port remains an explicit operator choice at container run time.
+COPY entrypoint.sh /usr/local/bin/jelly-chromium-entrypoint
+ENTRYPOINT ["/bin/sh", "/usr/local/bin/jelly-chromium-entrypoint"]

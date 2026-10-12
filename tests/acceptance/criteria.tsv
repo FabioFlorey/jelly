@@ -1,0 +1,7 @@
+# criterion_id<TAB>title<TAB>observable acceptance criterion<TAB>owner<TAB>decision
+AC-BROWSER-001	Automatic browser identity	Registering distinct CDP browser endpoints yields distinct persistent UUIDs and unused Jelly dessert aliases.	unassigned	proposed
+AC-BROWSER-002	Isolated browser routing	Two registered browser_ids can navigate independent pages without sharing target labels, state or download artifacts.	unassigned	proposed
+AC-NET-001	Connection topology choices	An operator can select native, dedicated-subnet or address-based CDP access; the connection mode is reported accurately.	unassigned	proposed
+AC-SEC-001	Explicit security choice	When a chosen sandbox/restriction combination fails, Jelly diagnoses failure and suggests options without silently changing the requested settings.	unassigned	proposed
+AC-SEC-002	Explicit CDP publication	Publishing CDP on a requested bind IP:port is an opt-in choice; defaults do not publish host ports and exposure is reported.	unassigned	proposed
+AC-DOWNLOAD-001	Remote download policies	Each remote browser applies its selected remote-only, shared-volume or HTTP(S) transfer policy and reports correct artifact availability.	unassigned	proposed

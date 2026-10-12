@@ -7,6 +7,8 @@
 mod agent;
 mod artifacts;
 mod browser;
+/// Pluggable browser process lifecycle boundary.
+pub mod browser_backend;
 /// Browser process launcher used by the `agent-open-browser` binary.
 pub mod browser_launcher;
 pub mod config;
@@ -47,7 +49,7 @@ pub(crate) use shell::downloads::start_download_tracker;
 /// First-class browser download lifecycle records and operations.
 pub use shell::downloads::{
     DownloadRecord, cancel_download, download_record, download_records, finalize_download,
-    wait_download,
+    transfer_remote_download, wait_download,
 };
 
 /// Browser session, target, event, and runtime-path types required by package clients.

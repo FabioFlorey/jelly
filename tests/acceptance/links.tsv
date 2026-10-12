@@ -1,0 +1,3 @@
+# criterion_id<TAB>test_id<TAB>evidence_role (primary|supporting). No implicit acceptance from passing a test.
+AC-SEC-001	QLT-020	supporting
+AC-SEC-002	QLT-020	supporting

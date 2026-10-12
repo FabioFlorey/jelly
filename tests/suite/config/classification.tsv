@@ -1,0 +1,95 @@
+# id scope size focus execution environment review_status lifecycle triage related_ids reason
+# Source for independent classification and maintenance triage only; jt_register is the source for executable behavior and expected outcomes.
+# triage=retain|consolidate|reassess; lifecycle=active|deprecated|retired; review_status stays provisional pending confirmed behavior review.
+# related_ids uses comma-separated stable IDs or -; reason is a single-line review rationale without tabs.
+API-001	component	medium	functional	automated	local-toolchain	provisional	active	retain	API-021	Explicit raw-off small-surface projection; API-021 separately tests the configured projection.
+API-002	component	medium	functional	automated	local-toolchain	provisional	active	retain	API-022	Explicit large-surface registry projection; API-022 separately tests raw-on publication.
+API-003	component	medium	functional	automated	local-toolchain	provisional	active	retain	-	Ordered system-tool binding parity across small/large surfaces.
+API-004	component	medium	functional	automated	local-toolchain	provisional	active	retain	-	Capability enumeration consistency with semantic registry.
+API-005	component	medium	functional	automated	local-toolchain	provisional	active	retain	-	Deterministic intent-ranked schema discovery, distinct from DOM ranking.
+API-006	component	medium	functional	automated	local-toolchain	provisional	active	retain	-	Strict named JSON schema projection rather than CLI argument parsing.
+API-007	component	medium	functional	automated	local-toolchain	provisional	active	retain	-	Raw-disabled preflight denies the privileged method form without acquiring a browser.
+API-008	component	medium	functional	automated	local-toolchain	provisional	active	retain	-	Raw policy enablement and invalid-setting handling across publication surfaces.
+API-009	system	medium	functional	automated	native-browser	provisional	active	retain	-	Real-CDP semantic read through browser-call, unlike offline schema-only tests.
+API-010	system	medium	functional	automated	native-browser	provisional	active	retain	-	Mixed mutation and postcondition in one ordered semantic batch.
+API-011	system	medium	functional	automated	native-browser	provisional	active	retain	-	Whole-batch preflight blocks earlier side effects when a later target is invalid.
+API-012	system	medium	functional	automated	native-browser	provisional	active	retain	-	on_error=stop prevents later side effects after an expected failure.
+API-013	system	medium	functional	automated	native-browser	provisional	active	retain	-	on_error=continue attempts later independent mutations after failure.
+API-014	system	medium	functional	automated	native-browser	provisional	active	retain	-	Stale target error typing at browser-call facade, not just CLI ref resolution.
+API-015	system	medium	functional	automated	native-browser	provisional	active	retain	EVT-003	Raw target destruction reconciles logical labels and leaves main target usable; event tests check notifications.
+API-016	system	medium	functional	automated	native-browser	provisional	active	retain	-	Target-scoped raw CDP result and attachment contract.
+API-017	system	medium	functional	automated	native-browser	provisional	active	retain	-	Browser-scoped raw CDP call is distinct from attached-page CDP.
+API-018	system	medium	functional	automated	native-browser	provisional	active	retain	-	Single batch preserves cross-mode ordering of semantic and privileged raw commands.
+API-019	system	medium	functional	automated	native-browser	provisional	active	retain	EVT-001,EVT-003	Public browser-events subscribe/poll/unsubscribe lifecycle; transport event tests verify buffering.
+API-020	system	medium	functional	automated	native-browser	provisional	active	retain	-	Removed subscription returns dedicated nonretryable typed error.
+API-021	component	medium	functional	automated	local-toolchain	provisional	active	retain	-	Live deployment-config small-surface projection; raw policy is independently operator-selected.
+API-022	component	medium	functional	automated	local-toolchain	provisional	active	retain	-	Large-surface raw-on contract includes top-level cdp-call and excludes facade entries.
+BST-001	system	medium	functional	automated	native-browser	provisional	active	retain	-	Origin-scoped cookie/local/session storage and trace secret-redaction behavior.
+BST-002	system	medium	functional	automated	native-browser	provisional	active	retain	-	CDP download GUID completion, artifact provenance and filesystem collision handling.
+BST-003	system	medium	functional	automated	native-browser	provisional	active	retain	-	Cancellation and graceful browser-stop download terminal states.
+BST-004	system	medium	functional	automated	native-browser	provisional	active	retain	-	SIGKILL reconciliation of orphaned in-progress downloads, not graceful stop behavior.
+EVT-001	system	medium	functional	automated	native-browser	provisional	active	retain	-	Events emitted during idle are fully recovered without loss by the next poll.
+EVT-002	system	medium	functional	automated	native-browser	provisional	active	retain	-	Bounded ring overflow accounts exactly for dropped events and cursor loss.
+EVT-003	system	medium	functional	automated	native-browser	provisional	active	retain	API-015,API-019	Distinct tab event-session routing and targetDestroyed attribution at CDP boundary.
+FWK-001	cross-system	large	functional	automated	public-web	provisional	active	retain	RUN-005	Real React controlled input/create reconciliation adds framework behavior absent in static local fixtures.
+FWK-002	cross-system	large	functional	automated	public-web	provisional	active	retain	RUN-002	Real React checkbox reconciliation and stable refs across re-render, unlike direct DOM mutation.
+FWK-003	cross-system	large	functional	automated	public-web	provisional	active	retain	RUN-003	Real React-owned removal and stale refs plus rebuild metrics; live framework compatibility only.
+HLT-001	system	medium	functional	automated	native-browser	provisional	active	retain	-	Auto mode isolates principal text fragment from a complex link.
+HLT-002	system	medium	functional	automated	native-browser	provisional	active	retain	-	Explicit box/content and auto shape modes have distinct geometry contracts.
+HLT-003	system	medium	functional	automated	native-browser	provisional	active	retain	-	Overlay follows animation-frame transforms and cleans after target removal.
+HLT-004	system	medium	functional	automated	native-browser	provisional	active	retain	-	Hidden/invalid targets are rejected and highlight clearing avoids page changes.
+QLT-001	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	consolidate	QLT-002,QLT-003,QLT-004	Formatting checks have multiple entry points; preserve auxiliary-crate formatting when consolidating under check.
+QLT-002	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	consolidate	QLT-001,QLT-003,QLT-004	All-target and auxiliary-crate cargo check overlaps build/lint gates; retain auxiliary targets during consolidation.
+QLT-003	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	consolidate	QLT-001,QLT-002,QLT-004	All-target cargo test overlaps CI and separate Rust runner; keep full target coverage if centralizing.
+QLT-004	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	consolidate	QLT-001,QLT-002,QLT-003	Root Clippy duplicates dev.sh check; auxiliary-manifest Clippy checks must survive consolidation.
+QLT-005	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	consolidate	-	Exactly the same tool-index validation is invoked directly by dev.sh check.
+QLT-006	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	consolidate	QLT-009	This case runs test-taxonomy.sh, already directly invoked by dev.sh check; eliminate double invocation.
+QLT-007	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	retain	QLT-019	Bash syntax checks tracked executable scripts, not only Markdown examples or safety checks.
+QLT-008	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	retain	-	Nested runner contention must fail with lock-specific code and reason.
+QLT-009	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	retain	QLT-006	All group/batch IDs appear in the test index; generic doc-link checks do not verify registry coverage.
+QLT-010	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	retain	-	Cargo test-jelly CLI output, argument forwarding and result summary remain stable.
+QLT-011	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	retain	-	Agent behavior instructions protect semantic/raw/HITL and retry boundaries.
+QLT-012	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	retain	-	Internal capability index must not be confused with published MCP tools/list.
+QLT-013	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	retain	-	Authorization documentation matches deployed raw setting and browser-scoped per-client sharing; fixed stale assertions.
+QLT-014	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	retain	-	Auxiliary probe lockfiles must share root dependency versions and checksums.
+QLT-015	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	reassess	-	Primitive-count assertion now follows the registry; intentionally fixed surface-ratio budgets still require a product decision when the API expands.
+QLT-016	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	consolidate	QLT-019	Exactly the same jelly-maint architecture gate is invoked directly by dev.sh check.
+QLT-017	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	retain	-	MCP service/install scripts must use one canonical Cargo build root.
+QLT-018	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	consolidate	QLT-011	Exactly the same agent-guidance self-test is invoked directly by dev.sh check.
+QLT-019	not-applicable	medium	tooling	automated	local-toolchain	provisional	active	consolidate	QLT-007,QLT-016	Exactly the same jelly-maint security gate is invoked directly by dev.sh check.
+QLT-020	component	medium	functional	automated	local-toolchain	provisional	active	consolidate	-	Exactly the same mock browser-policy.sh is invoked directly by dev.sh check; never call it sandbox attestation.
+RANK-001	system	medium	functional	automated	native-browser	provisional	active	retain	-	CLI validation and clamping for invalid and excessive paging values.
+RANK-002	system	medium	functional	automated	native-browser	provisional	active	retain	-	Snapshot page concatenation, limits and offsets in both runtime and legacy implementations.
+RANK-003	system	medium	functional	automated	native-browser	provisional	active	retain	-	Semantic-search paging is gap-free, non-overlapping and rank-stable.
+RANK-004	system	medium	functional	automated	native-browser	provisional	active	retain	SEM-002	Runtime-vs-legacy parity for ordering; SEM-002 validates richer ranking rules primarily in runtime.
+WEB-001	cross-system	large	functional	automated	public-web	provisional	active	retain	-	Live external Selenium forms exercise real controls including disabled and readonly rejection.
+WEB-002	cross-system	large	functional	automated	public-web	provisional	active	retain	-	Live Selenium page screenshot/recording/tab lifecycle and active-target handoff.
+WEB-003	cross-system	large	functional	automated	public-web	provisional	active	reassess	SHD-002	Distinct real consent/Shadow DOM behavior but volatile third-party Porsche/Usercentrics text and destructive fresh-profile precondition.
+REF-001	system	medium	functional	automated	native-browser	provisional	active	retain	-	Document token format is reflected in refs without injecting DOM attributes.
+REF-002	system	medium	functional	automated	native-browser	provisional	active	retain	-	Same DOM node move preserves identity; cloned replacement invalidates old ref.
+REF-003	system	medium	functional	automated	native-browser	provisional	active	retain	-	Adversarial DOM-authored ref attribute cannot hijack stale tokenized ref.
+REF-004	system	medium	functional	automated	native-browser	provisional	active	retain	RUN-007,RBK-002	Rollback and navigation must invalidate prior ref namespaces; RUN-007 additionally checks runtime hook cleanup.
+REF-005	system	medium	functional	automated	native-browser	provisional	active	retain	-	Image-inspection result can resolve via generic target semantics.
+RBK-001	system	medium	functional	automated	installed-mcp	provisional	active	retain	RBK-002,RBK-003	Four-way persistent-session x runtime feature matrix through MCP, not just CLI.
+RBK-002	system	medium	functional	automated	installed-mcp	provisional	active	retain	REF-004,RUN-007,RBK-001	Cross-MCP-restart mode transitions reject refs from previous modes.
+RBK-003	system	medium	functional	automated	installed-mcp	provisional	active	retain	RANK-002	MCP configuration snapshot_limit=0 and explicit override propagate in both runtime modes.
+RUN-001	system	medium	functional	automated	native-browser	provisional	active	retain	-	Unrelated DOM mutation leaves stable ref and creates no DOM-backed ref attributes.
+RUN-002	system	medium	functional	automated	native-browser	provisional	active	retain	-	Live disabled/checked/visibility/layout state is refreshed without ref churn.
+RUN-003	system	medium	functional	automated	native-browser	provisional	active	retain	-	Replacement and document navigation invalidate refs across runtime snapshots.
+RUN-004	system	medium	functional	automated	native-browser	provisional	active	retain	-	Newly attached and nested shadow roots invalidate index for semantic discovery.
+RUN-005	system	medium	functional	automated	native-browser	provisional	active	retain	-	Synchronous DOM mutation burst coalesces one dirty epoch and triggers rebuild.
+RUN-006	system	medium	functional	automated	native-browser	provisional	active	retain	-	ARIA/input value changes and silent property mutation update semantic-name cache.
+RUN-007	system	medium	functional	automated	native-browser	provisional	active	retain	REF-004,RBK-002	Runtime on/off/on lifecycle restores native attachShadow hook and removes stale runtime state.
+SEM-001	system	medium	functional	automated	native-browser	provisional	active	retain	-	Accessible-name sources: labels, ARIA, rendered text, placeholder, alt, title.
+SEM-002	system	medium	functional	automated	native-browser	provisional	active	retain	RANK-004	Exact/prefix/contains and actionability ordering including direct text resolution.
+SEM-003	system	medium	functional	automated	native-browser	provisional	active	retain	-	Generic text fallback, prefilter metrics, misses and legacy compatibility.
+SEM-004	system	medium	functional	automated	native-browser	provisional	active	retain	-	Hidden and transparent targets excluded consistently by discovery/visibility APIs.
+SEM-005	system	medium	functional	automated	native-browser	provisional	active	retain	-	Duplicate text scroll selects semantic section heading rather than earlier summary.
+SES-001	system	medium	functional	automated	installed-mcp	provisional	active	retain	-	One persistent CDP connection across navigation and tab operations.
+SES-002	system	medium	functional	automated	installed-mcp	provisional	active	retain	SES-003	MCP session observes external CLI tab selection, distinct from stale-target repair.
+SES-003	system	medium	functional	automated	installed-mcp	provisional	active	retain	SES-002,SES-004	Stale active-target ID returns retryable failure then repairs shared state.
+SES-004	system	medium	functional	automated	installed-mcp	provisional	active	retain	SES-003	Native browser death invalidates MCP cache and restart reconnects; remote close semantics differ.
+SHD-001	system	medium	functional	automated	native-browser	provisional	active	retain	-	Discover names and refs from shadow-root controls.
+SHD-002	system	medium	functional	automated	native-browser	provisional	active	retain	-	Interact with buttons/inputs through shadow-root-aware semantic APIs.
+SHD-003	system	medium	functional	automated	native-browser	provisional	active	retain	-	Geometry and screenshot/highlight artifacts from shadow targets.
+SHD-004	system	medium	functional	automated	native-browser	provisional	active	retain	-	Late shadow mutations and detached descendants invalidate old references.

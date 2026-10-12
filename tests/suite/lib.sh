@@ -20,6 +20,15 @@ declare -Ag JT_PRECONDITIONS=()
 declare -Ag JT_INPUT=()
 declare -Ag JT_EXPECTED=()
 declare -Ag JT_KIND=()
+# Independent classification axes loaded from config/classification.tsv.
+# Keep legacy JT_KIND for the execution harness and existing callers.
+declare -Ag JT_SCOPE=()
+declare -Ag JT_SIZE=()
+declare -Ag JT_FOCUS=()
+declare -Ag JT_EXECUTION=()
+declare -Ag JT_ENVIRONMENT=()
+declare -Ag JT_REVIEW_STATUS=()
+declare -Ag JT_LIFECYCLE=() JT_TRIAGE=() JT_RELATED_IDS=() JT_TRIAGE_REASON=()
 declare -Ag JT_FUNC=()
 
 jt_register() {

@@ -9,61 +9,23 @@ MODE=run
 case "${1:-}" in
   '') ;;
   --dry-run) MODE=dry-run; shift ;;
+  --quickstart) MODE=quickstart; shift ;; # Internal: quickstart installs only after browser review.
   *) dev::error 'usage: ./scripts/dev.sh setup [--dry-run]'; exit 2 ;;
 esac
 (($# == 0)) || { dev::error 'unexpected setup arguments'; exit 2; }
+# Render branding before prerequisites, without loading technical config or .env.
+dev::ui_init
+[[ "$MODE" == quickstart ]] || dev::brand full
+[[ "$MODE" == dry-run ]] && dev::note 'Dry run · no files or services will be changed.'
 # Check prerequisites BEFORE loading technical config or private .env data.
 dev::doctor
 # shellcheck source=../config.sh
 source "$ROOT/scripts/lib/config.sh"
 ENV_FILE="$ROOT/.env"
 ENV_EXAMPLE="$ROOT/.env.example"
-LOGO_FILE="$ROOT/$DEV_BRAND_LOGO"
-LOGO_WIDTH="$DEV_UI_MAX_WIDTH"
 dev::ui_init
 
 declare -A CFG=()
-
-banner() {
-  local -a logo=()
-  local line logo_width=0 tagline tagline_width pad=0 mode_label=""
-
-  if [[ -f "$LOGO_FILE" ]]; then
-    mapfile -t logo < "$LOGO_FILE"
-  else
-    logo=("jelly")
-  fi
-
-  for line in "${logo[@]}"; do
-    (( ${#line} > logo_width )) && logo_width=${#line}
-    if (( ${#line} > LOGO_WIDTH )); then
-      warn "Logo line exceeds ${LOGO_WIDTH} characters: $LOGO_FILE"
-      break
-    fi
-  done
-
-  tagline="$I_BRAND  browser instrumentation for agents  ·  interactive MCP configuration"
-  tagline_width=${#tagline}
-  (( logo_width > tagline_width )) && pad=$(( (logo_width - tagline_width) / 2 ))
-
-  printf '\n%b' "$C_HONEY$C_BOLD"
-  for line in "${logo[@]}"; do
-    printf '%s\n' "$line"
-  done
-  printf '%b\n' "$C_RESET"
-  printf '%*s%b%s%b  browser instrumentation for agents  %b·%b  interactive MCP configuration\n' \
-    "$pad" "" "$C_HONEY$C_BOLD" "$I_BRAND" "$C_RESET" "$C_HONEY" "$C_RESET"
-
-  case "$MODE" in
-    dry-run) mode_label="dry run · no changes will be written" ;;
-  esac
-  if [[ -n "$mode_label" ]]; then
-    pad=0
-    (( logo_width > ${#mode_label} )) && pad=$(( (logo_width - ${#mode_label}) / 2 ))
-    printf '%*s%b%s%b\n' "$pad" "" "$C_DIM" "$mode_label" "$C_RESET"
-  fi
-  printf '\n'
-}
 
 # Setup prompts and formatting.
 prompt_label() { printf '%b%s%b  %s' "$C_HONEY$C_BOLD" "$I_INFO" "$C_RESET" "$1"; }
@@ -316,12 +278,12 @@ write_env() {
 
 load_env
 
-banner
 if [[ -f "$ENV_FILE" ]]; then
   note "Existing .env detected. Press Enter to keep existing values."
   echo
 fi
 
+dev::step '1/4' 'Identity and access'
 explain "Used by direct MCP clients. Press Enter and Jelly will generate a secure token for you."
 ask_secret JELLY_MCP_TOKEN "MCP bearer token" true 32
 
@@ -344,6 +306,7 @@ explain "Enable this for ChatGPT so it can register itself as an OAuth client au
 ask_bool JELLY_OAUTH_PUBLIC_CHATGPT_DCR \
   "Allow public Dynamic Client Registration for ChatGPT callbacks" true
 
+dev::step '2/4' 'Connectivity and hosting'
 explain "Choose how Jelly becomes reachable. quick-tunnel is the easiest temporary public URL."
 ask_choice JELLY_HOSTING_MODE \
   "Hosting mode" \
@@ -399,6 +362,7 @@ case "${CFG[JELLY_HOSTING_MODE]}" in
     ;;
 esac
 
+dev::step '3/4' 'Optional integrations'
 explain "Optional: connect Telegram so Jelly can ask you for help when a workflow needs a human."
 ask_bool JELLY_CONFIGURE_TELEGRAM "Configure Telegram HITL now" \
   "$([[ -n "${CFG[JELLY_TELEGRAM_BOT_TOKEN]:-}" && -n "${CFG[JELLY_TELEGRAM_CHAT_ID]:-}" ]] && echo true || echo false)"
@@ -409,14 +373,35 @@ if [[ "${CFG[JELLY_CONFIGURE_TELEGRAM]}" == "true" ]]; then
   ask_secret JELLY_TELEGRAM_CHAT_ID "Telegram chat ID" false 1
 fi
 
+dev::step '4/4' 'Review and apply'
 check_selected_requirements
 unset 'CFG[JELLY_CONFIGURE_TELEGRAM]'
 
 if [[ "$MODE" == "dry-run" ]]; then
   print_redacted_summary
-  printf '\n%b%s%b  Validation complete. No changes made.\n' "$C_GREEN$C_BOLD" "$I_OK" "$C_RESET"
+  dev::success 'Validation complete. No changes made.'
   exit 0
 fi
+
+if [[ "$MODE" == quickstart ]]; then
+  CFG[JELLY_INSTALL_NOW]=false
+  explain 'Save MCP settings now; browser review and service startup follow in quickstart.'
+else
+  explain 'You can save the settings without installing or starting any services.'
+  ask_bool JELLY_INSTALL_NOW 'Build and install/start user services after saving' false
+fi
+print_redacted_summary
+dev::section 'WHAT WILL CHANGE'
+dev::item 'Config file' "$ENV_FILE (mode 0600; existing file backed up)"
+dev::item 'Service action' "$([[ "${CFG[JELLY_INSTALL_NOW]}" == true ]] && echo 'Build, install and start Jelly' || echo 'None')"
+dev::note 'No changes are made until you confirm.'
+if ! dev::ask_yes 'Save this configuration?'; then
+  dev::note 'Cancelled; no configuration or services changed.'
+  [[ "$MODE" == quickstart ]] && exit 3
+  exit 0
+fi
+apply_install="${CFG[JELLY_INSTALL_NOW]}"
+unset 'CFG[JELLY_INSTALL_NOW]'
 
 if [[ -f "$ENV_FILE" ]]; then
   backup="$ENV_FILE.backup.$(date +%Y%m%d%H%M%S%N)"
@@ -430,11 +415,13 @@ printf 'Hosting: %s\n' "${CFG[JELLY_HOSTING_MODE]}"
 printf 'OAuth consent: %s\n' "${CFG[JELLY_OAUTH_CONSENT_MODE]}"
 printf 'Public ChatGPT DCR: %s\n' "${CFG[JELLY_OAUTH_PUBLIC_CHATGPT_DCR]}"
 
-explain "Choose yes to apply this configuration and start Jelly now. Existing release binaries are reused when current."
-ask_bool JELLY_INSTALL_NOW "Build and install/start the user services now" true
-if [[ "${CFG[JELLY_INSTALL_NOW]}" == "true" ]]; then
+if [[ "$apply_install" == true ]]; then
   exec "$ROOT/scripts/commands/install.sh"
 fi
 
 printf '\n%b%s  Configuration complete%b\n' "$C_GREEN$C_BOLD" "$I_OK" "$C_RESET"
-printf '  Start later with: %b./scripts/dev.sh install%b\n' "$C_HONEY" "$C_RESET"
+if [[ "$MODE" == quickstart ]]; then
+  dev::note 'MCP configuration saved; returning to quickstart.'
+else
+  printf '  Start later with: %b./scripts/dev.sh install%b\n' "$C_HONEY" "$C_RESET"
+fi

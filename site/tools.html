@@ -67,6 +67,18 @@
         </p>
       </section>
       <section>
+        <h2>Remote browser selection and download storage</h2>
+        <p>
+          When the remote CDP backend is configured, <code>tools/list</code> adds optional top-level
+          <code>browser_id</code> to tool inputs. Select the immutable UUID or an easy name such as
+          <code>Jelly-Applepie</code>. This chooses a Chromium instance; <code>target</code> still chooses a page
+          inside that browser. The native backend omits this field. Remote download policies are
+          <code>remote-only</code>, <code>shared-volume</code> and <code>transfer</code>. Explicit
+          <code>download</code> <code>action: "transfer"</code> uses a separately configured HTTP(S) file bridge; HTTP transfers are unencrypted and warned about.
+          Browser connection and sandbox security choices are independent of the MCP client authentication policy.
+        </p>
+      </section>
+      <section>
         <h2>
           Jump to a tool
         </h2>
@@ -273,7 +285,7 @@
           <code>open-browser</code>
         </h2>
         <p>
-          Start shared Chromium and optionally open a URL
+          Start native Chromium, or connect to the selected remote CDP browser, and optionally open a URL
         </p>
         <dl class="tool-fields">
           <dt>
@@ -329,7 +341,7 @@
           <code>close-browser</code>
         </h2>
         <p>
-          Stop shared Chromium
+          Stop managed native Chromium; remote mode detaches Jelly without stopping external Chromium
         </p>
         <dl class="tool-fields">
           <dt>
@@ -610,14 +622,14 @@
           <code>download</code>
         </h2>
         <p>
-          List, inspect, wait for, or cancel Chromium downloads
+          List, inspect, wait for, explicitly transfer, or cancel Chromium downloads
         </p>
         <dl class="tool-fields">
           <dt>
             Parameters
           </dt>
           <dd>
-            action: list | status | wait | cancel (required); id?: string (required for status/wait/cancel); seconds?:
+            action: list | status | wait | transfer | cancel (required); id?: string (required for status/wait/transfer/cancel); seconds?:
             integer ≥1 (default 30); destination?: string; collision?: fail | overwrite | uniquify (default fail)
           </dd>
           <dt>
@@ -630,7 +642,7 @@
             Side effects
           </dt>
           <dd>
-            Reads download state; cancel/wait/destination can mutate/write files
+            Reads download state; cancel/wait/transfer/destination can mutate/write files. Remote-only waits do not copy files; transfer requires an operator-provided HTTP(S) artifact bridge.
           </dd>
           <dt>
             Expected failures

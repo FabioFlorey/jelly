@@ -14,7 +14,8 @@ session_start_mcp() {
   jt_config_set mcp persistent_session true
   jt_config_set diagnostics perf_log "$([[ "$perf" == 1 ]] && echo true || echo false)"
   JELLY_MCP_ADDR="127.0.0.1:${port}" \
-  JELLY_PUBLIC_URL="http://127.0.0.1:${port}" \
+  # Synthetic HTTPS issuer for the configured remote-http profile; the test calls loopback HTTP with bearer auth.
+  JELLY_PUBLIC_URL="https://jelly.invalid" \
     "$BIN_DIR/jelly-mcp" >"$SESSION_MCP_LOG" 2>&1 &
   SESSION_MCP_PID=$!
   for _ in {1..80}; do

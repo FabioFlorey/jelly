@@ -134,19 +134,19 @@ journalctl --user -u jelly-mcp.service -n 50 --no-pager</code></pre>
           Browser tool fails with browser_unavailable
         </h2>
         <p>
-          <strong>Likely cause:</strong> Chromium is not running or the browser launch failed.
+          <strong>Likely cause:</strong> Chromium is not running, CDP is unreachable, or sandbox/container restrictions prevented startup.
         </p>
         <p>
           <strong>Diagnostic check:</strong>
         </p>
         <pre><code>command -v chromium
-systemctl --user status jelly-browser.service</code></pre>
+systemctl --user status jelly-browser.service
+./scripts/dev.sh browser diagnose --engine docker --container jelly-chromium-1</code></pre>
         <p>
-          <strong>Resolution:</strong> Verify Chromium at /usr/bin/chromium and inspect service logs; use open-browser to
-          start it.
+          <strong>Resolution:</strong> For native mode, verify Chromium at /usr/bin/chromium and inspect service logs. For a container, inspect engine logs and the requested sandbox/restrictions; consider different kernel namespace/seccomp settings or explicit operator-selected alternative options. For remote address mode, verify CDP routing and credentials/tunnel. Jelly never changes security preferences silently.
         </p>
         <p>
-          <strong>Verification:</strong> The open-browser operation succeeds before browser-call read-page.
+          <strong>Verification:</strong> CDP connectivity and tool calls succeed. This does NOT prove the effective Chromium sandbox is active; that requires separate verification.
         </p>
       </section>
       <section id="issue-6">

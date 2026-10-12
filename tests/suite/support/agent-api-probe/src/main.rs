@@ -576,6 +576,11 @@ fn surface_report() -> Result<(), Box<dyn Error>> {
     ];
 
     let mut report = serde_json::Map::new();
+    // The primitive registry, not an external shell assertion, owns this count.
+    report.insert(
+        "semantic_primitive_count".into(),
+        json!(primitive_specs.len()),
+    );
     for (name, surface, raw) in variants {
         let catalog = agent_catalog_for_surface(surface, raw);
         let tools_list = subprocess_tools_list(surface, raw)?;

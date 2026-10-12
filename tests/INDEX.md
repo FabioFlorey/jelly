@@ -1,13 +1,15 @@
 # Jelly tests
 
-This directory is the entry point for Jelly validation.
+This directory is the entry point for Jelly validation. **Before adding a test, read the [anti-duplication and lifecycle rules](./TAXONOMY.md#governance-decide-before-creating-tests).** Reuse tests with the same observable contract; prefer environment parameters over duplicated implementation. [AGENTS.md](../AGENTS.md) is the short coding-agent entry point. For the new classification model and a field-by-field inventory of current/future metadata, see [Test Taxonomy and Acceptance](./TAXONOMY.md).
 
-Jelly uses two complementary test layers:
+Jelly maintains three separate concepts: **test cases** (the executable catalog), **test suites** (sets of IDs selected for a purpose) and **acceptance criteria** (product-facing requirements with separate signoff). Their metadata and relationships are described in [Test Taxonomy](./TAXONOMY.md). Jelly uses two complementary execution layers:
 
 - Rust tests, run with `cargo test-jelly --all-targets` for the tabular frontend (or directly with `cargo test --all-targets`), for unit- and target-level behavior.
 - The scenario suite in [`suite/`](./suite/README.md), which exercises Jelly through its binaries, MCP boundary, browser runtime, fixtures, rollback modes, and real-world browser workflows.
 
 ## Start here
+
+**Canonical entry points:** `./scripts/dev.sh check` runs formatting (root + auxiliary manifests), Clippy (root + auxiliaries), architecture/security/documentation checks, and CLI/policy/catalog guards. `./scripts/dev.sh test` runs `cargo test --all-targets --locked` exactly once. CI calls those two commands; it does not repeat selected binary tests. The scenario `quality` group remains an explicit compatibility interface, **not** an additional default CI stage.
 
 For Rust validation with a compact per-target table:
 
@@ -39,6 +41,10 @@ The detailed suite contract, command reference, reporting format, and test-desig
 | Path | Purpose |
 | --- | --- |
 | [`suite/run.sh`](./suite/run.sh) | Canonical scenario-test runner: selection, locking, preflight builds, execution, and reporting |
+| [`suite/config/classification.tsv`](./suite/config/classification.tsv) | Scope, size, focus, environment plus active/deprecated/retired lifecycle and retain/consolidate/reassess triage for every case |
+| [`suite/config/suites.tsv`](./suite/config/suites.tsv) | Explicit named sets of stable test IDs, independent of domain groups |
+| [`acceptance/criteria.tsv`](./acceptance/criteria.tsv) | Proposed product acceptance criteria, owner and separate approval state |
+| [`acceptance/links.tsv`](./acceptance/links.tsv) | Criterion-to-test evidence relationships; no implied approval |
 | [`suite/lib.sh`](./suite/lib.sh) | Test registration, assertions, browser lifecycle helpers, fixture helpers, and common utilities |
 | [`suite/groups/`](./suite/groups/) | Scenario implementations grouped by subsystem |
 | [`suite/config/`](./suite/config/) | Named batches plus persistent test/group disable lists |
@@ -56,6 +62,17 @@ Browser/build runtime state likewise stays outside the repository.
 ## Agent-routing evaluation
 
 [`fixtures/agent-guidance-cases.json`](./fixtures/agent-guidance-cases.json) contains deterministic intent-to-tool cases for the [offline evaluator](../scripts/maintenance/guidance.rs). Run `cargo run --locked --bin jelly-maint -- check agent-guidance --self-test` to check its scoring contract without starting a browser. Real agent decisions can be evaluated with `--predictions`, but verified end-to-end browser task success requires a separate execution run. See [Agent Guidance Evaluation](../docs/development/AGENT_EVALUATION.md).
+
+## Test taxonomy and acceptance coverage
+
+Use the read-only catalog filters to inspect the migrated metadata:
+
+```bash
+./scripts/dev.sh test --catalog --scope system --environment native-browser
+./scripts/dev.sh test --acceptance-report
+```
+
+A source-level contract/assertion review of all 91 scenarios revised the preliminary triage to **79 retain, 10 consolidate, 2 reassess**. The 10 consolidation candidates concern duplicate execution of quality gates, **not** necessarily redundant assertions. The 2 reassess cases are `QLT-015` (intentional MCP surface-ratio thresholds to review when the API grows) and `WEB-003` (volatile live Porsche consent flow). All remain `active` and `provisional`: runtime behavior of the native browser cases was **not** verified by this audit, and no tests were retired. The Rust inline unit tests are separate from this scenario catalog. See [Test Taxonomy](./TAXONOMY.md) before treating counts as verified levels.
 
 ## Test groups
 
@@ -82,9 +99,9 @@ The authoritative definitions live in [`suite/config/batches.tsv`](./suite/confi
 
 | Batch | Intended use |
 | --- | --- |
-| `deterministic` | Default local validation; includes quality and deterministic browser/MCP groups |
-| `browser` | Deterministic browser/MCP behavior without the quality group |
-| `fast` | Smaller focused subset for quick iteration |
+| `deterministic` | Default behavior validation: deterministic browser/MCP groups, **excluding duplicate quality gates** (run `./scripts/dev.sh check` separately) |
+| `browser` | Browser/API behavior without the **MCP session and rollback** groups; use `deterministic` for the full installed MCP/browser matrix |
+| `fast` | Focused browser scenarios only; no repeated compile/lint gate |
 | `network` | External React and real-world website tests; failures can reflect upstream site changes |
 
 Use stable test IDs when isolating a failure:

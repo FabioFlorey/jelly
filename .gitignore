@@ -10,6 +10,9 @@ Thumbs.db
 *~
 
 # Environment / secrets
+# Browser registration may include private CDP URLs and artifact credentials.
+config/browsers.toml
+.jelly-downloads/
 .env
 .env.*
 !.env.example

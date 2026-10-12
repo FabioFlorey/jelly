@@ -73,6 +73,8 @@ The default listener is `127.0.0.1:8787`; override it with `JELLY_MCP_ADDR` if n
 
 ## Tool mapping
 
+**Remote browser routing:** with `[browser].backend = "remote-cdp"`, published MCP tool input schemas gain an optional top-level `browser_id` (stable UUID or the registered `Jelly-*` alias). Browser operations, including `browser-call`, `browser-events`, `download`, `open-browser` and `close-browser`, are routed to the selected browser state. Without a selector, `JELLY_BROWSER_ID` remains the process fallback. This is different from `target`, which selects a page *within* a browser. The remote `close-browser` operation detaches Jelly but does not stop the externally managed Chromium. See [Browser deployment](./BROWSER_DEPLOYMENT.md) for connection modes and limitations. Download actions include `list`, `status`, `wait`, `transfer` (explicit HTTP(S) artifact materialization) and `cancel`; `remote-only` waits may complete without a Jelly-local file.
+
 The MCP adapter publishes a validated **Agent Tool Catalog**. The catalog is a projection layer: bindings still point to Jelly's canonical browser-primitive/system-tool definitions or to native Agent API builtins, but publication and execution use the same catalog allowlist rather than iterating internal registries directly. Remote clients discover this published surface through `tools/list`; the generated `.agent/tools/index.md` and `agent-discover` describe internal capabilities instead and are not substitutes for MCP discovery.
 
 The MCP surface is selected by `config/jelly.toml` at `[mcp].surface`. Accepted values are `large-surface` and `small-surface`; unknown values are configuration errors and MCP startup fails.
@@ -196,7 +198,7 @@ tools/call
 notifications such as notifications/initialized
 ```
 
-The HTTP MCP transport is stateless. Browser continuity comes from Jelly's persistent Chromium process and shared runtime state, while the MCP server also caches one process-wide `BrowserSession` for browser-bound catalog entries by default to avoid repeated CDP connect/attach work. That session, including its retained event ring and `browser-events` subscriptions, is shared across authenticated MCP clients in the current single-owner deployment model; it is not isolated per OAuth client.
+The HTTP MCP transport is stateless. Browser continuity comes from Jelly's persistent Chromium process and runtime state. In native mode, the MCP server caches one `BrowserSession` by default; in remote-CDP mode, sessions are cached separately per-browser UUID to avoid cross-browser target, event and artifact state. Clients selecting the same browser UUID can still share that browser's retained event ring and `browser-events` subscriptions: isolation is per browser, **not per OAuth client**. An explicit `browser_id` selects the remote browser UUID or easy name.
 
 The session maintains page-only flattened auto-attach mappings internally, so Agent API calls and `browser-events` use logical targets (`main`, `tab-N`) rather than CDP `sessionId` values. Set `[mcp].persistent_session = false` to disable that cache for rollback diagnostics. Runtime-scoped `browser-events` subscriptions require the cached persistent BrowserSession; when persistent sessions are disabled, that builtin returns `unsupported` rather than creating an ID that could not survive to the next poll.
 

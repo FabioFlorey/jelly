@@ -4,7 +4,7 @@
 
 **Audience:** Developers and maintainers who need to understand system boundaries before changing Rust modules or deployment behavior.
 
-Jelly separates browser transport, semantic browser capabilities, system/integration tools, orchestration, agent-facing discovery, MCP authentication, and a remote MCP adapter. This document explains current component relationships; see [MCP Server](../reference/MCP.md) for endpoint contracts and [Routines](../guides/ROUTINES.md) for executable workflows.
+Jelly separates browser transport, semantic browser capabilities, system/integration tools, orchestration, agent-facing discovery, MCP authentication, and a remote MCP adapter. With the remote-CDP backend, per-call `browser_id` is resolved from a UUID/easy name into an independently cached browser session and runtime tree; the Docker/Podman container helper is optional infrastructure, not a dependency of the browser core. Deployment security policy is explicitly operator-selected, not inferred from browser availability. The [browser deployment model](../reference/BROWSER_DEPLOYMENT.md) defines requested, observed and unverified properties. This document explains current component relationships; see [MCP Server](../reference/MCP.md) for endpoint contracts and [Routines](../guides/ROUTINES.md) for executable workflows.
 
 ```mermaid
 flowchart LR

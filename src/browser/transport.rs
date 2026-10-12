@@ -22,9 +22,15 @@ pub(crate) struct CdpNotification {
 
 impl CdpTransport {
     pub(crate) fn connect(endpoint_path: &str) -> Result<Self, Error> {
-        let endpoint = fs::read_to_string(endpoint_path).map_err(|error| {
-            browser_unavailable(format!("failed to read CDP endpoint: {error}"))
-        })?;
+        let endpoint = if crate::config::config().browser.backend
+            == crate::browser_backend::BrowserBackendKind::RemoteCdp
+        {
+            crate::config::selected_remote_endpoint().map_err(browser_unavailable)?
+        } else {
+            fs::read_to_string(endpoint_path).map_err(|error| {
+                browser_unavailable(format!("failed to read CDP endpoint: {error}"))
+            })?
+        };
         let (mut ws, _) = connect(endpoint.trim())
             .map_err(|error| browser_unavailable(format!("failed to connect to CDP: {error}")))?;
 

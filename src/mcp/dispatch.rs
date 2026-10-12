@@ -22,14 +22,63 @@ pub fn mcp_tools_for_config(
     )?))
 }
 
+fn with_remote_browser_selector(mut input_schema: Value, remote: bool) -> Value {
+    if !remote {
+        return input_schema;
+    }
+    let id_field = json!({"type":"string", "minLength":1, "description":"Remote Chromium UUID or configured Jelly-* easy name; selects the browser, not a page target"});
+    if let Some(properties) = input_schema
+        .get_mut("properties")
+        .and_then(Value::as_object_mut)
+    {
+        properties.insert("browser_id".into(), id_field.clone());
+    }
+    if let Some(branches) = input_schema.get_mut("oneOf").and_then(Value::as_array_mut) {
+        for branch in branches {
+            if let Some(properties) = branch.get_mut("properties").and_then(Value::as_object_mut) {
+                properties.insert("browser_id".into(), id_field.clone());
+            }
+        }
+    }
+    input_schema
+}
+
+#[cfg(test)]
+mod browser_selector_schema_tests {
+    use super::*;
+    #[test]
+    fn optional_browser_id_is_injected_into_root_and_one_of_branches() {
+        let object = json!({"type":"object","properties":{"action":{"type":"string"}},"additionalProperties":false});
+        assert!(
+            with_remote_browser_selector(object.clone(), false)["properties"]
+                .get("browser_id")
+                .is_none()
+        );
+        assert_eq!(
+            with_remote_browser_selector(object, true)["properties"]["browser_id"]["minLength"],
+            1
+        );
+        let variants = json!({"oneOf":[{"type":"object","properties":{"action":{"const":"search"}},"additionalProperties":false},{"type":"object","properties":{"action":{"const":"schema"}},"additionalProperties":false}]});
+        let result = with_remote_browser_selector(variants, true);
+        for branch in result["oneOf"].as_array().unwrap() {
+            assert_eq!(branch["properties"]["browser_id"]["type"], "string");
+        }
+    }
+}
+
 pub(super) fn mcp_tools_from_catalog(catalog: &AgentToolCatalog) -> Vec<Value> {
     catalog
         .iter()
         .map(|tool| {
+            let input_schema = with_remote_browser_selector(
+                tool.input_schema().clone(),
+                crate::config::config().browser.backend
+                    == crate::browser_backend::BrowserBackendKind::RemoteCdp,
+            );
             json!({
                 "name": tool.name(),
                 "description": tool.description(),
-                "inputSchema": tool.input_schema(),
+                "inputSchema": input_schema,
                 "outputSchema": tool.output_schema(),
                 "securitySchemes": [{"type":"oauth2","scopes":["jelly"]}],
                 "_meta": {
@@ -175,6 +224,44 @@ pub(super) fn execute_tool_from_catalog(
             false,
         )
     })?;
+    let browser_id = match object.get("browser_id") {
+        Some(Value::String(id)) => Some(id.as_str()),
+        Some(_) => {
+            return Err(ToolFailure::new(
+                ErrorKind::InvalidArguments,
+                "browser_id must be a string",
+                false,
+            ));
+        }
+        None => None,
+    };
+    if let Some(id) = browser_id {
+        let configured = &crate::config::config().browser;
+        if configured.backend != crate::browser_backend::BrowserBackendKind::RemoteCdp
+            || crate::config::resolve_remote_id(id).is_err()
+        {
+            return Err(ToolFailure::new(
+                ErrorKind::InvalidArguments,
+                "unknown or invalid remote browser_id",
+                false,
+            ));
+        }
+    }
+    let mut clean_arguments = arguments.clone();
+    if let Some(fields) = clean_arguments.as_object_mut() {
+        fields.remove("browser_id");
+    }
+    crate::config::with_browser_id(browser_id, || {
+        execute_tool_routed(catalog, name, &clean_arguments)
+    })
+}
+
+fn execute_tool_routed(
+    catalog: &AgentToolCatalog,
+    name: &str,
+    arguments: &Value,
+) -> Result<String, ToolFailure> {
+    let object = arguments.as_object().expect("validated object");
     let tool = catalog.get(name).ok_or_else(|| {
         ToolFailure::new(
             ErrorKind::Unsupported,

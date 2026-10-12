@@ -4,7 +4,7 @@
 
 **Audience:** Operators managing browser state, artifacts, backups, and cleanup.
 
-Jelly keeps browser state, profiles, logs, artifacts, and build output outside the repository. The runtime root is configured by `config/jelly.toml` (`/data/jelly-runtime` by default). The tree below describes paths within that runtime root; compiled Cargo output is stored separately at `/data/.jelly-build`. MCP surface selection is startup configuration rather than persisted runtime state and follows the configuration precedence documented in [Configuration](../getting-started/CONFIGURATION.md).
+Jelly keeps browser state, profiles, logs, artifacts, and build output outside the repository. With `[browser].backend = "remote-cdp"`, browser-specific state lives under `<runtime_root>/remote/<browser-uuid>/`, so UUID/easy-name routing does not mingle target labels, downloads and artifacts between remote browsers. The separately managed remote profile and external CDP browser remain outside Jelly's runtime ownership; native mode retains the root-level paths shown below. See [Browser deployment](./BROWSER_DEPLOYMENT.md). The runtime root is configured by `config/jelly.toml` (`/data/jelly-runtime` by default). The tree below describes paths within that runtime root; compiled Cargo output is stored separately at `/data/.jelly-build`. MCP surface selection is startup configuration rather than persisted runtime state and follows the configuration precedence documented in [Configuration](../getting-started/CONFIGURATION.md).
 
 ```text
 <runtime_root>/
@@ -46,6 +46,8 @@ Jelly keeps browser state, profiles, logs, artifacts, and build output outside t
 
 Screenshot metadata records provenance, dimensions, trace linkage, and verification state. Screenshots capture Chromium-rendered page content, not the desktop. A specific target such as `css:body`, `css:main`, exact visible text, or a Jelly element ref can be captured directly.
 
+In remote mode, download records can complete without a Jelly-local file (`remote-only`), use a host-mounted GUID file (`shared-volume`), or be materialized through an explicitly configured HTTP(S) artifact bridge (`transfer`). The artifact bridge is not bundled with the container quickstart.
+
 `state/downloads.json` is the file-locked, atomically replaced lifecycle index for browser downloads and retains at most 512 recent records. Chromium is configured with GUID-named managed download files under `artifacts/downloads/`; completed files become immutable registered artifacts when finalized, and an explicit destination is a copy rather than a relocation of the managed original. In-progress records are converted to `interrupted` on a clean browser stop, when list/status/wait observes that the recorded browser launcher process has exited, at the next browser start after an unclean stop, or if the dedicated download-event connection is lost.
 
 Browser recordings support two modes. `continuous` streams renderer frames for Jelly's shared active browser target directly into FFmpeg, so individual frame files are not written to disk. Before each frame it follows a live active-target change made by another Jelly browser session; a transient invalid/stale external target does not abort the recording, which continues against its last attached target until a valid selection is available. `steps` captures a temporary browser screenshot after relevant successful actions, records redacted tool metadata, and builds a variable-frame-rate H.264 MP4 where each action frame is held for the configured duration. Step labels resolve human-readable target names before the action so the rendered text describes the action shown without exposing internal Jelly refs; labels use concise action-in-progress wording such as `clicking Submit`. Text-entry payloads are redacted from step metadata, and recorded URLs omit credentials, query strings, and fragments. Step videos use resolution-aware Jelly overlays: honey text, black backing, concise action labels, and a small favicon watermark. On stop, Jelly registers the MP4 and manifest, then removes all temporary recording files. The desktop is never part of either recording mode. `latest.png` remains a convenience path; reliability-sensitive workflows should pass artifact IDs.
@@ -61,8 +63,8 @@ From the repository root:
 | Command | Effect |
 | --- | --- |
 | `./scripts/dev.sh status` | Inspect installed service and MCP status. |
-| `./scripts/dev.sh start` | Start the browser and MCP user services. |
-| `./scripts/dev.sh stop` | Stop the MCP and browser services; any shared browser session is interrupted. |
+| `./scripts/dev.sh start` | Start the MCP service and the native browser service only when native mode is selected. |
+| `./scripts/dev.sh stop` | Stop MCP; stop the native browser service only when native mode is selected. Externally managed Chromium processes continue running. |
 | `./scripts/dev.sh logs` | Show recent MCP journal entries. |
 | `./scripts/dev.sh uninstall` | Preview removal of MCP/tunnel user service units. |
 | `./scripts/dev.sh uninstall --yes` | Stop, disable and remove MCP/tunnel unit files. Browser profiles and runtime data are not removed. |

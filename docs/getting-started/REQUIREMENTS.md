@@ -2,7 +2,7 @@
 
 # Requirements
 
-**Audience:** Developers and operators preparing to install Jelly on Linux. For an end-to-end first run, follow [Getting Started](./QUICKSTART.md) using `./scripts/dev.sh setup`.
+**Audience:** Developers and operators preparing to install Jelly on Linux. For an end-to-end first run, follow [Getting Started](./QUICKSTART.md) using `./scripts/dev.sh` in an interactive terminal.
 
 Jelly has a small core dependency set plus a few optional tools used by specific integrations. The small-surface MCP Agent API is the default surface and requires no additional runtime dependency beyond the normal Jelly stack; large-surface remains available as the explicit individual-tool compatibility mode.
 
@@ -13,8 +13,8 @@ Jelly has a small core dependency set plus a few optional tools used by specific
 | **Git** | Clone/update the repository | Required by the normal source workflow |
 | **Rust** | Build Jelly and its binaries | Requires Rust 1.98; `rust-toolchain.toml` currently pins 1.98.1 |
 | **Cargo** | Build and run project binaries | Installed with Rust |
-| **Chromium** | Browser runtime | Currently expected at `/usr/bin/chromium` |
-| **systemd** | Persistent browser lifecycle | Requires `systemctl`, `systemd-run`, and a working user manager |
+| **Chromium** | Native host browser runtime only | Expected at `/usr/bin/chromium` in native mode; not required on Jelly's host for remote CDP mode |
+| **systemd** | Installed Jelly services and native browser lifecycle | User systemd manager required for the documented installed-service workflow; an externally managed Chromium does not require Jelly to run a native browser service |
 | **bash** | Project scripts | Used by scripts under `scripts/` |
 | **base64** | Configuration encoding and decoding | Checked by `./scripts/dev.sh doctor` |
 | **core shell utilities** | Common shell operations | `cp`, `mv`, `chmod`, `mktemp`, `grep`, `sed`, `awk`, `date` |
@@ -23,12 +23,13 @@ Jelly has a small core dependency set plus a few optional tools used by specific
 
 | Dependency | Used by | Notes |
 | :--- | :--- | :--- |
-| **curl** | Selected integrations and setup flows | Used by Telegram HITL, paired OAuth owner-status checks, and nip.io public IPv4 discovery |
+| **curl** | Selected integrations and browser setup | Also required by container CDP readiness checks, remote HTTP endpoint discovery, and HTTP(S) download transfer |
 | **cloudflared** | Quick or fixed public MCP tunnel | Required for `quick-tunnel` and `cloudflare-fixed`; the service wrapper can reuse PiLink's private binary when present |
 | **Caddy** | Direct nip.io HTTPS | Required only for `JELLY_HOSTING_MODE=nip-io` |
 | **iproute2 (`ip`)** | nip.io LAN route discovery | Required only for `nip-io` |
 | **upnpc** | Automatic nip.io router mappings | Required for guarded automatic port mappings; use manual forwarding when UPnP is unavailable |
 | **ffmpeg / ffprobe** | Browser recording export | Required only when exporting browser recordings; encodes frames into MP4 and probes step-frame dimensions |
+| **Docker or Podman** | Container Chromium quickstart | Optional engine; direct subnet routing depends on Linux network mode, or choose explicit host publication |
 | **Wayland / X11 session** | Headed Chromium | Not required for headless mode |
 | **OpenSSL, or `od` and `tr`** | Setup secret generation | The wizard uses `openssl rand` when available; otherwise it reads `/dev/urandom` through `od` and `tr` |
 
@@ -38,7 +39,7 @@ Jelly is currently developed and tested on Linux.
 
 The current implementation assumes:
 
-- Chromium is available at `/usr/bin/chromium`.
+- Chromium is available at `/usr/bin/chromium` **in native browser mode** (optional for remote CDP).
 - `systemd --user` is available for persistent browser lifecycle management.
 - Runtime data can be written to `/data/jelly-runtime`.
 - Cargo build output can be written to `/data/.jelly-build`, as specified by `config/cargo.toml` (`[build].target-dir`).

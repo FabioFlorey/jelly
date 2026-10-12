@@ -43,7 +43,8 @@ rollback_start_server() {
   jt_config_set page runtime "$([[ "$runtime" == 1 ]] && echo true || echo false)"
   jt_config_set page snapshot_limit "$limit"
   JELLY_MCP_ADDR="127.0.0.1:${port}" \
-  JELLY_PUBLIC_URL="http://127.0.0.1:${port}" \
+  # Synthetic HTTPS issuer satisfies profile validation; test transport remains local HTTP bearer auth.
+  JELLY_PUBLIC_URL="https://jelly.invalid" \
     "$BIN_DIR/jelly-mcp" >"/tmp/jelly-suite-rollback-${port}.log" 2>&1 &
   RB_PID=$!
   for _ in {1..80}; do

@@ -17,7 +17,13 @@ dev::require() {
 }
 
 dev::doctor() {
-  local failures=0 utility
+  local failures=0 utility skip_browser=false
+  case "${1:-}" in
+    '') ;;
+    --skip-browser) skip_browser=true ;;
+    *) dev::error 'doctor takes no arguments'; return 2 ;;
+  esac
+  (($# <= 1)) || { dev::error 'doctor takes at most one argument'; return 2; }
   dev::ui_init
   dev::section 'Prerequisite check'
   for utility in git rustc cargo systemctl systemd-run bash base64 cp mv chmod mktemp grep sed awk date; do
@@ -28,10 +34,18 @@ dev::doctor() {
       failures=$((failures + 1))
     fi
   done
-  if [[ -x /usr/bin/chromium ]]; then
+  if $skip_browser; then
+    dev::note 'Browser backend will be selected during quickstart.'
+  elif grep -q '^backend = "remote-cdp"$' "$DEV_ROOT/config/jelly.toml"; then
+    if [[ -x /usr/bin/chromium ]]; then
+      dev::check_ok 'Host Chromium (optional for remote-cdp)'
+    else
+      dev::check_ok 'Host Chromium not required for remote-cdp'
+    fi
+  elif [[ -x /usr/bin/chromium ]]; then
     dev::check_ok 'Chromium (/usr/bin/chromium)'
   else
-    dev::check_missing 'Chromium (/usr/bin/chromium)'
+    dev::check_missing 'Chromium (/usr/bin/chromium) required by native backend'
     failures=$((failures + 1))
   fi
   if command -v systemctl >/dev/null 2>&1 && systemctl --user is-system-running >/dev/null 2>&1; then
@@ -48,8 +62,6 @@ dev::doctor() {
 }
 
 dev::confirm() {
-  local answer
   [[ -t 0 ]] || { dev::error 'explicit --yes required in noninteractive mode'; return 2; }
-  read -r -p "$1 [y/N]: " answer || return 2
-  [[ "$answer" == y || "$answer" == Y || "$answer" == yes || "$answer" == YES ]]
+  dev::ask_yes "$1"
 }

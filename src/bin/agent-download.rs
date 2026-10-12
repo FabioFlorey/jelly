@@ -1,5 +1,6 @@
 use jelly::{
-    ErrorKind, cancel_download, download_record, download_records, jelly_error, wait_download,
+    ErrorKind, cancel_download, download_record, download_records, jelly_error,
+    transfer_remote_download, wait_download,
 };
 use serde_json::json;
 use std::env;
@@ -7,7 +8,7 @@ use std::env;
 fn usage() -> jelly::Error {
     jelly_error(
         ErrorKind::InvalidArguments,
-        "usage: download <list|status|wait|cancel> [id] [seconds] [destination] [fail|overwrite|uniquify]",
+        "usage: download <list|status|wait|cancel|transfer> [id] [seconds] [destination] [fail|overwrite|uniquify]",
         false,
     )
 }
@@ -22,6 +23,13 @@ fn main() -> Result<(), jelly::Error> {
         }),
         "status" if args.len() == 2 => serde_json::to_value(download_record(&args[1])?)?,
         "cancel" if args.len() == 2 => serde_json::to_value(cancel_download(&args[1])?)?,
+        "transfer" if (2..=4).contains(&args.len()) => {
+            serde_json::to_value(transfer_remote_download(
+                &args[1],
+                args.get(2).map(String::as_str),
+                args.get(3).map(String::as_str).unwrap_or("fail"),
+            )?)?
+        }
         "wait" if (2..=5).contains(&args.len()) => {
             let seconds = args
                 .get(2)

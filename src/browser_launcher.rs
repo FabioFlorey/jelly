@@ -21,9 +21,35 @@ fn remove_if_exists(path: &str) -> rustwright::Result<()> {
 
 /// Run the browser launcher using the current process arguments and environment.
 pub fn run_from_env() -> rustwright::Result<()> {
-    if !std::env::args().any(|a| a == "--serve") {
-        return launch_service();
+    use crate::browser_backend::backend_for;
+    let backend = backend_for(crate::config::config().browser.backend);
+    if std::env::args().any(|a| a == "--serve") {
+        backend.serve()
+    } else {
+        backend.start()
     }
+}
+
+/// Attach to an externally managed Chromium browser. Never launch or stop it.
+pub(crate) fn connect_remote_browser() -> rustwright::Result<()> {
+    let endpoint = crate::config::selected_remote_endpoint()
+        .map_err(|error| rustwright::Error::Io(std::io::Error::other(error)))?;
+    let (mut socket, _) = tungstenite::connect(endpoint.as_str()).map_err(|error| {
+        rustwright::Error::Io(std::io::Error::other(format!(
+            "remote CDP unavailable: {error}"
+        )))
+    })?;
+    socket.close(None).ok();
+    fs::create_dir_all(STATE_DIR).map_err(rustwright::Error::Io)?;
+    fs::write(ENDPOINT, &endpoint).map_err(rustwright::Error::Io)?;
+    println!(
+        "Remote Chromium connected: {}",
+        crate::config::selected_remote_id().unwrap_or_default()
+    );
+    Ok(())
+}
+
+pub(crate) fn serve_native_browser() -> rustwright::Result<()> {
     for dir in [
         STATE_DIR,
         PROFILE_DIR,
@@ -184,7 +210,7 @@ pub fn run_from_env() -> rustwright::Result<()> {
     }
 }
 
-fn launch_service() -> rustwright::Result<()> {
+pub(crate) fn start_native_service() -> rustwright::Result<()> {
     match fs::read_dir(INJECTION_DIR) {
         Ok(entries) => {
             for entry in entries {

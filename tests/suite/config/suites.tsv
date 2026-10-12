@@ -1,0 +1,3 @@
+# suite<TAB>explicit,stable,test,IDs (a suite may overlap other suites)
+smoke-offline	API-001,API-006,QLT-007,QLT-009,QLT-013
+smoke-browser	API-009,SEM-001,SES-001

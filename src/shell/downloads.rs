@@ -166,7 +166,11 @@ fn reconcile_orphaned_downloads() -> Result<(), Error> {
         let _lock = StateLock::acquire()?;
         has_in_progress(&read_state_unlocked()?.downloads)
     };
-    if has_in_progress && !browser_launcher_alive() {
+    if has_in_progress
+        && crate::config::config().browser.backend
+            == crate::browser_backend::BrowserBackendKind::Native
+        && !browser_launcher_alive()
+    {
         interrupt_in_progress_downloads("browser_process_exited_before_completion")?;
     }
     Ok(())
@@ -310,6 +314,25 @@ fn recv_response<S: std::io::Read + std::io::Write>(
 }
 
 pub fn start_download_tracker(endpoint: &str) -> Result<thread::JoinHandle<()>, Error> {
+    let remote_id = crate::config::active_browser_id();
+    let download_path = if crate::config::config().browser.backend
+        == crate::browser_backend::BrowserBackendKind::RemoteCdp
+    {
+        crate::config::selected_remote()
+            .map_err(|error| jelly_error(ErrorKind::InvalidArguments, error, false))?
+            .download_path
+            .as_ref()
+            .ok_or_else(|| {
+                jelly_error(
+                    ErrorKind::Unsupported,
+                    "remote download_path is not configured",
+                    false,
+                )
+            })?
+            .clone()
+    } else {
+        DOWNLOAD_DIR.to_string()
+    };
     fs::create_dir_all(DOWNLOAD_DIR)?;
     interrupt_stale_downloads()?;
     let (mut ws, _) = connect(endpoint).map_err(|error| {
@@ -325,7 +348,7 @@ pub fn start_download_tracker(endpoint: &str) -> Result<thread::JoinHandle<()>, 
             "method": "Browser.setDownloadBehavior",
             "params": {
                 "behavior": "allowAndName",
-                "downloadPath": DOWNLOAD_DIR.as_str(),
+                "downloadPath": download_path,
                 "eventsEnabled": true
             }
         })
@@ -342,40 +365,42 @@ pub fn start_download_tracker(endpoint: &str) -> Result<thread::JoinHandle<()>, 
     recv_response(&mut ws, 1)?;
 
     Ok(thread::spawn(move || {
-        loop {
-            let message = match ws.read() {
-                Ok(message) => message,
-                Err(error) => {
-                    eprintln!("Jelly download tracker stopped: {error}");
-                    if let Err(state_error) =
-                        interrupt_in_progress_downloads("download_tracker_disconnected")
-                    {
-                        eprintln!(
-                            "Jelly download tracker could not persist interruption state: {state_error}"
-                        );
+        crate::config::with_browser_id(remote_id.as_deref(), || {
+            loop {
+                let message = match ws.read() {
+                    Ok(message) => message,
+                    Err(error) => {
+                        eprintln!("Jelly download tracker stopped: {error}");
+                        if let Err(state_error) =
+                            interrupt_in_progress_downloads("download_tracker_disconnected")
+                        {
+                            eprintln!(
+                                "Jelly download tracker could not persist interruption state: {state_error}"
+                            );
+                        }
+                        break;
                     }
-                    break;
-                }
-            };
-            let Message::Text(text) = message else {
-                continue;
-            };
-            let value: Value = match serde_json::from_str(&text) {
-                Ok(value) => value,
-                Err(error) => {
-                    eprintln!("Jelly download tracker ignored invalid CDP event: {error}");
+                };
+                let Message::Text(text) = message else {
                     continue;
+                };
+                let value: Value = match serde_json::from_str(&text) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        eprintln!("Jelly download tracker ignored invalid CDP event: {error}");
+                        continue;
+                    }
+                };
+                let result = match value["method"].as_str() {
+                    Some("Browser.downloadWillBegin") => upsert_will_begin(&value["params"]),
+                    Some("Browser.downloadProgress") => update_progress(&value["params"]),
+                    _ => Ok(()),
+                };
+                if let Err(error) = result {
+                    eprintln!("Jelly download tracker state update failed: {error}");
                 }
-            };
-            let result = match value["method"].as_str() {
-                Some("Browser.downloadWillBegin") => upsert_will_begin(&value["params"]),
-                Some("Browser.downloadProgress") => update_progress(&value["params"]),
-                _ => Ok(()),
-            };
-            if let Err(error) = result {
-                eprintln!("Jelly download tracker state update failed: {error}");
             }
-        }
+        })
     }))
 }
 
@@ -427,7 +452,187 @@ fn copy_create_new(source: &Path, output: &Path) -> io::Result<u64> {
 }
 
 fn completed_source(record: &DownloadRecord) -> Result<PathBuf, Error> {
+    if crate::config::config().browser.backend
+        == crate::browser_backend::BrowserBackendKind::RemoteCdp
+    {
+        let remote = crate::config::selected_remote()
+            .map_err(|error| jelly_error(ErrorKind::DownloadFailed, error, false))?;
+        return match remote.download_mode {
+            crate::config::RemoteDownloadMode::RemoteOnly => Err(jelly_error(
+                ErrorKind::Unsupported,
+                "download is remote-only; configure a transfer channel or shared-volume to materialize it",
+                false,
+            )),
+            crate::config::RemoteDownloadMode::SharedVolume => {
+                let root = remote.download_host_path.as_ref().ok_or_else(|| {
+                    jelly_error(
+                        ErrorKind::InvalidArguments,
+                        "shared-volume requires download_host_path",
+                        false,
+                    )
+                })?;
+                let guid = &record.id;
+                if guid.is_empty()
+                    || !guid
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+                {
+                    return Err(jelly_error(
+                        ErrorKind::InvalidArguments,
+                        "invalid download GUID",
+                        false,
+                    ));
+                }
+                let source = root.join(guid);
+                if !source.is_file() {
+                    return Err(jelly_error(
+                        ErrorKind::DownloadFailed,
+                        "download is not available on shared volume",
+                        true,
+                    ));
+                }
+                if record.received_bytes > 0
+                    && fs::metadata(&source)?.len() != record.received_bytes
+                {
+                    return Err(jelly_error(
+                        ErrorKind::DownloadFailed,
+                        "shared-volume file size disagrees with CDP",
+                        true,
+                    ));
+                }
+                Ok(source)
+            }
+            crate::config::RemoteDownloadMode::Transfer => {
+                fetch_remote_download(&record.id, record.received_bytes)
+            }
+        };
+    }
     completed_source_in(record, Path::new(DOWNLOAD_DIR.as_str()))
+}
+
+fn artifact_transport_proto(url: &url::Url) -> Result<&'static str, Error> {
+    match url.scheme() {
+        "https" => Ok("=https"),
+        "http" => Ok("=http"),
+        _ => Err(jelly_error(
+            ErrorKind::InvalidArguments,
+            "artifact transfer URL must use HTTP or HTTPS",
+            false,
+        )),
+    }
+}
+
+fn fetch_remote_download(id: &str, expected_bytes: u64) -> Result<PathBuf, Error> {
+    if id.is_empty()
+        || !id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+    {
+        return Err(jelly_error(
+            ErrorKind::InvalidArguments,
+            "invalid download GUID",
+            false,
+        ));
+    }
+    let remote = crate::config::selected_remote()
+        .map_err(|error| jelly_error(ErrorKind::DownloadFailed, error, false))?;
+    let base = remote.download_base_url.as_deref().ok_or_else(|| {
+        jelly_error(
+            ErrorKind::Unsupported,
+            "remote download_base_url is not configured",
+            false,
+        )
+    })?;
+    let url = url::Url::parse(base)
+        .map_err(|error| jelly_error(ErrorKind::InvalidArguments, error.to_string(), false))?;
+    let curl_proto = artifact_transport_proto(&url)?;
+    if url.host_str().is_none()
+        || url.username() != ""
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(jelly_error(
+            ErrorKind::InvalidArguments,
+            "download_base_url must be an HTTP(S) URL without userinfo, query or fragment",
+            false,
+        ));
+    }
+    if url.scheme() == "http" {
+        eprintln!(
+            "Jelly download notice: the operator-selected HTTP artifact channel is unencrypted; files and bearer credentials may be exposed in transit"
+        );
+    }
+    let target_url = format!("{}/{}", base.trim_end_matches('/'), id);
+    fs::create_dir_all(DOWNLOAD_DIR)?;
+    let target = Path::new(DOWNLOAD_DIR.as_str()).join(id);
+    if target.is_file() && (expected_bytes == 0 || fs::metadata(&target)?.len() == expected_bytes) {
+        return Ok(target);
+    }
+    let temp = target.with_extension(format!("part-{}", std::process::id()));
+    let mut command = std::process::Command::new("curl");
+    command
+        .args([
+            "--fail",
+            "--silent",
+            "--show-error",
+            "--proto",
+            curl_proto,
+            "--max-time",
+            "120",
+            "--output",
+        ])
+        .arg(&temp)
+        .arg(&target_url);
+    let outcome = if let Some(token) = &remote.download_token {
+        // Avoid exposing bearer credentials in process arguments or shell history.
+        if token.is_empty()
+            || !token
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"-_.~+/=".contains(&b))
+        {
+            return Err(jelly_error(
+                ErrorKind::InvalidArguments,
+                "download_token contains invalid characters",
+                false,
+            ));
+        }
+        command
+            .arg("--config")
+            .arg("-")
+            .stdin(std::process::Stdio::piped());
+        let mut child = command.spawn()?;
+        if let Some(mut stdin) = child.stdin.take() {
+            writeln!(stdin, "header = \"Authorization: Bearer {token}\"")?;
+        }
+        child.wait_with_output()
+    } else {
+        command.output()
+    };
+    if !outcome.as_ref().is_ok_and(|output| output.status.success()) {
+        let _ = fs::remove_file(&temp);
+        return Err(jelly_error(
+            ErrorKind::DownloadFailed,
+            format!(
+                "remote download transfer failed: {}",
+                outcome
+                    .err()
+                    .map(|error| error.to_string())
+                    .unwrap_or_else(|| "HTTP transfer error".into())
+            ),
+            true,
+        ));
+    }
+    if expected_bytes != 0 && fs::metadata(&temp)?.len() != expected_bytes {
+        let _ = fs::remove_file(&temp);
+        return Err(jelly_error(
+            ErrorKind::DownloadFailed,
+            "remote download size does not match CDP completion metadata",
+            true,
+        ));
+    }
+    fs::rename(&temp, &target)?;
+    Ok(target)
 }
 
 // Take the managed directory explicitly so a test can exercise file selection
@@ -458,6 +663,18 @@ fn materialize(
     destination: Option<&str>,
     collision: &str,
 ) -> Result<(PathBuf, Option<String>), Error> {
+    if crate::config::config().browser.backend
+        == crate::browser_backend::BrowserBackendKind::RemoteCdp
+    {
+        let source = completed_source(record)?;
+        return materialize_source(
+            &source,
+            &record.suggested_filename,
+            &record.id,
+            destination,
+            collision,
+        );
+    }
     materialize_in(
         record,
         destination,
@@ -564,6 +781,32 @@ pub fn finalize_download(
     destination: Option<&str>,
     collision: &str,
 ) -> Result<DownloadRecord, Error> {
+    finalize_download_inner(id, destination, collision, false)
+}
+
+pub fn transfer_remote_download(
+    id: &str,
+    destination: Option<&str>,
+    collision: &str,
+) -> Result<DownloadRecord, Error> {
+    if crate::config::config().browser.backend
+        != crate::browser_backend::BrowserBackendKind::RemoteCdp
+    {
+        return Err(jelly_error(
+            ErrorKind::Unsupported,
+            "transfer requires remote-cdp",
+            false,
+        ));
+    }
+    finalize_download_inner(id, destination, collision, true)
+}
+
+fn finalize_download_inner(
+    id: &str,
+    destination: Option<&str>,
+    collision: &str,
+    force_transfer: bool,
+) -> Result<DownloadRecord, Error> {
     let record = download_record(id)?;
     if let FinalizeState::NotCompleted { retryable } = finalize_state(&record) {
         return Err(jelly_error(
@@ -572,7 +815,32 @@ pub fn finalize_download(
             retryable,
         ));
     }
-    let (path, collision_policy) = materialize(&record, destination, collision)?;
+    if crate::config::config().browser.backend
+        == crate::browser_backend::BrowserBackendKind::RemoteCdp
+        && crate::config::selected_remote()
+            .map_err(|error| jelly_error(ErrorKind::DownloadFailed, error, false))?
+            .download_mode
+            == crate::config::RemoteDownloadMode::RemoteOnly
+        && !force_transfer
+    {
+        return Ok(record);
+    }
+    let source_override = if force_transfer {
+        Some(fetch_remote_download(&record.id, record.received_bytes)?)
+    } else {
+        None
+    };
+    let (path, collision_policy) = if let Some(source) = &source_override {
+        materialize_source(
+            source,
+            &record.suggested_filename,
+            &record.id,
+            destination,
+            collision,
+        )?
+    } else {
+        materialize(&record, destination, collision)?
+    };
     let artifact = register_download_with_context(
         &path,
         (!record.url.is_empty()).then_some(record.url.as_str()),
@@ -594,7 +862,13 @@ pub fn finalize_download(
             })?;
         // Keep this filesystem observation inside the lock, after artifact
         // registration; failure must still prevent the state write.
-        let source = completed_source(record)?.display().to_string();
+        let source = if let Some(source) = &source_override {
+            source.clone()
+        } else {
+            completed_source(record)?
+        }
+        .display()
+        .to_string();
         *record = finalized_record(
             record,
             source,
@@ -677,6 +951,16 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.root);
         }
+    }
+
+    #[test]
+    fn explicit_artifact_transport_choice_controls_protocol() {
+        let https = url::Url::parse("https://bridge.example/downloads").unwrap();
+        let http = url::Url::parse("http://127.0.0.1:8080/downloads").unwrap();
+        let ftp = url::Url::parse("ftp://bridge.example/downloads").unwrap();
+        assert_eq!(artifact_transport_proto(&https).unwrap(), "=https");
+        assert_eq!(artifact_transport_proto(&http).unwrap(), "=http");
+        assert!(artifact_transport_proto(&ftp).is_err());
     }
 
     #[test]

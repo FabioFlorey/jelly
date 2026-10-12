@@ -6,6 +6,10 @@ This directory contains the canonical behavioral validation suite. It replaces a
 
 ## Test model
 
+**Do not add new tests before performing the [existing-coverage search and review checklist](../TAXONOMY.md#governance-decide-before-creating-tests).** The same-contract/same-boundary case must extend existing test code rather than inventing another runner. Quality gates are deliberately excluded from default behavioral batches.
+
+Every registered test has the following fields (existing contracts retained). The additional independent axes `scope`, `size`, `focus`, `execution`, `environment`, and `review_status` are loaded from [`config/classification.tsv`](./config/classification.tsv) and described in the [Test Taxonomy](../TAXONOMY.md). All existing classifications are provisional until inspected individually.
+
 Every registered test has the following fields:
 
 - **ID** — stable identifier such as `SEM-005`.
@@ -29,7 +33,10 @@ The generated `report.tsv` joins those run fields with the complete test metadat
 - `run.sh` — selection, execution, reporting, and run-ID generation.
 - `lib.sh` — common assertions/browser helpers and test registration API.
 - `groups/*.sh` — test implementations grouped by subsystem.
-- `config/batches.tsv` — named multi-group batches.
+- `config/batches.tsv` — legacy named multi-group presets.
+- `config/suites.tsv` — explicit named sets of stable test IDs (can overlap).
+- `config/classification.tsv` — required per-test classification and maintenance metadata (`lifecycle`, `triage`, `related_ids`, `triage_reason`); test behavior remains defined by `jt_register`.
+- `../acceptance/criteria.tsv` and `../acceptance/links.tsv` — separate product requirements and evidence mapping.
 - `config/disabled-tests.txt` — persistently disabled individual IDs.
 - `config/disabled-groups.txt` — persistently disabled groups.
 - `../fixtures/` — deterministic local browser fixtures.
@@ -64,6 +71,15 @@ Executable suite runs are serialized with a global `flock` because Jelly owns sh
 Browser, network, and MCP selections trigger one binary-build preflight before scenario execution. Browser scenarios should arrange cleanup so failed tests do not leave Chromium or Jelly's user service behind.
 
 ## Running tests
+
+For read-only discovery of classification, test lifecycle, and consolidation candidates:
+
+```bash
+tests/suite/run.sh --catalog --scope system --environment native-browser --json
+tests/suite/run.sh --catalog --triage consolidate --json
+tests/suite/run.sh --catalog --suite smoke-offline --json
+./scripts/dev.sh test --acceptance-report
+```
 
 Run one test:
 
@@ -180,6 +196,10 @@ tests/suite/run.sh --include-disabled --test TEST-ID
 tests/suite/run.sh --include-disabled --all
 ```
 
+Default behavior batches exclude `quality`. Root and auxiliary-crate formatting/lint checks are centralized in `./scripts/dev.sh check`; Rust library/binary tests run once via `./scripts/dev.sh test` (`cargo test --all-targets --locked`). CI uses those two commands and no duplicate binary-test step. The `quality` group is an explicit backwards-compatible selection; its formatter, Clippy and Rust test cases delegate to the canonical commands instead of maintaining a second implementation. The `smoke-offline` suite selects complementary checks, not the format/lint/catalog-policy controls already in `check`.
+
+`deterministic` includes installed MCP `session`/`rollback` cases. `browser` deliberately omits those groups so the two named batches no longer select identical tests.
+
 Named group batches are defined in `config/batches.tsv` as tab-separated `batch<TAB>group1,group2,...` entries. This lets CI, a developer, or an agent define stable test sets without copying command lists into other scripts.
 
 ## Result artifacts
@@ -188,8 +208,8 @@ A run directory contains:
 
 - `run.json` — run identity, start time, branch and commit.
 - `catalog.tsv` / `catalog.json` — complete catalog snapshot at run time.
-- `results.jsonl` — one compact record per selected test containing Test Run Unique ID, Test ID, Status, duration, and log path.
-- `report.tsv` — human/audit-friendly metadata + result table.
+- `results.jsonl` — one record per selected test containing Test Run Unique ID, Test ID, Status, duration, log path and execution-classification metadata.
+- `report.tsv` — human/audit-friendly metadata + result table; preserves existing columns and appends classification fields.
 - `summary.json` — aggregate PASS/FAIL/DISABLED counts and result records.
 - `logs/<TEST-ID>.log` — stdout/stderr for each case.
 - `preflight-build.log` — browser/MCP binary build output when applicable.

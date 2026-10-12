@@ -49,7 +49,7 @@ pub(crate) fn system_input_schema(name: &str) -> Option<Value> {
         "download" => json!({
             "type":"object",
             "properties":{
-                "action":{"type":"string","enum":["list","status","wait","cancel"]},
+                "action":{"type":"string","enum":["list","status","wait","transfer","cancel"]},
                 "id":{"type":"string","description":"Chromium download GUID returned by download list/status."},
                 "seconds":{"type":"integer","minimum":1,"description":"Maximum wait time for action=wait; defaults to 30."},
                 "destination":{"type":"string","description":"Optional destination directory for a completed download. Jelly keeps the managed original and copies the suggested filename here."},

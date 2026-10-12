@@ -4,7 +4,7 @@
 
 **Audience:** Operators and developers configuring an existing Jelly checkout. This reference describes configuration behavior; for a first run, follow [Getting Started](./QUICKSTART.md).
 
-Jelly separates versioned technical configuration, deployment environment values, and generated runtime state.
+Jelly separates versioned technical configuration, deployment environment values, and generated runtime state. **Browser execution is a separate operator choice:** native on-host, subnet-connected containers, or arbitrary reachable CDP addresses. See [Browser deployment and security choices](../reference/BROWSER_DEPLOYMENT.md) and the [container quickstart](./CONTAINER_CHROMIUM.md). The deployment helper preserves operator-selected sandbox/restriction/publication options and reports verification limits without silently changing them.
 
 ## Technical configuration
 
@@ -17,6 +17,7 @@ The example below reflects the checked-in technical settings relevant to a typic
 runtime_root = "/data/jelly-runtime"
 
 [browser]
+backend = "native" # or "remote-cdp" for one or more remote browsers
 startup_timeout_secs = 30
 cdp_timeout_secs = 60
 
@@ -49,7 +50,7 @@ suffix = ""
 signature = "⏺️ Recorded with <b>Jelly</b>"
 ```
 
-The Rust loader requires `config/jelly.toml` and does not read environment-variable overrides for its technical settings. The fields shown above are required, except that `mcp.connections` is optional and defaults to an empty list. Missing required sections or invalid values cause startup errors. Environment variables still configure deployment settings and secrets (see [`.env`](#env)).
+The Rust loader requires `config/jelly.toml` and does not read environment-variable overrides for its technical settings. **Exception for per-request routing:** MCP tools can accept `browser_id` when the remote CDP backend is enabled; CLI processes can use `JELLY_BROWSER_ID`. The separately generated (gitignored) `config/browsers.toml` stores quick-registered remote endpoints, including their UUID, optional `name`, `connection_mode = "address" | "subnet"`, and download settings. Both files are read at MCP startup; adding a browser requires restarting MCP. The fields shown above are required, except that `mcp.connections` is optional and defaults to an empty list. Missing required sections or invalid values cause startup errors. Environment variables still configure deployment settings and secrets (see [`.env`](#env)).
 
 > [!WARNING]
 > The checked-in `raw_cdp = true` enables privileged Chromium DevTools Protocol commands for **all authenticated MCP clients**; it is not restricted to ChatGPT or a particular token. Set `[mcp].raw_cdp = false` if trusted clients do not require direct CDP access, and restart the server after changing it. See [Raw CDP trust boundary](../reference/MCP.md#raw-cdp-trust-boundary).

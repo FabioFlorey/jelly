@@ -15,8 +15,7 @@
 
 ## Unified developer CLI
 
-Run `./scripts/dev.sh --help` for the command reference. The CLI provides
-setup, service management, builds, formatting, checks, and tests.
+Run `./scripts/dev.sh --help` for the command reference. **Bare `./scripts/dev.sh` starts the real interactive quickstart** (browser selection, MCP setup, installation and verification). `demo` is the only simulated walkthrough. All other CLI commands perform their named real operations: service management, builds, formatting, checks and tests.
 
 `doctor` checks prerequisites without building binaries. `setup` configures
 hosting, OAuth and integrations, and can install user services. `status` reports
@@ -29,12 +28,37 @@ test environment. `clean` shows the directories it would delete and requires
 
 The CLI palette is configured in `config/dev.config.sh`, with artwork in
 `config/brand/full-logo.txt`. Shared Bash functions live in `scripts/lib/`.
+
+**CLI process diagrams:** Open `docs/references/diagrams/DEV.SH.md` directly in
+a Mermaid-compatible Markdown previewer. It defines the quickstart, connection,
+browser, operations and testing processes with a centered title, contents,
+brief chapter introductions and Back to top links. The diagrams do not appear
+in the interactive demo.
+
+**Interactive product demo:** `./scripts/dev.sh demo` presents the real
+Jelly logo followed by actionable menus and editable sample values. The
+sample system can have Docker, Podman, both or neither; users select
+authentication, hosting, browser sandbox, restrictions, profile, CDP
+exposure, confirmations, and operations. State and sample probe results
+evolve in memory, with no live service/container calls or configuration
+writes. `demo --tour` uses the same handlers with sample input to produce
+a deterministic transcript. Use actual tests for runtime evidence.
+
+**Test-specific UI:** `cargo test-jelly` shares the honey-yellow brand, compact
+Jelly header, section markers and green/red PASS/FAIL semantics with the
+operator CLI. It deliberately keeps tables, target names, timings, raw Cargo
+failures and `--catalog --json` machine-readable output rather than turning
+them into a wizard. Wide interactive terminals retain the full Jelly logo;
+redirected/narrow output uses the compact version. `NO_COLOR` suppresses
+color, animation and screen clearing. The Bash behavioral suite retains its
+stable textual test IDs, result status and report files for downstream tooling.
+
 Source `scripts/lib/config.sh` to access configuration helpers; call
 `jelly_load_env` explicitly to load `.env` values through the Rust parser.
 
 ## Tests
 
-The test catalog is documented in [`tests/INDEX.md`](../../tests/INDEX.md), with implementations in `tests/suite/`. Each executed test records its results under the configured runtime root (`test-runs/<RUN_ID>/`).
+The test catalog is documented in [`tests/INDEX.md`](../../tests/INDEX.md), with implementations in `tests/suite/`. **Mandatory before creating a test:** follow [Test Governance](../../tests/TAXONOMY.md#governance-decide-before-creating-tests): search existing Rust tests, suite scenarios and isolated harnesses, identify the contract and failure boundary, and update existing coverage when equivalent. Never create another runner or fixture solely because an existing test is inconvenient. The [Test Taxonomy](../../tests/TAXONOMY.md) separates test scope/size/focus/environment from executable suites and business acceptance criteria, and lists metadata present versus planned. Each executed test records its results under the configured runtime root (`test-runs/<RUN_ID>/`).
 
 **The commands below operate on the installed Jelly browser and services.** Use a dedicated test installation; these tests may navigate pages, change browser state, or stop the managed browser. To test with disposable processes instead, use `./scripts/dev.sh test --isolated`.
 
@@ -61,6 +85,8 @@ Inspect the executable catalog and activation state:
 ./scripts/dev.sh test --suite --catalog
 ./scripts/dev.sh test --suite --catalog --json
 ```
+
+The legacy `quality` scenario group is not included in default browser batches. The canonical offline commands are `./scripts/dev.sh check` (root and auxiliary Rust formatting/lint, docs, security and tooling) and `./scripts/dev.sh test` (root Rust library/binary targets and the independent `test-jelly` wrapper UI tests, each once). CI executes exactly those commands; it no longer separately recompiles fixture binaries or repeats targeted binary tests. `deterministic` includes installed MCP `session`/`rollback` tests, whereas `browser` omits them; neither is safe to run on a shared installed browser. Classifications now also record `lifecycle`, maintenance `triage`, `related_ids` and `triage_reason`; review these before introducing overlapping assertions. All existing classifications remain provisional.
 
 Tests/groups can be persistently disabled through `tests/suite/config/disabled-tests.txt` and `disabled-groups.txt`; `--include-disabled` overrides those files for an explicit diagnostic run. Batch definitions live in `tests/suite/config/batches.tsv`. See `tests/INDEX.md` for the group/batch map and `tests/suite/README.md` for the harness rationale, metadata contract, result schema, and selection rules.
 

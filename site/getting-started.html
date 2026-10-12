@@ -50,7 +50,7 @@
         </h2>
         <p>
           <strong>Platform:</strong> Linux with a working <code>systemd --user</code> manager. <strong>Runtime:</strong>
-          Rust 1.98.1 and Cargo, Chromium at <code>/usr/bin/chromium</code>, Bash, Git and common core utilities.
+          Rust 1.98.1 and Cargo, Bash, Git and common core utilities. Native browser mode additionally needs Chromium at <code>/usr/bin/chromium</code>; container mode needs Docker or Podman and the ability to reach its CDP endpoint.
           <code>curl</code> is used for the checks below. Remote Quick Tunnel mode additionally needs
           <code>cloudflared</code>; <code>nip-io</code> needs Caddy and a reachable public IPv4 address.
         </p>
@@ -66,6 +66,31 @@ cd jelly
         <p>
           The first command checks dependencies. The dry run previews configuration without saving <code>.env</code>,
           building binaries or starting services. Fix reported failures before proceeding.
+        </p>
+      </section>
+      <section id="browser-deployment">
+        <h2>Optional: choose where Chromium runs</h2>
+        <p>
+          Jelly can use a native host browser, a Docker/Podman container on a dedicated bridge subnet,
+          or a separately managed Chromium at an IP:port / hostname:port / CDP WebSocket address.
+          Use <code>./scripts/dev.sh browser</code> for the interactive selector and to add additional browsers.
+        </p>
+        <pre><code>./scripts/dev.sh browser native
+./scripts/dev.sh browser add --engine docker --profile isolated
+./scripts/dev.sh browser connect --address chromium.internal:9222</code></pre>
+        <p>
+          Containers support <code>isolated</code>, <code>shared</code> and <code>ephemeral</code> profiles. Chromium sandbox
+          (<code>enabled</code>/<code>disabled</code>), container restrictions (<code>restricted</code>/<code>standard</code>)
+          and CDP publication (<code>--publish IP:PORT</code>) are independent operator choices.
+          Jelly shows implications, never silently changes the requested settings, and distinguishes startup reachability
+          from effective sandbox verification.
+        </p>
+        <p>
+          To inspect a Jelly-managed container without changing it:
+          <code>./scripts/dev.sh browser diagnose --engine docker --container jelly-chromium-1</code>.
+          Configuration changes and browser additions require restarting Jelly MCP.
+          See the <a href="https://github.com/FabioFlorey/jelly/blob/main/docs/reference/BROWSER_DEPLOYMENT.md">browser deployment and security model</a>.
+          Live sandbox attestation and multi-container integration testing remain outstanding.
         </p>
       </section>
       <section id="client">

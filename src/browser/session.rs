@@ -55,7 +55,13 @@ impl BrowserSession {
         if let Some(context_id) = target_info["browserContextId"].as_str() {
             download_params["browserContextId"] = json!(context_id);
         }
-        session.browser_request("Browser.setDownloadBehavior", download_params)?;
+        // A remote browser does not share Jelly's host filesystem. Its download
+        // path cannot be assumed to exist on the remote machine.
+        if crate::config::config().browser.backend
+            == crate::browser_backend::BrowserBackendKind::Native
+        {
+            session.browser_request("Browser.setDownloadBehavior", download_params)?;
+        }
         session.browser_request("Target.setDiscoverTargets", json!({"discover":true}))?;
         session.browser_request(
             "Target.setAutoAttach",

@@ -8,6 +8,29 @@ pub(super) fn execute_mcp_system_tool(
     name: &str,
     object: &Map<String, Value>,
 ) -> Result<String, ToolFailure> {
+    if crate::config::config().browser.backend
+        == crate::browser_backend::BrowserBackendKind::RemoteCdp
+        && matches!(name, "download" | "downloads" | "wait-download")
+    {
+        let remote = crate::config::selected_remote()
+            .map_err(|reason| ToolFailure::new(ErrorKind::InvalidArguments, reason, false))?;
+        if remote.download_path.is_none() {
+            return Err(ToolFailure::new(
+                ErrorKind::Unsupported,
+                "remote downloads require download_path",
+                false,
+            ));
+        }
+    }
+    if crate::config::config().browser.backend
+        == crate::browser_backend::BrowserBackendKind::RemoteCdp
+        && matches!(
+            name,
+            "open-browser" | "download" | "downloads" | "wait-download"
+        )
+    {
+        crate::shell::session::ensure_remote_tracker().map_err(ToolFailure::from_error)?;
+    }
     let args = system_cli_args(name, object)
         .map_err(|message| ToolFailure::new(ErrorKind::InvalidArguments, message, false))?;
     if matches!(
@@ -110,6 +133,27 @@ pub(super) fn system_cli_args(
                     }
                     Ok(vec![action, id])
                 }
+                "transfer" => {
+                    let id = string("id")?.ok_or("download transfer requires id")?;
+                    let destination = string("destination")?;
+                    let collision = string("collision")?;
+                    if collision.is_some() && destination.is_none() {
+                        return Err("download collision requires destination".into());
+                    }
+                    if let Some(policy) = collision.as_deref()
+                        && !matches!(policy, "fail" | "overwrite" | "uniquify")
+                    {
+                        return Err("invalid collision policy".into());
+                    }
+                    let mut args = vec![action, id];
+                    if let Some(destination) = destination {
+                        args.push(destination);
+                        if let Some(collision) = collision {
+                            args.push(collision);
+                        }
+                    }
+                    Ok(args)
+                }
                 "wait" => {
                     let id = string("id")?.ok_or("download wait requires id")?;
                     let seconds = integer("seconds")?.unwrap_or(30).max(1);
@@ -134,7 +178,7 @@ pub(super) fn system_cli_args(
                     }
                     Ok(args)
                 }
-                _ => Err("download action must be list, status, wait, or cancel".into()),
+                _ => Err("download action must be list, status, wait, transfer, or cancel".into()),
             }
         }
         "browser-task" => {
@@ -257,14 +301,19 @@ fn run_system_tool(name: &str, args: &[String]) -> Result<String, String> {
         .parent()
         .ok_or("MCP executable has no parent directory")?;
     let direct = bin_dir.join(format!("agent-{name}"));
+    let browser_id = crate::config::active_browser_id();
     let output = if direct.is_file() {
-        Command::new(direct).args(args).output()
+        let mut cmd = Command::new(direct);
+        cmd.args(args);
+        if let Some(id) = &browser_id { cmd.env("JELLY_BROWSER_ID", id); }
+        cmd.output()
     } else if crate::config::config().mcp.allow_cargo_fallback {
-        Command::new("cargo")
-            .current_dir(env!("CARGO_MANIFEST_DIR"))
+        let mut cmd = Command::new("cargo");
+        cmd.current_dir(env!("CARGO_MANIFEST_DIR"))
             .args(["run", "--quiet", "--bin", &format!("agent-{name}"), "--"])
-            .args(args)
-            .output()
+            .args(args);
+        if let Some(id) = &browser_id { cmd.env("JELLY_BROWSER_ID", id); }
+        cmd.output()
     } else {
         return Err(format!(
             "required MCP system tool binary is missing: {} (enable [mcp].allow_cargo_fallback in config/jelly.toml only for development)",

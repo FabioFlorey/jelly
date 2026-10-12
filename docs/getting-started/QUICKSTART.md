@@ -4,11 +4,33 @@
 
 **Audience:** Developers and operators setting up Jelly on a Linux workstation. This tutorial starts the MCP server, checks its HTTP endpoints, and demonstrates a browser operation.
 
+## Interactive CLI and product walkthrough
+
+Run **`./scripts/dev.sh`** in a terminal for Jelly's **real quickstart**. It checks prerequisites, asks where Chromium should run, configures MCP credentials and hosting, previews changes, and offers to install/start the service and verify its HTTP health/readiness endpoints. There is no separate home dashboard. Other commands perform their named real operations.
+
+**Try the actual interaction without touching the host:**
+
+```bash
+./scripts/dev.sh demo                         # Real menu choices and editable inputs
+./scripts/dev.sh demo --menu                  # Same interactive prompts with piped input
+./scripts/dev.sh demo --tour                  # Pre-filled example session
+./scripts/dev.sh demo --scenario browsers     # Setup, browsers, alternatives, manage, tests, recovery
+./scripts/dev.sh demo --hero                  # Original full 97-column logo
+```
+
+In the demo, choose a sample computer with Docker, Podman, both, or neither; enter a hosting URL; select OAuth/bearer authentication; choose Chromium sandbox, restrictions, profile and CDP exposure; test a candidate; and accept or reject the final review. Results and browser/service state follow **your choices** within the same demo session. In an interactive terminal, each transition **clears and redraws the current screen with the full Jelly hero**; results remain visible until you press Enter. In a redirected transcript or `--tour`, screen clearing and Enter-to-continue are disabled, and selected sample inputs are echoed so the transcript remains readable. Nothing is read from the real Docker/Podman daemons or applied to Jelly's configuration. `--tour` fills in those same prompts with a preselected example.
+
+The demo's **Tests → Browser integration** choice uses the sample MCP and browser state. If no browser is selected or the sample MCP service is stopped, it reports **NOT RUN** and identifies the missing prerequisite. You can separately explore an example PASS or an intentionally failing integration with its diagnostics; neither is evidence of a live test.
+
+**For readers understanding the CLI processes:** Open [CLI Processes Diagrams](../references/diagrams/DEV.SH.md) directly as Markdown. It contains five Mermaid diagrams with a table of contents, brief process definitions and chapter navigation. The diagrams are separate from the interactive demo.
+
+Both CLI flows use the same honey-yellow headings, structured chapter spacing and confirmation language. `NO_COLOR` is respected.
+
 ## Prerequisites
 
-Install the software listed in [Requirements](./REQUIREMENTS.md): Git, Rust/Cargo, Chromium, Bash, common shell utilities, and a working `systemd --user` manager. For remote ChatGPT access through a temporary HTTPS tunnel, also install `cloudflared`. Jelly currently expects Chromium at `/usr/bin/chromium`.
+Install the software listed in [Requirements](./REQUIREMENTS.md): Git, Rust/Cargo, Bash, common shell utilities, and a working `systemd --user` manager for the installed-service workflow. Native browser mode expects Chromium at `/usr/bin/chromium`; container/remote-CDP mode instead uses Docker/Podman or an already reachable CDP endpoint. For remote ChatGPT access through a temporary HTTPS tunnel, install `cloudflared`.
 
-Run commands from the repository root. Endpoint examples use the default MCP listener at `127.0.0.1:8787`; substitute your configured address if different.
+Run commands from the repository root. **Interactive terminal:** `./scripts/dev.sh` starts real quickstart, including confirmation before any browser changes or installation. **Automation:** `./scripts/dev.sh <command>` retains the explicit command interface; bare quickstart refuses to run without a terminal. Use `./scripts/dev.sh demo` only for a simulated walkthrough. Endpoint examples use the default MCP listener at `127.0.0.1:8787`; substitute your configured address if different.
 
 ## 1. Get the source
 
@@ -40,12 +62,12 @@ For profile rules and security implications, see [Configuration](./CONFIGURATION
 ## 4. Install and start Jelly
 
 ```bash
-./scripts/dev.sh setup
+./scripts/dev.sh
 ```
 
-Follow the prompts for hosting, OAuth consent and local secrets. The wizard can install/start user services, rebuilding release binaries as required. Choose service installation/startup to complete this tutorial.
+Quickstart first prompts for the real browser backend (native Chromium, container, external CDP, or previously configured). Then the four-stage MCP wizard (identity, hosting, optional integrations, review) displays a **redacted preview** and asks before writing `.env`. The final stage separately requests approval to install and start the real services, followed by MCP health/readiness checks. You can cancel or save configuration without installing. For MCP-only configuration, `./scripts/dev.sh setup` remains available.
 
-The wizard writes `.env` locally; do not commit it or paste its secret values into logs or bug reports.
+After confirmation the wizard writes `.env` locally; do not commit it or paste its secret values into logs or bug reports.
 
 ## 5. Verify the service
 
@@ -73,7 +95,7 @@ Expect a JSON-RPC result containing a `tools` array. The current small MCP surfa
 
 ## 6. Perform a browser operation
 
-**The following commands use Jelly’s shared browser.** Opening a URL changes its active page and may affect other clients using the same browser. Run them on a dedicated Jelly installation or when no other workflow is active.
+**The following commands use Jelly’s shared native browser unless a remote browser is selected.** When remote CDP is configured, MCP calls can specify `browser_id` to target a specific browser UUID or easy name; see [Container Chromium](./CONTAINER_CHROMIUM.md) and [Browser Deployment](../reference/BROWSER_DEPLOYMENT.md). Opening a URL changes its active page and may affect other clients using the same browser. Run them on a dedicated Jelly installation or when no other workflow is active.
 
 ```bash
 cargo run --quiet --bin agent-run -- open-browser https://example.com

@@ -116,22 +116,28 @@ From research to action, Jelly gives AI agents a real Chromium browser to naviga
 
 ## 3. Quickstart
 
+**Jelly CLI:** Run **`./scripts/dev.sh`** in a terminal to perform a real quickstart: check prerequisites, select a browser backend, configure MCP identity and hosting, then install/start and verify Jelly after explicit confirmations. **`./scripts/dev.sh demo`** is the only simulated walkthrough. Other CLI subcommands (`setup`, `browser`, `status`, `start`, `stop`, `test`, and so on) perform their named real operations. Noninteractive quickstart refuses to run; use explicit commands for automation.
+
+**CLI Processes Diagrams:** Read the [Markdown process-definition document](./docs/references/diagrams/DEV.SH.md) for five Mermaid flowcharts, chapter explanations, a table of contents and navigation links. `./scripts/dev.sh --demo` is a direct alias for `./scripts/dev.sh demo`.
+
+**Browser connection options:** Run `./scripts/dev.sh browser` to select native Chromium, Docker/Podman on a dedicated subnet, or an existing remote Chromium at IP:PORT. Container profiles are isolated/shared/ephemeral; sandbox, container restrictions and CDP publication are independent user choices. Jelly reports what it observes and does not claim that a requested sandbox is active without attestation. See [Browser deployment and security model](./docs/reference/BROWSER_DEPLOYMENT.md). See [Container Chromium quickstart](./docs/getting-started/CONTAINER_CHROMIUM.md). CDP uses an engine-managed private bridge network rather than published host ports.
+
+
 **Requirements:** Linux with Rust **1.98.1**, Cargo, Chromium at `/usr/bin/chromium`, Bash, and systemd user services. Remote access through Quick Tunnel also requires `cloudflared`. See [complete prerequisites](./docs/getting-started/REQUIREMENTS.md).
 
-Run the interactive setup:
+Run the interactive quickstart:
 
 ```bash
 git clone https://github.com/FabioFlorey/jelly.git
 cd jelly
-./scripts/dev.sh doctor
-./scripts/dev.sh setup
+./scripts/dev.sh
 ```
 
-Follow the wizard to configure credentials, hosting, and service startup.
+The guided flow reviews browser deployment and credentials, confirms each change, and offers to install, start, and verify the MCP service. Individual operations also remain available through `./scripts/dev.sh setup`, `./scripts/dev.sh browser`, and `./scripts/dev.sh status`.
 
 Choose the connection mode in the wizard. For ChatGPT, use a public HTTPS endpoint with OAuth. For local MCP clients, use the loopback HTTP endpoint and bearer-token authentication.
 
-See [Getting Started](./docs/getting-started/QUICKSTART.md) for the configuration steps for each mode.
+See [Getting Started](./docs/getting-started/QUICKSTART.md) for the configuration steps for each mode. For operator-managed Chromium instances (including Docker/Podman), see [Remote Chromium via CDP](./docs/guides/REMOTE_CDP.md).
 
 Verify the server in another terminal:
 

@@ -5,17 +5,7 @@ on:
     branches:
       - main
       - vibe
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "site/**"
-      - "assets/**"
   pull_request:
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "site/**"
-      - "assets/**"
 
 permissions:
   contents: read
@@ -45,13 +35,5 @@ jobs:
         run: rustc --version && cargo --version
       - name: Unified developer checks
         run: ./scripts/dev.sh check
-      - name: Compile Rust-only fixture and integration tools
-        run: cargo check --quiet --locked --bin jelly-fcis-probe --bin jelly-fixture-server
-      - name: Offline Rust tests
-        run: |
-          ./scripts/dev.sh test
-          cargo test --locked \
-            --bin jelly-maint \
-            --bin agent-call-routine \
-            --bin agent-profile-import \
-            --bin agent-hitl
+      - name: Offline Rust tests (all targets, once)
+        run: ./scripts/dev.sh test

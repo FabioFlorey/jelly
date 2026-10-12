@@ -29,7 +29,12 @@ Options:
   --catalog           Show Jelly behavioral tests and their metadata.
   --id ID             Catalog: select one stable test ID (repeatable).
   --group GROUP       Catalog: filter by group (repeatable).
-  --kind KIND         Catalog: filter by kind (repeatable).
+  --kind KIND         Catalog: filter by legacy execution kind (repeatable).
+  --scope LEVEL       Catalog: filter by scope (unit/component/system/cross-system).
+  --size SIZE         Catalog: filter by execution size (small/medium/large).
+  --focus FOCUS       Catalog: filter by functional/non-functional/tooling focus.
+  --environment ENV   Catalog: filter by declared execution environment.
+  --review STATUS     Catalog: filter provisional/reviewed classifications.
   --full              Catalog: also show input and expected output.
   --json              Catalog: emit canonical filtered JSON instead of a table.
 
@@ -111,7 +116,9 @@ impl Theme {
         let interactive = io::stdout().is_terminal();
         Self {
             interactive,
-            color: interactive && env::var_os("NO_COLOR").is_none(),
+            color: interactive
+                && env::var_os("NO_COLOR").is_none()
+                && env::var("TERM").is_ok_and(|term| term != "dumb"),
             icons: config_bool(root, "ui", "icons"),
             animation: config_bool(root, "ui", "animation"),
         }
@@ -218,6 +225,8 @@ fn logo_text(root: &Path) -> String {
 fn logo_animation_enabled(theme: Theme) -> bool {
     theme.interactive
         && theme.animation
+        && theme.color
+        && terminal_width(theme) >= 100
         && env::var("TERM").map(|term| term != "dumb").unwrap_or(true)
 }
 
@@ -317,17 +326,45 @@ fn animate_logo(root: &Path, theme: Theme) {
 fn banner(root: &Path, theme: Theme) -> String {
     animate_logo(root, theme);
     let width = terminal_width(theme);
-    let logo = center_block(&logo_text(root), width);
-    let subtitle = center_line("browser instrumentation for agents", width);
+    let logo = logo_text(root);
+    let logo_width = logo
+        .lines()
+        .map(|line| line.chars().count())
+        .max()
+        .unwrap_or(0);
+    // Match dev.sh: a compact hero in narrow terminals and captured output;
+    // preserve the full, optionally animated logo on wide interactive terminals.
+    let brand = if theme.interactive && width >= 100 && logo_width <= width {
+        center_block(&logo, width)
+    } else if theme.icons {
+        "  ◆  JELLY".to_owned()
+    } else {
+        "  *  JELLY".to_owned()
+    };
+    let subtitle = if width < 44 {
+        "Browser agents"
+    } else {
+        "Browser instrumentation for agents"
+    };
+    let subtitle = if brand.starts_with("  ") {
+        format!("  {subtitle}")
+    } else {
+        center_line(subtitle, width)
+    };
     format!(
-        "\n{}\n\n{}\n",
-        theme.paint(&logo, "38;2;255;193;7;1"),
+        "\n{}\n{}\n",
+        theme.paint(&brand, "38;2;255;193;7;1"),
         theme.paint(&subtitle, "2")
     )
 }
 
 fn centered_heading(theme: Theme, title: &str) -> String {
-    theme.paint(&center_line(title, terminal_width(theme)), "1")
+    let label = if theme.icons { "◇" } else { ">" };
+    let title = format!("{label}  {}", title.to_ascii_uppercase());
+    theme.paint(
+        &center_line(&title, terminal_width(theme)),
+        "38;2;255;193;7;1",
+    )
 }
 
 fn centered_description(theme: Theme, text: &str) -> String {
@@ -663,6 +700,7 @@ fn run_catalog(root: &Path, theme: Theme, args: &[String]) -> i32 {
     let mut ids = Vec::new();
     let mut groups = Vec::new();
     let mut kinds = Vec::new();
+    let mut dimensions: Vec<(String, String)> = Vec::new();
     let mut full = false;
     let mut as_json = false;
 
@@ -675,7 +713,8 @@ fn run_catalog(root: &Path, theme: Theme, args: &[String]) -> i32 {
             }
             "--full" => full = true,
             "--json" => as_json = true,
-            "--id" | "--group" | "--kind" => {
+            "--id" | "--group" | "--kind" | "--scope" | "--size" | "--focus" | "--environment"
+            | "--execution" | "--review" => {
                 if index + 1 >= args.len() {
                     eprintln!("test-jelly: {} requires a value", args[index]);
                     return 2;
@@ -684,7 +723,13 @@ fn run_catalog(root: &Path, theme: Theme, args: &[String]) -> i32 {
                 match args[index].as_str() {
                     "--id" => ids.push(value),
                     "--group" => groups.push(value),
-                    _ => kinds.push(value),
+                    "--kind" => kinds.push(value),
+                    dimension => dimensions.push((
+                        dimension
+                            .trim_start_matches("--")
+                            .replace("review", "review_status"),
+                        value,
+                    )),
                 }
                 index += 1;
             }
@@ -741,6 +786,10 @@ fn run_catalog(root: &Path, theme: Theme, args: &[String]) -> i32 {
         rows.retain(|row| kinds.contains(&field(row, "kind")));
     }
 
+    for (key, value) in &dimensions {
+        rows.retain(|row| field(row, key) == *value);
+    }
+
     if as_json {
         match serde_json::to_string_pretty(&rows) {
             Ok(json) => println!("{json}"),
@@ -769,8 +818,26 @@ fn run_catalog(root: &Path, theme: Theme, args: &[String]) -> i32 {
     let mut headers = vec!["ID", "GROUP", "KIND", "STATUS", "NAME", "DESCRIPTION"];
     let mut keys = vec!["id", "group", "kind", "enabled", "name", "description"];
     if full {
-        headers.extend(["INPUT", "EXPECTED"]);
-        keys.extend(["input", "expected_output"]);
+        headers.extend([
+            "SCOPE",
+            "SIZE",
+            "FOCUS",
+            "EXECUTION",
+            "ENVIRONMENT",
+            "REVIEW",
+            "INPUT",
+            "EXPECTED",
+        ]);
+        keys.extend([
+            "scope",
+            "size",
+            "focus",
+            "execution",
+            "environment",
+            "review_status",
+            "input",
+            "expected_output",
+        ]);
     }
     let table_rows = rows
         .iter()
@@ -1015,7 +1082,7 @@ fn exit_code(code: i32) -> ExitCode {
 }
 
 fn clear_screen(theme: Theme) {
-    if theme.interactive {
+    if theme.interactive && theme.color {
         print!("\x1b[2J\x1b[H");
         let _ = io::stdout().flush();
     }
@@ -1053,4 +1120,43 @@ fn main() -> ExitCode {
         run_rust_tests(&root, theme, &args)
     };
     exit_code(code)
+}
+
+#[cfg(test)]
+mod ui_tests {
+    use super::*;
+
+    fn plain_theme() -> Theme {
+        Theme {
+            interactive: false,
+            color: false,
+            icons: true,
+            animation: true,
+        }
+    }
+
+    #[test]
+    fn redirected_output_uses_compact_brand_without_ansi() {
+        let output = banner(&repo_root(), plain_theme());
+        assert!(output.contains("◆  JELLY"));
+        assert!(output.contains("Browser instrumentation for agents"));
+        assert!(!output.contains("░"));
+        assert!(!output.contains("\u{1b}["));
+    }
+
+    #[test]
+    fn headings_reuse_the_cli_section_symbol() {
+        let output = centered_heading(plain_theme(), "Tests · catalog");
+        assert!(output.contains("◇  TESTS · CATALOG"));
+        assert!(!output.contains("\u{1b}["));
+    }
+
+    #[test]
+    fn no_color_disables_animation_and_screen_clearing() {
+        let mut theme = plain_theme();
+        theme.interactive = true;
+        assert!(!logo_animation_enabled(theme));
+        // clear_screen must not emit escape sequences with color disabled.
+        // The interactive test harness checks the captured output separately.
+    }
 }

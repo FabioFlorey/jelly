@@ -8,10 +8,17 @@ dev::ui_init
 usage() {
   cat <<'USAGE'
 Jelly CLI
-Usage: ./scripts/dev.sh <command> [arguments]
+Usage: ./scripts/dev.sh                  # Interactive real quickstart
+       ./scripts/dev.sh <command> [arguments]
+       ./scripts/dev.sh --demo [arguments]
 
 Installation and operations:
-  setup [--dry-run]           Configure Jelly and optionally install services
+  quickstart                   Configure browser + MCP, install, start and verify
+  setup [--dry-run]           Configure MCP and optionally install services
+  demo | --demo [--tour|--menu|--scenario NAME]
+                              Explore the CLI with sample data
+  browser [menu|detect|recommend|probe|native|add|connect|list|stop]
+                              Select, test and manage browser modes
   doctor                      Check system prerequisites
   status                      Show Jelly service and MCP status
   install                     Build and install Jelly services
@@ -26,6 +33,7 @@ Development:
   format [--check]            Format Rust code or check formatting
   lint                        Run Clippy
   test [--isolated|--ranking|--web-ui|--suite [ARGS...]]
+       [--catalog [FILTERS...]|--acceptance-report [--json|--validate]]
                      Run Rust, browser, or integration tests
                      --suite uses the installed browser and services
   build [--release]           Compile Jelly binaries
@@ -36,11 +44,16 @@ Development:
 USAGE
 }
 
-cmd="${1:-help}"
+cmd="${1:-quickstart}"
+# Bare invocation means real quickstart; noninteractive calls are safely rejected
+# by the quickstart runner before any host operations.
 if (($#)); then shift; fi
 case "$cmd" in
   help|-h|--help) (($# == 0)) || { dev::error 'help takes no arguments'; exit 2; }; usage ;;
+  demo|--demo) exec bash "$DEV_ROOT/scripts/commands/demo.sh" "$@" ;;
+  quickstart) exec bash "$DEV_ROOT/scripts/commands/quickstart.sh" "$@" ;;
   setup) exec "$DEV_ROOT/scripts/commands/setup.sh" "$@" ;;
+  browser) exec bash "$DEV_ROOT/scripts/commands/browser-container.sh" "$@" ;;
   doctor)
     (($# == 0)) || { dev::error 'doctor takes no arguments'; exit 2; }
     dev::doctor ;;
@@ -54,11 +67,15 @@ case "$cmd" in
     (($# == 0)) || { dev::error "$cmd takes no arguments"; exit 2; }
     dev::require systemctl
     if [[ "$cmd" == start ]]; then
-      systemctl --user start jelly-browser.service
+      if ! grep -q '^backend = "remote-cdp"$' "$DEV_ROOT/config/jelly.toml"; then
+        systemctl --user start jelly-browser.service
+      fi
       systemctl --user start jelly-mcp.service
     else
       systemctl --user stop jelly-mcp.service
-      systemctl --user stop jelly-browser.service
+      if ! grep -q '^backend = "remote-cdp"$' "$DEV_ROOT/config/jelly.toml"; then
+        systemctl --user stop jelly-browser.service
+      fi
     fi
     ;;
   logs)
@@ -101,8 +118,9 @@ case "$cmd" in
     (($# == 0)) || { dev::error 'check takes no arguments'; exit 2; }
     cd "$DEV_ROOT"
     dev::require cargo
-    cargo fmt --all -- --check
-    cargo clippy --all-targets --locked -- -D warnings
+    # Formatting and linting are implemented in one place, including auxiliary crates.
+    "$DEV_ROOT/scripts/dev.sh" format --check
+    "$DEV_ROOT/scripts/dev.sh" lint
     for kind in docs security architecture agent-guidance; do
       if [[ "$kind" == agent-guidance ]]; then
         cargo run --quiet --locked --bin jelly-maint -- check agent-guidance --self-test
@@ -111,25 +129,44 @@ case "$cmd" in
       fi
     done
     "$DEV_ROOT/scripts/dev.sh" tools --check
-    "$DEV_ROOT/scripts/tests/dev-cli.sh" ;;
+    "$DEV_ROOT/scripts/tests/dev-cli.sh"
+    bash "$DEV_ROOT/scripts/tests/browser-policy.sh"
+    bash "$DEV_ROOT/scripts/tests/test-taxonomy.sh" ;;
   format)
     dev::require cargo
     cd "$DEV_ROOT"
     case "${1:-}" in
-      '') cargo fmt --all ;;
-      --check) (($# == 1)) || { dev::error 'format --check takes no other arguments'; exit 2; }; cargo fmt --all -- --check ;;
+      '')
+        cargo fmt --all
+        for manifest in scripts/test-jelly-wrapper/Cargo.toml tests/suite/support/event-probe/Cargo.toml tests/suite/support/agent-api-probe/Cargo.toml; do
+          cargo fmt --manifest-path "$manifest"
+        done ;;
+      --check)
+        (($# == 1)) || { dev::error 'format --check takes no other arguments'; exit 2; }
+        cargo fmt --all -- --check
+        for manifest in scripts/test-jelly-wrapper/Cargo.toml tests/suite/support/event-probe/Cargo.toml tests/suite/support/agent-api-probe/Cargo.toml; do
+          cargo fmt --manifest-path "$manifest" -- --check
+        done ;;
       *) dev::error 'usage: dev.sh format [--check]'; exit 2 ;;
     esac ;;
   lint)
     (($# == 0)) || { dev::error 'lint takes no arguments'; exit 2; }
     dev::require cargo
     cd "$DEV_ROOT"
-    cargo clippy --all-targets --locked -- -D warnings ;;
+    cargo clippy --all-targets --locked -- -D warnings
+    for manifest in scripts/test-jelly-wrapper/Cargo.toml tests/suite/support/event-probe/Cargo.toml tests/suite/support/agent-api-probe/Cargo.toml; do
+      cargo clippy --manifest-path "$manifest" --all-targets --locked -- -D warnings
+    done ;;
   test)
+    if [[ "${1:-}" == --acceptance-report ]]; then shift; exec bash "$DEV_ROOT/tests/acceptance/report.sh" "$@"; fi
+    if [[ "${1:-}" == --catalog ]]; then shift; exec bash "$DEV_ROOT/tests/suite/run.sh" --catalog "$@"; fi
     dev::require cargo
     cd "$DEV_ROOT"
     case "${1:-}" in
-      '') cargo test --lib --locked ;;
+      '')
+        if [[ -t 1 ]]; then dev::section 'TESTS  /  RUST'; fi
+        cargo test --all-targets --locked
+        cargo test --manifest-path scripts/test-jelly-wrapper/Cargo.toml --all-targets --locked ;;
       --ranking) (($# == 1)) || { dev::error 'test --ranking takes no other arguments'; exit 2; }; cargo run --locked --bin jelly-maint -- test ranking ;;
       --isolated) (($# == 1)) || { dev::error 'test --isolated takes no other arguments'; exit 2; }; exec "$DEV_ROOT/scripts/tests/fcis-isolated.sh" ;;
       --web-ui) (($# == 1)) || { dev::error 'test --web-ui takes no other arguments'; exit 2; }; exec "$DEV_ROOT/scripts/tests/web-ui.sh" ;;

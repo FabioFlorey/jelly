@@ -1,8 +1,10 @@
 use serde::Deserialize;
 use std::{
+    cell::RefCell,
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
-    sync::LazyLock,
+    sync::{LazyLock, Mutex},
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -24,8 +26,58 @@ pub struct PathsConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct BrowserConfig {
+    #[serde(default)]
+    pub backend: crate::browser_backend::BrowserBackendKind,
+    /// Named remote CDP endpoints; select one via JELLY_BROWSER_ID per process.
+    #[serde(default)]
+    pub remotes: Vec<RemoteBrowserConfig>,
     pub startup_timeout_secs: u64,
     pub cdp_timeout_secs: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RemoteBrowserConfig {
+    /// Stable UUID used for session and runtime identity.
+    pub id: String,
+    /// Optional human-readable selector; may change without migrating runtime state.
+    #[serde(default)]
+    pub name: Option<String>,
+    pub endpoint: String,
+    /// Transport topology metadata. This does not change CDP permissions or authentication.
+    #[serde(default)]
+    pub connection_mode: RemoteConnectionMode,
+    /// Directory in the remote Chromium container where CDP writes GUID-named files.
+    #[serde(default)]
+    pub download_path: Option<String>,
+    /// Operator-provided HTTPS endpoint serving GET /<GUID> with raw file bytes.
+    #[serde(default)]
+    pub download_base_url: Option<String>,
+    /// Optional bearer token for the remote artifact endpoint.
+    #[serde(default)]
+    pub download_token: Option<String>,
+    /// remote-only (default), shared-volume, or transfer.
+    #[serde(default)]
+    pub download_mode: RemoteDownloadMode,
+    /// Host-mounted read-only directory for shared-volume mode.
+    #[serde(default)]
+    pub download_host_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RemoteConnectionMode {
+    #[default]
+    Address,
+    Subnet,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RemoteDownloadMode {
+    #[default]
+    RemoteOnly,
+    SharedVolume,
+    Transfer,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -143,9 +195,27 @@ fn repo_root() -> PathBuf {
 fn load_config() -> JellyConfig {
     let config_path = repo_root().join("config/jelly.toml");
     match fs::read_to_string(&config_path) {
-        Ok(text) => toml::from_str::<JellyConfig>(&text).unwrap_or_else(|error| {
-            panic!("invalid Jelly config {}: {error}", config_path.display())
-        }),
+        Ok(text) => {
+            let mut result = toml::from_str::<JellyConfig>(&text).unwrap_or_else(|error| {
+                panic!("invalid Jelly config {}: {error}", config_path.display())
+            });
+            let registry_path = repo_root().join("config/browsers.toml");
+            if let Ok(registry) = fs::read_to_string(&registry_path) {
+                #[derive(Deserialize)]
+                struct Registry {
+                    #[serde(default)]
+                    remotes: Vec<RemoteBrowserConfig>,
+                }
+                let registered = toml::from_str::<Registry>(&registry).unwrap_or_else(|error| {
+                    panic!(
+                        "invalid browser registry {}: {error}",
+                        registry_path.display()
+                    )
+                });
+                result.browser.remotes.extend(registered.remotes);
+            }
+            result
+        }
         Err(error) => panic!(
             "cannot read required Jelly config {}: {error}",
             config_path.display()
@@ -154,15 +224,128 @@ fn load_config() -> JellyConfig {
 }
 
 static CONFIG: LazyLock<JellyConfig> = LazyLock::new(load_config);
-static RUNTIME_PATHS: LazyLock<RuntimePaths> =
-    LazyLock::new(|| RuntimePaths::from_root(CONFIG.paths.runtime_root.clone()));
+thread_local! {
+    static ACTIVE_BROWSER_ID: RefCell<Option<String>> = const { RefCell::new(None) };
+}
+static RUNTIME_PATHS: LazyLock<Mutex<HashMap<String, &'static RuntimePaths>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Apply a browser selection to the current worker thread, restoring it on exit.
+pub fn with_browser_id<T>(id: Option<&str>, work: impl FnOnce() -> T) -> T {
+    struct Restore(Option<String>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            ACTIVE_BROWSER_ID.with(|selected| *selected.borrow_mut() = self.0.take());
+        }
+    }
+    let prior = ACTIVE_BROWSER_ID.with(|selected| selected.replace(id.map(str::to_owned)));
+    let _restore = Restore(prior);
+    work()
+}
+
+pub fn active_browser_id() -> Option<String> {
+    ACTIVE_BROWSER_ID
+        .with(|selected| selected.borrow().clone())
+        .or_else(|| std::env::var("JELLY_BROWSER_ID").ok())
+}
+
+pub fn valid_browser_uuid(id: &str) -> bool {
+    id.len() == 36
+        && id.bytes().enumerate().all(|(i, b)| {
+            if [8, 13, 18, 23].contains(&i) {
+                b == b'-'
+            } else {
+                b.is_ascii_hexdigit()
+            }
+        })
+}
+
+/// Resolve an ID or easy name to the immutable UUID.
+pub fn resolve_remote_id(selector: &str) -> Result<String, String> {
+    let remotes = &config().browser.remotes;
+    let mut matches = remotes
+        .iter()
+        .filter(|r| r.id == selector || r.name.as_deref() == Some(selector));
+    let selected = matches
+        .next()
+        .ok_or_else(|| format!("unknown remote browser '{selector}'"))?;
+    if matches.next().is_some() {
+        return Err(format!("ambiguous remote browser selector '{selector}'"));
+    }
+    if !valid_browser_uuid(&selected.id) {
+        return Err(format!(
+            "remote browser '{}' requires a valid UUID id",
+            selected.id
+        ));
+    }
+    if remotes
+        .iter()
+        .filter(|r| r.id.eq_ignore_ascii_case(&selected.id))
+        .count()
+        != 1
+    {
+        return Err(format!("duplicate remote browser UUID '{}'", selected.id));
+    }
+    Ok(selected.id.to_ascii_lowercase())
+}
+
+pub fn selected_remote_id() -> Result<String, String> {
+    let selector = active_browser_id().ok_or_else(|| {
+        "set browser_id or JELLY_BROWSER_ID to a configured UUID or easy name".to_string()
+    })?;
+    resolve_remote_id(&selector)
+}
+
+pub fn selected_remote() -> Result<&'static RemoteBrowserConfig, String> {
+    let id = selected_remote_id()?;
+    let mut matches = config()
+        .browser
+        .remotes
+        .iter()
+        .filter(|remote| remote.id.eq_ignore_ascii_case(&id));
+    let remote = matches
+        .next()
+        .ok_or_else(|| format!("unknown remote browser '{id}'"))?;
+    if matches.next().is_some() {
+        return Err(format!("duplicate remote browser '{id}'"));
+    }
+    Ok(remote)
+}
+
+pub fn selected_remote_endpoint() -> Result<String, String> {
+    let endpoint = selected_remote()?.endpoint.trim();
+    let url =
+        url::Url::parse(endpoint).map_err(|error| format!("invalid remote CDP URL: {error}"))?;
+    if !matches!(url.scheme(), "ws" | "wss")
+        || url.host_str().is_none()
+        || !url.path().starts_with("/devtools/browser/")
+    {
+        return Err("remote CDP endpoint must be a ws:// or wss:// browser WebSocket URL (/devtools/browser/...)".into());
+    }
+    Ok(endpoint.to_owned())
+}
 
 pub fn config() -> &'static JellyConfig {
     &CONFIG
 }
 
 pub fn runtime_paths() -> &'static RuntimePaths {
-    &RUNTIME_PATHS
+    let id = if CONFIG.browser.backend == crate::browser_backend::BrowserBackendKind::RemoteCdp {
+        selected_remote_id().expect("remote browser identity is required")
+    } else {
+        String::new()
+    };
+    let mut guard = RUNTIME_PATHS
+        .lock()
+        .expect("runtime path registry poisoned");
+    guard.entry(id.clone()).or_insert_with(|| {
+        let root = if id.is_empty() {
+            CONFIG.paths.runtime_root.clone()
+        } else {
+            CONFIG.paths.runtime_root.join("remote").join(id)
+        };
+        Box::leak(Box::new(RuntimePaths::from_root(root)))
+    })
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -276,6 +459,43 @@ impl From<RuntimePath> for PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn browser_scoping_restores_previous_selection() {
+        with_browser_id(Some("worker-a"), || {
+            assert_eq!(active_browser_id().as_deref(), Some("worker-a"));
+            with_browser_id(Some("worker-b"), || {
+                assert_eq!(active_browser_id().as_deref(), Some("worker-b"));
+            });
+            assert_eq!(active_browser_id().as_deref(), Some("worker-a"));
+        });
+    }
+
+    #[test]
+    fn rejects_invalid_browser_selection() {
+        with_browser_id(Some("../other"), || assert!(selected_remote_id().is_err()));
+        assert!(valid_browser_uuid("8f3a0000-1111-4222-8333-44444444c921"));
+        assert!(!valid_browser_uuid("worker_2"));
+    }
+
+    #[test]
+    fn remote_download_policies_deserialize() {
+        let base = "id = '8f3a0000-1111-4222-8333-44444444c921'\nendpoint = 'ws://localhost:9222/devtools/browser/x'\ndownload_path = '/downloads'\n";
+        let default: RemoteBrowserConfig = toml::from_str(base).unwrap();
+        assert_eq!(default.download_mode, RemoteDownloadMode::RemoteOnly);
+        let shared: RemoteBrowserConfig = toml::from_str(&format!(
+            "{base}download_mode = 'shared-volume'\ndownload_host_path = '/mnt/downloads'\n"
+        ))
+        .unwrap();
+        assert_eq!(shared.download_mode, RemoteDownloadMode::SharedVolume);
+        let transfer: RemoteBrowserConfig =
+            toml::from_str(&format!("{base}download_mode = 'transfer'\n")).unwrap();
+        assert_eq!(transfer.download_mode, RemoteDownloadMode::Transfer);
+        assert!(
+            toml::from_str::<RemoteBrowserConfig>(&format!("{base}download_mode = 'magic'\n"))
+                .is_err()
+        );
+    }
 
     #[test]
     fn runtime_paths_derive_from_one_root() {

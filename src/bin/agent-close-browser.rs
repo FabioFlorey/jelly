@@ -18,6 +18,14 @@ fn remove_if_exists(path: impl AsRef<std::path::Path>) -> Result<(), std::io::Er
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if jelly::config::config().browser.backend
+        == jelly::browser_backend::BrowserBackendKind::RemoteCdp
+    {
+        // Remote Chromium is owned by its operator, not by Jelly.
+        cleanup_files()?;
+        println!("Remote browser detached; Chromium remains running.");
+        return Ok(());
+    }
     let pid = match fs::read_to_string(BROWSER_PID) {
         Ok(pid) => pid.trim().to_string(),
         Err(_) => {

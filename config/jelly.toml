@@ -3,6 +3,25 @@
 runtime_root = "/data/jelly-runtime"
 
 [browser]
+# Browser backend: native or remote-cdp. Remote browser registrations may
+# be created through ./scripts/dev.sh browser and saved in config/browsers.toml
+# (gitignored), or entered here manually. MCP routes per-call via browser_id;
+# CLI processes can select a browser via JELLY_BROWSER_ID.
+# [[browser.remotes]]
+# id = "8f3a0000-1111-4222-8333-44444444c921" # stable UUID
+# name = "Jelly-Applepie" # optional alias
+# connection_mode = "address" # or "subnet"; descriptive topology metadata
+# endpoint = "ws://127.0.0.1:9222/devtools/browser/<cdp-id>"
+# download_path = "/browser-downloads"
+# download_mode = "remote-only" # remote-only | shared-volume | transfer
+# download_host_path = "/mnt/browser-downloads" # shared-volume only
+# download_base_url = "http://internal.example/files" # HTTP or HTTPS for transfer
+# [[browser.remotes]]
+# id = "2b7e0000-1111-4222-8333-44444444a104"
+# name = "Jelly-Biscuit"
+# connection_mode = "subnet"
+# endpoint = "ws://172.19.0.3:9222/devtools/browser/<cdp-id>"
+backend = "native"
 startup_timeout_secs = 30
 cdp_timeout_secs = 60
 

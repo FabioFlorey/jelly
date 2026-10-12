@@ -301,8 +301,8 @@
                 Configure and start
               </h3>
               <p>
-                Install Rust 1.98.1, Chromium and the Linux user services; run <code>./scripts/dev.sh setup</code>. The installer
-                configures authentication and hosting.
+                Install Rust 1.98.1 and Jelly; run <code>./scripts/dev.sh setup</code> to configure MCP authentication and hosting.
+                Use <code>./scripts/dev.sh browser</code> to choose native Chromium, Docker/Podman subnet, or external IP:port.
               </p>
               <a href="./getting-started.html">Installation procedure →</a>
             </article>
@@ -327,8 +327,7 @@
                 Discover and execute
               </h3>
               <p>
-                Call <code>browser-schema</code> with <code>action: "capabilities"</code>. Then start Chromium before using
-                browser-session tools.
+                Call <code>browser-schema</code> with <code>action: "capabilities"</code>. Start or connect to Chromium, then select remote browsers with an optional MCP <code>browser_id</code> UUID or Jelly-* alias.
               </p>
               <a href="./examples.html">Working request example →</a>
             </article>

@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 
 quality_fmt() {
-  CARGO_TARGET_DIR="$CARGO_TARGET_DIR" cargo fmt --check
-  cargo fmt --manifest-path scripts/test-jelly-wrapper/Cargo.toml -- --check
-  cargo fmt --manifest-path tests/suite/support/event-probe/Cargo.toml -- --check
-  cargo fmt --manifest-path tests/suite/support/agent-api-probe/Cargo.toml -- --check
+  # Same canonical formatter used by the developer check pipeline.
+  ./scripts/dev.sh format --check
 }
 
 quality_check() {
@@ -19,18 +17,13 @@ quality_check() {
 }
 
 quality_tests() {
-  CARGO_TARGET_DIR="$CARGO_TARGET_DIR" cargo test --all-targets
+  # Do not define a second Rust test target selection.
+  ./scripts/dev.sh test
 }
 
 quality_clippy() {
-  CARGO_TARGET_DIR="$CARGO_TARGET_DIR" cargo clippy --all-targets -- -D warnings
-  cargo clippy --quiet --locked \
-    --manifest-path scripts/test-jelly-wrapper/Cargo.toml \
-    --target-dir $CONFIG_RUNTIME_ROOT/test-jelly-wrapper-target -- -D warnings
-  CARGO_TARGET_DIR="$CARGO_TARGET_DIR" cargo clippy --quiet --locked \
-    --manifest-path tests/suite/support/event-probe/Cargo.toml -- -D warnings
-  CARGO_TARGET_DIR="$CARGO_TARGET_DIR" cargo clippy --quiet --locked \
-    --manifest-path tests/suite/support/agent-api-probe/Cargo.toml -- -D warnings
+  # Same canonical lint command used by the developer check pipeline.
+  ./scripts/dev.sh lint
 }
 
 quality_tool_index() {
@@ -52,13 +45,8 @@ quality_mcp_build_root() {
 }
 
 quality_suite_catalog() {
-  local catalog count unique
-  catalog="$(tests/suite/run.sh --catalog --json)"
-  count="$(jq 'length' <<<"$catalog")"
-  jt_assert_gt "$count" "0" "test catalog must contain registered tests"
-  unique="$(jq '[.[].id] | unique | length' <<<"$catalog")"
-  jt_assert_eq "$unique" "$count" "every test ID must be unique"
-  jq -e 'all(.[]; (.id|test("^[A-Z]+-[0-9]{3}$")) and (.group|length>0) and (.name|length>0) and (.description|length>0) and (.preconditions|length>0) and (.input|length>0) and (.expected_output|length>0) and (.kind|length>0) and (.enabled|type=="boolean"))' >/dev/null <<<"$catalog" || jt_fail "every catalog row must satisfy the required metadata contract"
+  # The taxonomy validator is the only implementation of catalog integrity.
+  bash scripts/tests/test-taxonomy.sh
 }
 
 quality_suite_shell_syntax() {
@@ -164,10 +152,14 @@ quality_raw_cdp_boundary_docs() {
   grep -Fq 'The setting is process-wide and takes effect at MCP startup' <<<"$mcp" || jt_fail "MCP docs must state process-wide startup semantics"
   grep -Fq 'changing `[mcp].raw_cdp` requires an MCP restart' <<<"$mcp" || jt_fail "MCP docs must state restart requirement"
   grep -Fq 'raw-CDP enablement is not per-client' <<<"$mcp" || jt_fail "MCP docs must state current per-client limitation"
-  grep -Fq 'one process-wide `BrowserSession`' <<<"$mcp" || jt_fail "MCP docs must state process-wide persistent BrowserSession semantics"
-  grep -Fq 'not isolated per OAuth client' <<<"$mcp" || jt_fail "MCP docs must state that event/session state is not per-client"
-  grep -Fq 'subscription IDs, is likewise process-wide' <<<"$security" || jt_fail "Security docs must state process-wide subscription state"
-  grep -Fq 'raw_cdp = false' <<<"$config_file" || jt_fail "config must keep raw CDP disabled by default"
+  grep -Fq 'per-browser UUID' <<<"$mcp" || jt_fail "MCP docs must describe per-browser remote session caching"
+  grep -Fq 'not per OAuth client' <<<"$mcp" || jt_fail "MCP docs must state that event/session state is not per-client"
+  grep -Fq 'browser-session registry is keyed by browser UUID, not by authenticated client' <<<"$security" || jt_fail "Security docs must describe browser-scoped, not per-client, session caching"
+  grep -Fq 'retained browser-event state and subscription IDs' <<<"$security" || jt_fail "Security docs must describe subscription sharing for the selected browser"
+  local selected_raw
+  selected_raw="$(sed -n 's/^raw_cdp = \(true\|false\)$/\1/p' <<<"$config_file")"
+  [[ "$selected_raw" == true || "$selected_raw" == false ]] || jt_fail "config must explicitly select a valid raw-CDP policy"
+  grep -Fq "[mcp].raw_cdp = $selected_raw" <<<"$security" || jt_fail "Security docs must describe the actual checked-in operator-selected raw-CDP value"
 }
 
 quality_discovery_docs() {
@@ -224,7 +216,7 @@ quality_mcp_surface_budget() {
   small_raw_desc="$(jq -r '.small_surface_raw_on.description_bytes' <<<"$report")"
 
   jt_assert_gt "$large_tools" "$small_tools" "small-surface must publish fewer tools than large-surface"
-  jt_assert_eq "$(jq -r '.large_surface.binding_distribution.browser_primitive' <<<"$report")" "47"     "large-surface must publish the 47 semantic browser primitives"
+  jt_assert_eq "$(jq -r '.large_surface.binding_distribution.browser_primitive' <<<"$report")" "$(jq -r '.semantic_primitive_count' <<<"$report")"     "large-surface must publish all registered semantic browser primitives"
   jt_assert_eq "$(jq -r '.large_surface.binding_distribution.builtin_facade' <<<"$report")" "0"     "large-surface must not publish small-surface browser facade entries"
   jt_assert_eq "$(jq -r '.small_surface_raw_off.binding_distribution.browser_primitive' <<<"$report")" "0"     "small-surface must not republish individual browser primitives"
   jt_assert_eq "$(jq -r '.small_surface_raw_off.binding_distribution.builtin_facade' <<<"$report")" "3"     "small-surface must publish exactly the three browser facade entries"
@@ -257,12 +249,16 @@ quality_test_index() {
   done < tests/suite/config/batches.tsv
 }
 
-jt_register "QLT-001" "quality" "Rust formatting" "Verify all Rust source files conform to rustfmt without modifying them." "Rust toolchain and rustfmt installed." "cargo fmt --check" "Command exits 0 and produces no formatting diff." "quality" quality_fmt
+quality_container_policy() {
+  bash scripts/tests/browser-policy.sh
+}
+
+jt_register "QLT-001" "quality" "Rust formatting" "Verify all Rust source files conform to rustfmt without modifying them." "Rust toolchain and rustfmt installed." "./scripts/dev.sh format --check (root and auxiliary crates)" "All registered Rust manifests satisfy rustfmt without changing files." "quality" quality_fmt
 jt_register "QLT-002" "quality" "All-target compilation" "Compile every library, binary, test, and auxiliary target in check mode." "Rust dependencies are available; the configured build root is writable." "cargo check --all-targets" "All targets compile successfully." "quality" quality_check
-jt_register "QLT-003" "quality" "Rust test suite" "Run all Rust unit and binary tests across all targets." "Project compiles and test dependencies are available." "cargo test --all-targets" "Every Rust test passes with zero failures." "quality" quality_tests
-jt_register "QLT-004" "quality" "Clippy warnings as errors" "Run Clippy across all targets and reject every warning." "Clippy component is installed." "cargo clippy --all-targets -- -D warnings" "Clippy exits 0 with no warnings." "quality" quality_clippy
+jt_register "QLT-003" "quality" "Rust test suite" "Run all Rust unit and binary tests across all targets." "Project compiles and test dependencies are available." "./scripts/dev.sh test (cargo test --all-targets --locked)" "All Rust library, binary and other target tests pass with zero failures." "quality" quality_tests
+jt_register "QLT-004" "quality" "Clippy warnings as errors" "Run Clippy across all targets and reject every warning." "Clippy component is installed." "./scripts/dev.sh lint (root and auxiliary crates)" "All root and auxiliary Rust targets pass Clippy with warnings denied." "quality" quality_clippy
 jt_register "QLT-005" "quality" "Generated tool index consistency" "Verify the checked-in agent tool index matches the registry-derived generated output." "Jelly binaries can be built and ./scripts/dev.sh tools --check is executable." "./scripts/dev.sh tools --check" "Generated and checked-in tool indexes are identical." "quality" quality_tool_index
-jt_register "QLT-006" "quality" "Test catalog metadata integrity" "Verify the executable test catalog has unique stable IDs and complete required metadata for every registered test." "tests/suite runner and jq available." "tests/suite/run.sh --catalog --json" "Catalog is non-empty; IDs are unique and match PREFIX-NNN; every required metadata field is non-empty and enabled is boolean." "quality" quality_suite_catalog
+jt_register "QLT-006" "quality" "Test catalog metadata integrity" "Verify the executable test catalog has unique stable IDs and complete required metadata for every registered test." "tests/suite runner and jq available." "Run scripts/tests/test-taxonomy.sh against the canonical scenario catalog." "Catalog IDs, required metadata, filter semantics, suites and acceptance references are validated once." "quality" quality_suite_catalog
 jt_register "QLT-007" "quality" "Test harness shell syntax" "Verify the runner, group implementations, and CLI/internal scripts are syntactically valid Bash." "bash available." "bash -n on all tracked shell scripts" "Every test-system shell file parses successfully." "quality" quality_suite_shell_syntax
 jt_register "QLT-008" "quality" "Global suite concurrency lock" "Verify executable suite runs are serialized so shared browser/service state cannot be corrupted by concurrent runs." "Test is executed by tests/suite/run.sh while the parent runner owns the lock." "Attempt a nested executable suite run." "Nested run exits 75 and reports that another suite run is already active." "quality" quality_suite_lock
 jt_register "QLT-009" "quality" "Test index coverage" "Verify the repository test index exists and stays synchronized with executable groups and named batches." "tests/INDEX.md, suite catalog, and batches.tsv are readable." "Compare documented group/batch rows with run.sh --list and config/batches.tsv." "Every executable group and configured batch is present in tests/INDEX.md, which links to the detailed suite guide." "quality" quality_test_index
@@ -278,3 +274,4 @@ jt_register "QLT-017" "quality" "Canonical MCP build root" "Verify MCP install/h
 jt_register "QLT-018" "quality" "Agent routing guidance evaluation" "Validate the compact MCP decision table, final-outcome gate, and routing/slot/verification scoring harness with negative controls."   ".agent/instructions/mcp.md and agent-guidance fixtures are readable; Rust/Cargo available."   "Check bootstrap rules and run jelly-maint check agent-guidance --self-test."   "All deterministic reference cases and mutation negatives behave correctly without model or browser calls." "quality" quality_agent_guidance
 
 jt_register "QLT-019" "quality" "Shell environment and cleanup safety" "Verify untrusted dotenv values stay inert, environment files are private, and unsafe deletion targets are rejected." "Rust/Cargo, Bash and coreutils available." "Run isolated dotenv and cleanup-guard regression fixtures without modifying runtime state." "Hostile values round-trip as data and broad or non-Jelly deletion paths fail closed." "quality" quality_shell_safety
+jt_register "QLT-020" "quality" "Container security choice contract" "Check sandbox flags, engine restrictions, CDP publication and failure suggestions without real containers." "Bash and mocked Docker/Curl/Cargo executables available; no installed browser is needed." "Run the container policy mock harness with requested options and a simulated launch failure." "Operator choices are forwarded exactly, exposed ports are optional, failure does not trigger fallback, and sandbox status is reported unverified." "quality" quality_container_policy
