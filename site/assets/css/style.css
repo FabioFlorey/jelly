@@ -268,6 +268,14 @@
       letter-spacing: -.045em;
     }
 
+    /* GoCake is the display face for major Jelly headings across all pages.
+       Keep body text, card labels, and terminal/code content monospace. */
+    h1, h2 {
+      font-family: "Gocake", ui-monospace, monospace;
+      font-weight: 400;
+      letter-spacing: 0;
+    }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
