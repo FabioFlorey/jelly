@@ -4,17 +4,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="theme-color" content="#ffc107">
-    <meta name="description" content="Linux installation and configuration of Jelly Chromium MCP server, with prerequisites, local bearer token, OAuth, verification and troubleshooting.">
+    <meta name="description" content="Start Jelly on Linux: install, choose native or containerized Chromium, connect an AI client, and verify your MCP server.">
     <meta name="robots" content="index,follow">
     <title>
-      Install and Configure Jelly · Jelly MCP Server
+      Get Started with Jelly · Browser automation for AI agents
     </title>
     <link rel="canonical" href="https://fabioflorey.github.io/jelly/getting-started.html">
     <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <link rel="alternate icon" type="image/png" href="./assets/images/favicon.png">
-    <link rel="stylesheet" href="./assets/css/style.css?v=cfefdcf06e7f">
-    <meta property="og:title" content="Install and Configure Jelly · Jelly MCP Server">
-    <meta property="og:description" content="Linux installation and configuration of Jelly Chromium MCP server, with prerequisites, local bearer token, OAuth, verification and troubleshooting.">
+    <link rel="stylesheet" href="./assets/css/style.css?v=getting-started-20261012">
+    <meta property="og:title" content="Get Started with Jelly · Browser automation for AI agents">
+    <meta property="og:description" content="Start Jelly on Linux: install, choose native or containerized Chromium, connect an AI client, and verify your MCP server.">
     <meta property="og:url" content="https://fabioflorey.github.io/jelly/getting-started.html">
     <meta property="og:type" content="article">
   </head>
@@ -34,131 +34,216 @@
     </header>
     <main class="shell doc-page" id="main">
       <div class="doc-head">
-        <div class="eyebrow">
-          Jelly / Developer documentation
-        </div>
-        <h1>
-          Install and Configure Jelly
-        </h1>
+        <div class="eyebrow">Jelly / Getting started</div>
+        <h1>Get Jelly running</h1>
         <p class="lede">
-          Install Jelly, choose your MCP connection, and make your first tool call.
+          Jelly connects an AI assistant to a real Chromium browser. This guide walks you through
+          installing it on Linux, choosing a browser, connecting an AI client, and checking that it works.
+        </p>
+        <p class="site-note">
+          One real setup command: <code>./scripts/dev.sh</code>. It asks before saving settings,
+          creating a browser container, or installing services.
+        </p>
+        <p class="site-note">
+          Jump to: <a href="#prerequisites">Requirements</a> ·
+          <a href="#install">Start setup</a> ·
+          <a href="#browser-deployment">Browser choices</a> ·
+          <a href="#client">AI connection</a> ·
+          <a href="#verify">Check it works</a> ·
+          <a href="#troubleshooting">Get help</a>
         </p>
       </div>
+
       <section id="prerequisites">
-        <h2>
-          1. Prerequisites
-        </h2>
+        <h2>1. What you need</h2>
+        <p>Use a <strong>Linux computer</strong> with:</p>
+        <ul>
+          <li><strong>Git</strong> to download Jelly and <strong>Rust 1.98.1 with Cargo</strong> to build it.</li>
+          <li><strong>Bash</strong>, standard command-line utilities, and a working <code>systemd --user</code> service manager.</li>
+          <li><strong>One way to run Chromium:</strong> installed locally at <code>/usr/bin/chromium</code>,
+            an accessible Docker/Podman engine, or an existing reachable Chrome DevTools Protocol (CDP) browser.</li>
+        </ul>
         <p>
-          <strong>Platform:</strong> Linux with a working <code>systemd --user</code> manager. <strong>Runtime:</strong>
-          Rust 1.98.1 and Cargo, Bash, Git and common core utilities. Native browser mode additionally needs Chromium at <code>/usr/bin/chromium</code>; container mode needs Docker or Podman and the ability to reach its CDP endpoint.
-          <code>curl</code> is used for the checks below. Remote Quick Tunnel mode additionally needs
-          <code>cloudflared</code>; <code>nip-io</code> needs Caddy and a reachable public IPv4 address.
+          You do <strong>not</strong> need Docker or Podman if you choose native Chromium.
+          If you want to connect ChatGPT over the Internet using a temporary HTTPS address,
+          also install <code>cloudflared</code>. Jelly does not install these prerequisites for you.
+        </p>
+        <p>
+          See the <a href="https://github.com/FabioFlorey/jelly/blob/main/docs/getting-started/REQUIREMENTS.md">complete requirements</a>
+          if you need help preparing Linux.
         </p>
       </section>
+
       <section id="install">
-        <h2>
-          2. Get the checkout and audit prerequisites
-        </h2>
+        <h2>2. Download Jelly and start the real setup</h2>
+        <p>Open a terminal on your Linux machine and enter:</p>
         <pre><code>git clone https://github.com/FabioFlorey/jelly.git
 cd jelly
-./scripts/dev.sh doctor
-./scripts/dev.sh setup --dry-run</code></pre>
+./scripts/dev.sh</code></pre>
         <p>
-          The first command checks dependencies. The dry run previews configuration without saving <code>.env</code>,
-          building binaries or starting services. Fix reported failures before proceeding.
+          If you already downloaded Jelly, just open its directory and run <code>./scripts/dev.sh</code>.
+          <strong>This is the real configuration wizard, not a simulation.</strong> It checks prerequisites,
+          asks a few questions, and shows what will change before applying it. Run it in an interactive terminal.
+        </p>
+        <p>
+          Only want to see the experience without changing your computer?
+          Run <code>./scripts/dev.sh demo</code> instead.
         </p>
       </section>
+
       <section id="browser-deployment">
-        <h2>Optional: choose where Chromium runs</h2>
+        <h2>3. Choose where the browser runs</h2>
+        <p>Jelly needs Chromium to visit websites. The first part of setup asks you to choose one option:</p>
+        <ul>
+          <li><strong>Native Chromium:</strong> use the browser installed on this Linux machine. Choose this if
+            you already have <code>/usr/bin/chromium</code> and want the simplest local setup.</li>
+          <li><strong>Docker or Podman:</strong> run Chromium in a separate container. Choose this if you want
+            container-managed browser profiles and configurable isolation controls.</li>
+          <li><strong>Existing CDP browser:</strong> connect a Chromium instance you already manage,
+            using its address or WebSocket URL. This is for advanced setups.</li>
+          <li><strong>Keep existing:</strong> reuse your current Jelly browser configuration.</li>
+        </ul>
         <p>
-          Jelly can use a native host browser, a Docker/Podman container on a dedicated bridge subnet,
-          or a separately managed Chromium at an IP:port / hostname:port / CDP WebSocket address.
-          Use <code>./scripts/dev.sh browser</code> for the interactive selector and to add additional browsers.
+          You only need <strong>one</strong> browser option. The container path offers isolated,
+          shared, or ephemeral profiles; optional Chromium sandbox settings and container restrictions
+          are separate choices. A running container does not itself prove the sandbox is active.
         </p>
-        <pre><code>./scripts/dev.sh browser native
-./scripts/dev.sh browser add --engine docker --profile isolated
-./scripts/dev.sh browser connect --address chromium.internal:9222</code></pre>
         <p>
-          Containers support <code>isolated</code>, <code>shared</code> and <code>ephemeral</code> profiles. Chromium sandbox
-          (<code>enabled</code>/<code>disabled</code>), container restrictions (<code>restricted</code>/<code>standard</code>)
-          and CDP publication (<code>--publish IP:PORT</code>) are independent operator choices.
-          Jelly shows implications, never silently changes the requested settings, and distinguishes startup reachability
-          from effective sandbox verification.
-        </p>
-        <p>
-          To inspect a Jelly-managed container without changing it:
-          <code>./scripts/dev.sh browser diagnose --engine docker --container jelly-chromium-1</code>.
-          Configuration changes and browser additions require restarting Jelly MCP.
-          See the <a href="https://github.com/FabioFlorey/jelly/blob/main/docs/reference/BROWSER_DEPLOYMENT.md">browser deployment and security model</a>.
-          Live sandbox attestation and multi-container integration testing remain outstanding.
+          To compare the options and their security limits, see the
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/docs/reference/BROWSER_DEPLOYMENT.md">browser deployment guide</a>.
+          Confirmed browser changes can remain saved even if you cancel later setup steps.
         </p>
       </section>
+
       <section id="client">
-        <h2>
-          3. Choose the client and hosting profile
-        </h2>
+        <h2>4. Choose how your AI connects to Jelly</h2>
+        <p>The next part of the wizard asks how Jelly should be reached. Pick the option that matches your AI client.</p>
+        <div class="grid connection-options">
+          <article class="card">
+            <div class="index">CHATGPT / REMOTE ACCESS</div>
+            <h3>HTTPS with OAuth</h3>
+            <p>
+              Choose <code>quick-tunnel</code> for a temporary public HTTPS address (requires
+              <code>cloudflared</code>). ChatGPT uses the HTTPS MCP URL and an OAuth authorization flow.
+              The tunnel address can change after a restart, so you may need to reconnect.
+            </p>
+          </article>
+          <article class="card">
+            <div class="index">LOCAL MCP CLIENT</div>
+            <h3>Local HTTP with a token</h3>
+            <p>
+              Choose <code>local</code> hosting for an MCP client on this computer.
+              The default endpoint is <code>http://127.0.0.1:8787/mcp</code>;
+              the client authenticates with your Jelly bearer token.
+            </p>
+          </article>
+        </div>
         <p>
-          <strong>Remote ChatGPT:</strong> The checked-in <code>config/jelly.toml</code> contains the <code>chatgpt</code>
-          / <code>remote-http</code> / <code>oauth</code> profile. Choose <code>quick-tunnel</code>,
-          <code>cloudflare-fixed</code> or <code>nip-io</code> in the wizard. The hosting wrapper must provide an actual
-          public HTTPS <code>JELLY_PUBLIC_URL</code>. An arbitrary fake URL is not a working proxy.
+          <strong>Important for local-only setup:</strong> The repository also enables a ChatGPT remote
+          connection profile by default. If you choose <code>local</code> hosting without a public HTTPS
+          origin, remove that remote profile from <code>config/jelly.toml</code> <em>before starting the services</em>.
+          Otherwise startup validation fails.
         </p>
+        <details>
+          <summary>Show the exact configuration block to remove for local-only setup</summary>
+          <p>Open <code>config/jelly.toml</code> and delete this block, leaving the
+            <code>generic-mcp</code> connection profile in place:</p>
+          <pre><code>[[mcp.connections]]
+provider = "chatgpt"
+method = "remote-http"
+auth = "oauth"</code></pre>
+          <p>If you already started the wizard, you can save settings without installing, make this
+            change, and then run <code>./scripts/dev.sh install</code> when you are ready.</p>
+        </details>
         <p>
-          <strong>Local generic MCP client:</strong> Remove the <code>[[mcp.connections]]</code> entry whose
-          <code>provider</code> is <code>chatgpt</code> from <code>config/jelly.toml</code> when using local-only hosting
-          without HTTPS. Keep the <code>generic-mcp</code> / <code>local-http</code> / <code>bearer-token</code> profile.
-          Otherwise the remote profile fails startup validation.
+          For permanent public HTTPS hosting and other client-specific instructions, see
+          <a href="./clients.html">Connect Jelly to your agent</a>.
         </p>
-        <p>See <a href="./clients.html">connection options</a> for a walkthrough of each client setup.</p>
       </section>
+
       <section id="credentials">
-        <h2>
-          4. Set credentials and start services
-        </h2>
-        <pre><code>./scripts/dev.sh</code></pre>
+        <h2>5. Review your settings, then start Jelly</h2>
+        <p>Finish the wizard's questions about credentials, hosting, and optional integrations:</p>
+        <ol>
+          <li><strong>Review:</strong> Jelly shows a summary with secrets hidden.</li>
+          <li><strong>Save:</strong> confirm writing your settings to the local <code>.env</code> file.</li>
+          <li><strong>Install and start:</strong> confirm the separate prompt to build Jelly and start its user services.</li>
+        </ol>
         <p>
-          The real quickstart offers browser selection (or reuse), then prompts for hosting and authentication.
-          Review each change, save the configuration, and explicitly approve service installation and startup.
-          Jelly writes local secrets to the ignored <code>.env</code> file with restricted permissions.
-          Do not commit or share that file.
-        </p>
-        <p>
-          For local HTTP clients, use the configured <code>JELLY_MCP_TOKEN</code>. For remote clients, complete the
-          configured OAuth flow. The single OAuth scope is <code>jelly</code>.
+          <strong>You can say no.</strong> If you save without installing, start later with
+          <code>./scripts/dev.sh install</code>. Your <code>.env</code> file contains secrets:
+          do not commit, copy into bug reports, or share it.
         </p>
       </section>
+
       <section id="verify">
-        <h2>
-          5. Verify service and MCP tool call
-        </h2>
+        <h2>6. Check that Jelly is working</h2>
+        <p>After setup finishes, open another terminal in the Jelly directory and run:</p>
         <pre><code>./scripts/dev.sh status
 curl --fail --silent --show-error http://127.0.0.1:8787/health
-source ./scripts/lib/config.sh
+curl --fail --silent --show-error http://127.0.0.1:8787/ready</code></pre>
+        <p>
+          <strong>What success looks like:</strong> the MCP service is active, <code>/health</code>
+          responds with <code>"status":"ok"</code>, and <code>/ready</code> reports
+          <code>"ready":true</code>. These URLs use Jelly's default local address;
+          use your configured listener if you changed it.
+        </p>
+        <p>
+          <strong>Note:</strong> a healthy MCP server does not prove that Chromium is already
+          running or connected. Test a browser operation separately after choosing your client.
+        </p>
+        <details>
+          <summary>Optional: verify the authenticated MCP API from the terminal</summary>
+          <p>On the Jelly host, load the token as data, without displaying it, then ask MCP for its tools:</p>
+          <pre><code>source ./scripts/lib/config.sh
 jelly_load_env
 curl --fail --silent --show-error http://127.0.0.1:8787/mcp \
   -H "Authorization: Bearer $JELLY_MCP_TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"browser-schema","arguments":{"action":"capabilities"}}}'</code></pre>
-        <p>
-          <strong>Expected:</strong> <code>/health</code> returns <code>"status":"ok"</code>. The JSON-RPC response has a
-          <code>result.structuredContent</code> object whose <code>ok</code> is <code>true</code>, <code>meta.tool</code>
-          is <code>"browser-schema"</code>, and <code>data.action</code> is <code>"capabilities"</code>. Actual
-          categories/counts depend on the current binary. This validates MCP discovery, <strong>not</strong> browser
-          startup.
-        </p>
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'</code></pre>
+          <p>A successful response includes a list of tools. An HTTP 401 response indicates a
+            credential problem, not a broken installation.</p>
+        </details>
       </section>
+
       <section id="next">
-        <h2>
-          6. First browser operation and next steps
-        </h2>
+        <h2>7. Connect your AI and try a browser action</h2>
+        <p>
+          For <strong>ChatGPT</strong>, add Jelly's HTTPS MCP address (ending in <code>/mcp</code>)
+          to your client and complete OAuth authorization. For a <strong>local MCP client</strong>,
+          use <code>http://127.0.0.1:8787/mcp</code> and the configured bearer token.
+          Follow the <a href="./clients.html">connection guide</a> for client-specific steps.
+        </p>
+        <p>To try Jelly's browser CLI directly on an idle or dedicated browser, run:</p>
         <pre><code>cargo run --quiet --bin agent-run -- open-browser https://example.com
 cargo run --quiet --bin agent-run -- read-page</code></pre>
         <p>
-          These commands use the shared Jelly browser; opening a page can affect other clients. Do not run them while another browser workflow is active. The <code>close-browser</code> command stops the shared browser. A healthy MCP server alone does not
-          imply an active browser. Next, read <a href="./examples.html">MCP request examples</a>, <a
-          href="./tools.html">the tool catalog</a>, or <a href="./troubleshooting.html">failure diagnostics</a>. The <a
-          href="https://github.com/FabioFlorey/jelly/blob/main/docs/getting-started/QUICKSTART.md">repository setup
-          guide</a> remains the authoritative detailed procedure.
+          These commands open a web page and read its contents. They can change the active page in
+          a shared browser; avoid running them during another user's workflow. A remote browser
+          must be registered and reachable. See <a href="./examples.html">MCP request examples</a>
+          for the equivalent agent-facing flow.
+        </p>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>Something didn't work?</h2>
+        <ul>
+          <li><strong>Missing tools or Chromium:</strong> run <code>./scripts/dev.sh doctor</code>.
+            For container or external browser modes, use the browser-specific checks instead of
+            requiring host Chromium.</li>
+          <li><strong>Jelly won't start:</strong> run <code>./scripts/dev.sh status</code> and
+            <code>./scripts/dev.sh logs</code>. If you chose local hosting, check for the
+            remote HTTPS profile described above.</li>
+          <li><strong>Health check fails:</strong> confirm the service is running and that you
+            are using the configured listener address.</li>
+          <li><strong>Browser unavailable:</strong> check Chromium or container/CDP connectivity.
+            MCP health and browser readiness are separate checks.</li>
+          <li><strong>ChatGPT can't connect:</strong> check the public HTTPS MCP URL, OAuth setup,
+            and whether your temporary tunnel address has changed.</li>
+        </ul>
+        <p>
+          See <a href="./troubleshooting.html">Troubleshooting</a> or the
+          <a href="https://github.com/FabioFlorey/jelly/blob/main/docs/getting-started/QUICKSTART.md">detailed setup reference</a>.
         </p>
       </section>
     </main>

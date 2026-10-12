@@ -275,6 +275,8 @@
       border-left: 1px solid var(--line);
     }
 
+    .connection-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
     .card {
       min-height: 200px;
       padding: 26px;
