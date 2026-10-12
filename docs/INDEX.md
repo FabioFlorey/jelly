@@ -9,7 +9,9 @@
 - [Reference](#reference)
 - [Development and architecture](#development-and-architecture)
 
-Start with [Getting Started](./getting-started/QUICKSTART.md) to install Jelly and verify an MCP connection. Use the references for configuration and API contracts, and the guides for browser workflows.
+**New to Jelly?** Start with the [plain-language website Getting Started guide](https://fabioflorey.github.io/jelly/getting-started.html), then [see browser and routine examples](https://fabioflorey.github.io/jelly/examples.html). The Markdown [Getting Started](./getting-started/QUICKSTART.md) gives the complete CLI workflow.
+
+**Using this documentation:** Getting started explains setup, guides cover real workflows, references record exact interfaces and security boundaries, and development/test pages are written for maintainers rather than general users.
 
 ## Getting started
 

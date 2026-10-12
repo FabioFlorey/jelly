@@ -77,3 +77,16 @@ jobs:
         run: cargo run --quiet --locked --bin jelly-maint -- check docs
       - name: Validate agent-guidance evaluation harness
         run: cargo run --quiet --locked --bin jelly-maint -- check agent-guidance --self-test
+      - name: Install Mermaid renderer
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Mermaid CLI
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: '1'
+        run: npm install --prefix "$RUNNER_TEMP/jelly-mermaid" --no-save --no-package-lock --no-audit --no-fund @mermaid-js/mermaid-cli@11.12.0
+      - name: Validate actual Mermaid rendering
+        run: |
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME"
+          PUPPETEER_EXECUTABLE_PATH="$CHROME" python3 scripts/maintenance/check_mermaid.py "$RUNNER_TEMP/jelly-mermaid/node_modules/.bin/mmdc"

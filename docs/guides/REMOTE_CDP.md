@@ -9,6 +9,10 @@
 
 [Documentation index](../INDEX.md)
 
+**Audience:** Advanced operators connecting existing Chromium browsers that Jelly does not start or stop.
+
+CDP is the Chrome DevTools Protocol. Begin with [Getting Started](../getting-started/QUICKSTART.md) if you only need one local browser; this guide is for independently hosted browsers and their downloads.
+
 Jelly can attach to **operator-managed** Chromium instances over browser-level CDP WebSockets. Docker and Podman are not integration dependencies: the operator starts Chromium, handles network isolation, and supplies the browser WebSocket URL.
 
 ## Quick registration (UUID + automatic dessert names)

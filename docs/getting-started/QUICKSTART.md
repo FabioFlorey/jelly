@@ -4,7 +4,6 @@
 
 ## Table of Contents
 
-- [Interactive CLI and product walkthrough](#interactive-cli-and-product-walkthrough)
 - [Prerequisites](#prerequisites)
 - [1. Get the source](#1-get-the-source)
 - [2. Check dependencies and preview setup](#2-check-dependencies-and-preview-setup)
@@ -13,30 +12,13 @@
 - [5. Verify the service](#5-verify-the-service)
 - [6. Perform a browser operation](#6-perform-a-browser-operation)
 - [Troubleshooting](#troubleshooting)
+- [Optional: explore the simulated demo](#optional-explore-the-simulated-demo)
 
 **Audience:** Developers and operators setting up Jelly on a Linux workstation. This tutorial starts the MCP server, checks its HTTP endpoints, and demonstrates a browser operation.
 
-## Interactive CLI and product walkthrough
+**Fastest path:** Clone Jelly (step 1), then run **`./scripts/dev.sh`** in an interactive Linux terminal. That is the **real quickstart**: it checks prerequisites, asks where Chromium should run, configures MCP credentials and hosting, shows a redacted preview, then separately asks before installing and starting services. The script does not silently install or change a browser.
 
-Run **`./scripts/dev.sh`** in a terminal for Jelly's **real quickstart**. It checks prerequisites, asks where Chromium should run, configures MCP credentials and hosting, previews changes, and offers to install/start the service and verify its HTTP health/readiness endpoints. There is no separate home dashboard. Other commands perform their named real operations.
-
-**Try the actual interaction without touching the host:**
-
-```bash
-./scripts/dev.sh demo                         # Real menu choices and editable inputs
-./scripts/dev.sh demo --menu                  # Same interactive prompts with piped input
-./scripts/dev.sh demo --tour                  # Pre-filled example session
-./scripts/dev.sh demo --scenario browsers     # Setup, browsers, alternatives, manage, tests, recovery
-./scripts/dev.sh demo --hero                  # Original full 97-column logo
-```
-
-In the demo, choose a sample computer with Docker, Podman, both, or neither; enter a hosting URL; select OAuth/bearer authentication; choose Chromium sandbox, restrictions, profile and CDP exposure; test a candidate; and accept or reject the final review. Results and browser/service state follow **your choices** within the same demo session. In an interactive terminal, each transition **clears and redraws the current screen with the full Jelly hero**; results remain visible until you press Enter. In a redirected transcript or `--tour`, screen clearing and Enter-to-continue are disabled, and selected sample inputs are echoed so the transcript remains readable. Nothing is read from the real Docker/Podman daemons or applied to Jelly's configuration. `--tour` fills in those same prompts with a preselected example.
-
-The demo's **Tests → Browser integration** choice uses the sample MCP and browser state. If no browser is selected or the sample MCP service is stopped, it reports **NOT RUN** and identifies the missing prerequisite. You can separately explore an example PASS or an intentionally failing integration with its diagnostics; neither is evidence of a live test.
-
-**For readers understanding the CLI processes:** Open [CLI Processes Diagrams](../reference/diagrams/DEV.SH.md) directly as Markdown. It contains five Mermaid diagrams with a table of contents, brief process definitions and chapter navigation. The diagrams are separate from the interactive demo.
-
-Both CLI flows use the same honey-yellow headings, structured chapter spacing and confirmation language. `NO_COLOR` is respected.
+Use **`./scripts/dev.sh demo`** only if you want a simulated preview with no host changes; its options are documented at the end of this guide.
 
 ## Prerequisites
 
@@ -125,5 +107,25 @@ The first command opens or attaches the browser at the example page; the second 
 - **Quick Tunnel URL changes:** Reconnect the ChatGPT MCP client; an authorization bound to the old public origin cannot be reused.
 
 For connection and OAuth details, see [MCP Server](../reference/MCP.md). Review [Runtime Layout](../reference/RUNTIME.md#destructive-cleanup) before removing runtime data.
+
+## Optional: explore the simulated demo
+
+**Try the actual interaction without touching the host:**
+
+```bash
+./scripts/dev.sh demo                         # Simulated menu and editable inputs
+./scripts/dev.sh demo --menu                  # Simulated menu with piped input
+./scripts/dev.sh demo --tour                  # Pre-filled example session
+./scripts/dev.sh demo --scenario browsers     # Setup, browsers, alternatives, manage, tests, recovery
+./scripts/dev.sh demo --hero                  # Original full 97-column logo
+```
+
+In the demo, choose a sample computer with Docker, Podman, both, or neither; enter a hosting URL; select OAuth/bearer authentication; choose Chromium sandbox, restrictions, profile and CDP exposure; test a candidate; and accept or reject the final review. Results and browser/service state follow **your choices** within the same demo session. In an interactive terminal, each transition **clears and redraws the current screen with the full Jelly hero**; results remain visible until you press Enter. In a redirected transcript or `--tour`, screen clearing and Enter-to-continue are disabled, and selected sample inputs are echoed so the transcript remains readable. Nothing is read from the real Docker/Podman daemons or applied to Jelly's configuration. `--tour` fills in those same prompts with a preselected example.
+
+The demo's **Tests → Browser integration** choice uses the sample MCP and browser state. If no browser is selected or the sample MCP service is stopped, it reports **NOT RUN** and identifies the missing prerequisite. You can separately explore an example PASS or an intentionally failing integration with its diagnostics; neither is evidence of a live test.
+
+**For readers understanding the CLI processes:** Open [CLI Processes Diagrams](../reference/diagrams/DEV.SH.md) directly as Markdown. It contains five Mermaid diagrams with a table of contents, brief process definitions and chapter navigation. The diagrams are separate from the interactive demo.
+
+Both CLI flows use the same honey-yellow headings, structured chapter spacing and confirmation language. `NO_COLOR` is respected.
 
 <div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

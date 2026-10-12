@@ -79,16 +79,19 @@ They can be provided through the environment or the project `.env` file.
 
 ## Minimum setup
 
-For headless browser automation, the practical minimum is:
+For headless browser automation, the practical minimum depends on where Chromium runs:
 
 ```text
 Git
-Rust 1.98 + Cargo
-Chromium
-systemd user services (`systemctl` + `systemd-run`)
+Rust 1.98.1 + Cargo
+systemd user services (systemctl + systemd-run)
 bash + base64 + core shell utilities
+One browser backend:
+  - Native Chromium at /usr/bin/chromium, OR
+  - Docker/Podman Chromium, OR
+  - A reachable externally managed CDP browser
 ```
 
-Everything else is feature-specific. The MCP quick-tunnel setup additionally requires `cloudflared`; local-only startup must not retain a `remote-http` connection profile without a configured HTTPS public origin. See [Getting Started](./QUICKSTART.md) for a verifiable setup procedure.
+Chromium does not have to be installed on the Jelly host when using Docker/Podman or an external CDP browser. Everything else is feature-specific. The MCP quick-tunnel setup additionally requires `cloudflared`; local-only startup must not retain a `remote-http` connection profile without a configured HTTPS public origin. See [Getting Started](./QUICKSTART.md) for a verifiable setup procedure.
 
 <div align="right"><sub><a href="#top">&uarr; Back to top</a> · <a href="../INDEX.md">Documentation index</a></sub></div>

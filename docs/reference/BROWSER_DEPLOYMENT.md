@@ -13,6 +13,10 @@
 
 [Documentation index](../INDEX.md)
 
+**Audience:** Operators and security reviewers evaluating browser placement, container controls, and CDP exposure.
+
+This is a deployment-security reference, not a beginner installation tutorial. Use [Getting Started](../getting-started/QUICKSTART.md) for the normal workflow; see [Container Chromium](../getting-started/CONTAINER_CHROMIUM.md) for concrete browser commands.
+
 Jelly separates **browser identity**, **CDP transport**, **container execution**, and **artifact handling**. A remote Chromium endpoint is attached by its stable UUID (plus optional `Jelly-*` easy name). Container settings describe *how an operator launched* Chromium; they are not equivalent to properties proven by CDP.
 
 ## Connection modes

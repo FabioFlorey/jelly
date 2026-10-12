@@ -12,6 +12,10 @@
 
 [Documentation index](../INDEX.md)
 
+**Audience:** Operators choosing native Chromium, Docker/Podman, or an externally managed CDP browser.
+
+For a first-time installation, use [Getting Started](./QUICKSTART.md). This guide is for choosing or changing the browser backend after understanding the basic quickstart.
+
 Choose one of three connection strategies from `./scripts/dev.sh browser`:
 
 - **Native:** run Chromium on the Jelly host (`./scripts/dev.sh browser native`).

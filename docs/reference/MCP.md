@@ -12,6 +12,10 @@
 - [Hosting modes](#hosting-modes)
 - [Local bearer smoke test](#local-bearer-smoke-test)
 
+**Audience:** Operators configuring an MCP client and developers implementing or auditing Jelly's HTTP API. For a first installation, use [Getting Started](../getting-started/QUICKSTART.md); this page is the detailed protocol and security reference.
+
+**In plain terms:** Jelly makes browser actions available to AI clients through an authenticated HTTP endpoint. The [tool mapping diagram](#tool-mapping) shows requests passing through authentication and Jelly's approved tool catalog before reaching Chromium or a system action. The endpoint can be healthy even when no browser is currently connected.
+
 Jelly exposes browser primitives and system tools through a Streamable HTTP Model Context Protocol (MCP) endpoint. The default loopback address is:
 
 ```text
@@ -52,8 +56,8 @@ For installation, first-run configuration, verification, and troubleshooting, fo
 [Getting Started](../getting-started/QUICKSTART.md).
 
 ```bash
-./scripts/dev.sh doctor
-./scripts/dev.sh setup
+./scripts/dev.sh            # full interactive quickstart
+./scripts/dev.sh setup      # MCP-only configuration
 ```
 
 Configuration and CLI branding are described in [Configuration](../getting-started/CONFIGURATION.md)
@@ -130,16 +134,16 @@ Jelly currently validates raw call structure, explicit scope, logical-target rou
 
 ```mermaid
 flowchart LR
-    C[MCP client] --> H[/mcp]
-    H --> A[OAuth / bearer validation]
-    A --> M[MCP adapter]
-    M --> G[Validated Agent Tool Catalog]
-    G --> B[Browser primitive bindings]
-    G --> S[System tool bindings]
-    G --> N[Native Agent API builtins]
-    B --> P[BrowserSession / Chromium]
+    C["MCP client"] --> H["/mcp"]
+    H --> A["OAuth / bearer validation"]
+    A --> M["MCP adapter"]
+    M --> G["Validated Agent Tool Catalog"]
+    G --> B["Browser primitive bindings"]
+    G --> S["System tool bindings"]
+    G --> N["Native Agent API builtins"]
+    B --> P["BrowserSession / Chromium"]
     N --> P
-    S --> X[System tool execution]
+    S --> X["System tool execution"]
 ```
 
 Browser primitive bindings get named MCP arguments from their existing `ArgSpec` definitions through the canonical named-argument adapter. System tools keep their registry metadata and map structured MCP arguments onto their CLI forms. A capability omitted from the selected Agent Tool Catalog is neither advertised nor executable by guessing its internal name.
