@@ -306,6 +306,23 @@ pub(super) fn system_cli_args(
                         }
                         Ok(args)
                     }
+                    "validate" if object.len() == 4 => {
+                        let name = string("name")?.ok_or("validate requires name")?;
+                        let version = integer("revision")?.ok_or("validate requires revision")?;
+                        if version < 1 {
+                            return Err("revision must be positive".into());
+                        }
+                        let fixture = object.get("fixture").ok_or("validate requires fixture")?;
+                        if !fixture.is_object() {
+                            return Err("fixture must be an object".into());
+                        }
+                        Ok(vec![
+                            "--validate".into(),
+                            name,
+                            version.to_string(),
+                            serde_json::to_string(fixture).map_err(|e| e.to_string())?,
+                        ])
+                    }
                     "versions" if object.len() == 2 => Ok(vec![
                         "--versions".into(),
                         string("name")?.ok_or("versions requires name")?,

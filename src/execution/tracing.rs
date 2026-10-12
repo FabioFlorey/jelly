@@ -455,6 +455,11 @@ pub fn redact_tool_args(tool: &str, args: &[String]) -> Vec<String> {
             {
                 *mapping = "<redacted-parameter-bindings>".into();
             }
+            if args.first().map(String::as_str) == Some("--validate")
+                && let Some(fixture) = out.get_mut(3)
+            {
+                *fixture = "<redacted-validation-fixture>".into();
+            }
         }
         _ => {}
     }
@@ -525,6 +530,16 @@ mod tests {
         let logged = redact_tool_args("call-routine", &args);
         assert!(!logged.join(" ").contains("invoice-2026"));
         assert_eq!(logged[4], "<redacted-parameter-bindings>");
+        let fixture = r#"{"vars":{"submit":"css:#private-demo"},"steps":[]}"#;
+        let args = ["--validate", "sample", "2", fixture]
+            .iter()
+            .map(|value| (*value).to_owned())
+            .collect::<Vec<_>>();
+        for tool in ["call-routine", "agent-call-routine"] {
+            let logged = redact_tool_args(tool, &args);
+            assert_eq!(logged[3], "<redacted-validation-fixture>");
+            assert!(!logged.join(" ").contains("private-demo"));
+        }
     }
 
     #[test]

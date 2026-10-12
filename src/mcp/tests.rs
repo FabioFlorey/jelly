@@ -582,6 +582,25 @@ fn system_args_are_mapped_to_existing_cli_shape() {
         system_cli_args("call-routine", crystallize.as_object().unwrap()).unwrap(),
         vec!["--crystallize", "sample", "1", "trace-123"]
     );
+    let fixture_validation = json!({"action":"validate","name":"sample","revision":2,
+    "fixture":{"vars":{"submit":"css:#submit"},"steps":[
+        {"node":"step_000","tool":"click","args":["css:#submit"],"ok":true}
+    ]}});
+    let args = system_cli_args("call-routine", fixture_validation.as_object().unwrap()).unwrap();
+    assert_eq!(&args[..3], ["--validate", "sample", "2"]);
+    assert_eq!(
+        serde_json::from_str::<Value>(&args[3]).unwrap(),
+        fixture_validation["fixture"]
+    );
+    assert!(
+        system_cli_args(
+            "call-routine",
+            json!({"action":"validate","name":"sample","revision":2})
+                .as_object()
+                .unwrap()
+        )
+        .is_err()
+    );
     let versions = json!({"action":"versions","name":"sample"});
     assert_eq!(
         system_cli_args("call-routine", versions.as_object().unwrap()).unwrap(),

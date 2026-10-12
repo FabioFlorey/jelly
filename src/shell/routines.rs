@@ -7,6 +7,7 @@ use crate::core::routines::{
 use crate::shell::routine_crystallize;
 use crate::shell::routine_handoff::{dispatch, select_target};
 use crate::shell::routine_state;
+use crate::shell::routine_validation;
 use crate::shell::routine_versions;
 use crate::{
     BrowserSession, LOG_DIR, ROUTINE_STATE_DIR, classify_error, error_details,
@@ -843,6 +844,22 @@ pub fn run_from_env() -> Result<(), Box<dyn std::error::Error>> {
             println!(
                 "{}",
                 routine_versions::stage(std::path::Path::new(ROUTINES), name, expected, candidate)?
+            );
+            return Ok(());
+        }
+        Some("--validate") if args.len() == 4 => {
+            let revision = args[2].parse::<u64>()?;
+            let fixture: Value = serde_json::from_str(&args[3])?;
+            let reports = std::path::Path::new(ROUTINE_STATE_DIR.as_str()).join("validations");
+            println!(
+                "{}",
+                routine_validation::validate(
+                    std::path::Path::new(ROUTINES),
+                    &reports,
+                    &args[1],
+                    revision,
+                    &fixture
+                )?
             );
             return Ok(());
         }
