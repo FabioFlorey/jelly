@@ -115,6 +115,14 @@ fixture binaries or repeats targeted binary tests. `deterministic` includes inst
 `session`/`rollback` tests, whereas `browser` omits them; neither is safe to run on a shared installed
 browser.
 
+The standard `./scripts/dev.sh test` also exercises the isolated Chromium
+candidate validator against a real disposable browser, with both matching
+and failing DOM states. It requires `/usr/bin/chromium` locally or an absolute
+executable set with `JELLY_VALIDATION_CHROMIUM`. GitHub CI resolves the
+runner's Chrome executable and treats missing Chromium or a failed browser
+assertion as a hard test failure. This test does not operate on the installed
+Jelly session or external sites.
+
 Classifications now also record `lifecycle`, maintenance `triage`, `related_ids` and `triage_reason`;
 review these before introducing overlapping assertions. All existing classifications remain provisional.
 

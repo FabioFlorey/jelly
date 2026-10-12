@@ -823,6 +823,13 @@ DOM observations, **never raw arguments or captured page data**.
 test page**, not against a production website or arbitrary real-world state.
 Browser launch failures produce an error, not a misleading passing report.
 
+The default Rust test suite includes a **real Chromium integration test** for
+this action: it stages a candidate revision, runs a positive browser
+interaction, then executes a negative case using a different DOM state.
+The CI workflow requires an installed Chromium/Chrome executable and runs
+this test on both `main` and `vibe`; a missing browser or incorrect result
+fails CI. This does not add public-site testing or claim production safety.
+
 The active routine remains unchanged: `promotion_performed: false` is always
 recorded. Review the reports and test on appropriately isolated real-site
 environments separately before explicit `promote`. This operation does not

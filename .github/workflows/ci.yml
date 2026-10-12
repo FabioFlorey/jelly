@@ -35,5 +35,14 @@ jobs:
         run: rustc --version && cargo --version
       - name: Unified developer checks
         run: ./scripts/dev.sh check
-      - name: Offline Rust tests (all targets, once)
+      - name: Require installed Chromium for actual browser tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME"
+          test -x "$CHROME"
+          "$CHROME" --version
+          echo "JELLY_VALIDATION_CHROMIUM=$CHROME" >> "$GITHUB_ENV"
+      - name: Rust tests including real Chromium replay (all targets, once)
         run: ./scripts/dev.sh test

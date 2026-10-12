@@ -236,9 +236,18 @@ fn launch() -> Result<Isolated, Box<dyn Error>> {
         std::env::temp_dir().join(format!("jelly-live-check-{:032x}", rand::random::<u128>()));
     fs::create_dir(&profile)?;
     fs::set_permissions(&profile, fs::Permissions::from_mode(0o700))?;
+    // GitHub runners usually ship Google Chrome rather than /usr/bin/chromium.
+    // The override must be an absolute executable path, never a shell command.
+    let chrome = std::env::var("JELLY_VALIDATION_CHROMIUM")
+        .unwrap_or_else(|_| "/usr/bin/chromium".to_owned());
+    let chrome_path = Path::new(&chrome);
+    if !chrome_path.is_absolute() || !chrome_path.is_file() {
+        let _ = fs::remove_dir_all(&profile);
+        return Err("JELLY_VALIDATION_CHROMIUM must be an installed absolute browser path".into());
+    }
     let mut options = LaunchOptions::default()
         .headless(true)
-        .executable_path("/usr/bin/chromium")
+        .executable_path(chrome)
         .timeout(Some(12000.0));
     options.user_data_dir = Some(profile.to_string_lossy().into_owned());
     options.chromium_sandbox = true;
@@ -469,6 +478,80 @@ mod tests {
         "step_001":{"tool":"assert-visible","args":["css:#check"],"next":"done","on_error":"failed"},
         "done":{"terminal":"success"},"failed":{"terminal":"failure"}}})
     }
+    #[test]
+    fn real_chromium_replays_pinned_candidate_and_detects_failure() {
+        // This is intentionally NOT ignored or mocked. It runs under the
+        // canonical cargo test gate on both GitHub CI branches; a missing,
+        // broken, or unusable Chromium must fail the job.
+        struct Sandbox(PathBuf);
+        impl Drop for Sandbox {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let sandbox = Sandbox(std::env::temp_dir().join(format!(
+            "jelly-live-validation-test-{:032x}",
+            rand::random::<u128>()
+        )));
+        let routines = sandbox.0.join("routines");
+        let reports = sandbox.0.join("reports");
+        fs::create_dir_all(&routines).unwrap();
+
+        let initial = json!({"name":"sample","description":"Unchanged active v1",
+            "entry":"done","nodes":{"done":{"terminal":"success"}}});
+        fs::write(
+            routines.join("sample.json"),
+            serde_json::to_vec(&initial).unwrap(),
+        )
+        .unwrap();
+        let mut candidate = graph();
+        candidate.as_object_mut().unwrap().remove("revision");
+        let staged =
+            crate::shell::routine_versions::stage(&routines, "sample", 1, candidate).unwrap();
+        assert_eq!(staged["revision"], 2);
+        assert_eq!(staged["active_revision"], 1);
+        let original = fs::read(routines.join("sample.json")).unwrap();
+
+        let fixture = json!({"html":"<!doctype html><title>Real Chromium</title><input id='check' type='checkbox'>",
+            "vars":{"check_target":"css:#check"}});
+        let good = validate(&routines, &reports, "sample", 2, &fixture)
+            .expect("real Chromium must launch and validate the DOM");
+        assert_eq!(good["kind"], "isolated_chromium_validation");
+        assert_eq!(good["execution"]["status"], "passed");
+        assert_eq!(good["execution"]["validated_steps"], 2);
+        assert_eq!(good["execution"]["verification_steps"], 1);
+        assert_eq!(good["browser_verified"], true);
+        assert_eq!(good["promotion_performed"], false);
+
+        // Do not merely assert that a negative result is an Err. The browser
+        // must actually run and persist a FAILED receipt on wrong DOM state.
+        let bad_fixture = json!({"html":"<!doctype html><title>Real Chromium</title><p id='check'>not a checkbox</p>",
+            "vars":{"check_target":"css:#check"}});
+        let bad = validate(&routines, &reports, "sample", 2, &bad_fixture)
+            .expect("negative case must also use a real browser");
+        assert_eq!(bad["execution"]["status"], "failed");
+        assert_eq!(bad["browser_verified"], false);
+        assert_eq!(bad["promotion_performed"], false);
+        assert_eq!(bad["execution"]["validated_steps"], 1);
+
+        for result in [&good, &bad] {
+            let report_file = reports.join(format!(
+                "{}.json",
+                result["validation_id"].as_str().unwrap()
+            ));
+            let stored: Value = serde_json::from_slice(&fs::read(&report_file).unwrap()).unwrap();
+            assert_eq!(stored, *result);
+            assert_eq!(
+                fs::metadata(&report_file).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+            assert!(!stored.to_string().contains("css:#check"));
+            assert!(!stored.to_string().contains("not a checkbox"));
+        }
+        assert_eq!(fs::read(routines.join("sample.json")).unwrap(), original);
+        assert!(!reports.join("active.json").exists());
+    }
+
     #[test]
     fn refuses_active_html_and_non_linear_graphs_before_launch() {
         let mut f = json!({"html":"<input id='check' type='checkbox'>","vars":{"check_target":"css:#check"}});
