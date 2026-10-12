@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="theme-color" content="#ffc107">
-    <meta name="description" content="Input parameters, output envelope, permissions, errors, and side effects for Jelly&#x27;s 16 published small-surface MCP tools, with JSON-RPC examples.">
+    <meta name="description" content="Understand Jelly browser tools in plain language: read pages, interact, verify results, capture files, and explore the full MCP API reference.">
     <meta name="robots" content="index,follow">
     <title>
       Jelly MCP Tools Reference · Jelly MCP Server
@@ -12,9 +12,9 @@
     <link rel="canonical" href="https://fabioflorey.github.io/jelly/tools.html">
     <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <link rel="alternate icon" type="image/png" href="./assets/images/favicon.png">
-    <link rel="stylesheet" href="./assets/css/style.css?v=gocake-headings-20261012">
+    <link rel="stylesheet" href="./assets/css/style.css?v=tools-readable-20261012">
     <meta property="og:title" content="Jelly MCP Tools Reference · Jelly MCP Server">
-    <meta property="og:description" content="Input parameters, output envelope, permissions, errors, and side effects for Jelly&#x27;s 16 published small-surface MCP tools, with JSON-RPC examples.">
+    <meta property="og:description" content="Find the right Jelly browser tool for your AI workflow, with plain-language guidance and full MCP API details.">
     <meta property="og:url" content="https://fabioflorey.github.io/jelly/tools.html">
     <meta property="og:type" content="article">
   </head>
@@ -37,18 +37,107 @@
         <div class="eyebrow">
           Jelly / Developer documentation
         </div>
-        <h1>
-          Jelly MCP Tools Reference
-        </h1>
+        <h1>What can Jelly do?</h1>
         <p class="lede">
-          Each tool listed here corresponds to an implemented Rust MCP binding. Check tools/list for the authoritative
-          active schema.
+          Jelly gives your AI assistant tools to read pages, click and type, check results,
+          capture evidence, and ask for help. This guide shows which tool to use,
+          then provides the exact inputs and outputs for developers.
+        </p>
+        <p class="tool-guide-links">
+          <a href="#start-here">Start here</a>
+          <a href="#tool-list">Find a tool</a>
+          <a href="#reference-basics">API details</a>
+          <a href="#large-surface">Advanced tools</a>
         </p>
       </div>
-      <section>
-        <h2>
-          Published small-surface catalog
-        </h2>
+      <section id="start-here">
+        <h2>Start here: three basic browser tools</h2>
+        <p>
+          An <strong>MCP tool</strong> is an action an AI assistant can request from Jelly.
+          You do not have to write JSON to use one through a connected AI client.
+          For ordinary browser work, these three tools cover discovery, actions, and live events.
+        </p>
+        <div class="grid tool-intro-grid">
+          <article class="card">
+            <div class="index">01 / DISCOVER</div>
+            <h3>Find out what Jelly can do</h3>
+            <p><a href="#browser-schema"><code>browser-schema</code></a> shows browser operations
+              such as reading a page, finding a button, or checking a result. It does not change the page.</p>
+          </article>
+          <article class="card">
+            <div class="index">02 / ACT AND CHECK</div>
+            <h3>Use the browser</h3>
+            <p><a href="#browser-call"><code>browser-call</code></a> carries out browser operations:
+              read content, click, type, and explicitly verify what happened.</p>
+          </article>
+          <article class="card">
+            <div class="index">03 / OBSERVE (OPTIONAL)</div>
+            <h3>Follow browser activity</h3>
+            <p><a href="#browser-events"><code>browser-events</code></a> lets an agent subscribe
+              to and inspect retained browser events when a task needs them.</p>
+          </article>
+        </div>
+        <p>
+          <strong>New to Jelly?</strong> Follow <a href="./getting-started.html">Getting Started</a>
+          to install and connect it. When ready, try the
+          <a href="./examples.html#discover">first working MCP example</a>.
+          A successful browser action alone does not prove the requested outcome;
+          use a verification operation when the result matters.
+        </p>
+      </section>
+      <section id="tool-list">
+        <h2>Find a tool by what you want to do</h2>
+        <p>
+          Use these links when you know the task but not the tool name. Each tool below has
+          its own technical reference, including required inputs, permissions, possible failures, and examples.
+        </p>
+        <div class="tool-groups">
+          <div>
+            <h3>Browse and interact</h3>
+            <ul>
+              <li><a href="#browser-schema"><code>browser-schema</code></a> — discover operations</li>
+              <li><a href="#open-browser"><code>open-browser</code></a> — open or attach Chromium</li>
+              <li><a href="#browser-call"><code>browser-call</code></a> — read, click, type, or check</li>
+              <li><a href="#browser-events"><code>browser-events</code></a> — observe browser events</li>
+              <li><a href="#close-browser"><code>close-browser</code></a> — close a managed browser</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Capture what happened</h3>
+            <ul>
+              <li><a href="#screenshot"><code>screenshot</code></a> — capture an image</li>
+              <li><a href="#record-browser"><code>record-browser</code></a> — capture browser video</li>
+              <li><a href="#verify-artifact"><code>verify-artifact</code></a> — check a captured file</li>
+              <li><a href="#inspect-network"><code>inspect-network</code></a> — inspect network requests</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Work with files</h3>
+            <ul>
+              <li><a href="#download"><code>download</code></a> — manage tracked downloads</li>
+              <li><a href="#wait-download"><code>wait-download</code></a> — wait for a download</li>
+              <li><a href="#downloads"><code>downloads</code></a> — list legacy download files</li>
+              <li><a href="#profile-import"><code>profile-import</code></a> — import a closed browser profile</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Coordinate a task</h3>
+            <ul>
+              <li><a href="#browser-task"><code>browser-task</code></a> — open a page and run a scoped CLI task</li>
+              <li><a href="#call-routine"><code>call-routine</code></a> — run or resume a guarded workflow</li>
+              <li><a href="#hitl"><code>hitl</code></a> — ask a person for input</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      <section id="reference-basics">
+        <h2>For developers: authentication and responses</h2>
+        <p>
+          Jelly currently publishes 16 tools through the default MCP configuration.
+          A running Jelly server tells each AI client which tools and parameters are available.
+        </p>
+        <details class="tool-advanced-details">
+          <summary>Show MCP schemas, authentication, and response formats</summary>
         <p>
           The checked-in <code>[mcp].surface = "small-surface"</code> publishes the three browser tools below plus
           thirteen system tools. Each has an authentication requirement: a valid static bearer token or OAuth access token
@@ -65,35 +154,7 @@
           href="https://github.com/FabioFlorey/jelly/blob/main/.agent/tools/index.md">generated internal capability
           index</a>, but confirm remote publication through <code>tools/list</code>.
         </p>
-      </section>
-      <section>
-        <h2>Remote browser selection and download storage</h2>
-        <p>
-          When the remote CDP backend is configured, <code>tools/list</code> adds optional top-level
-          <code>browser_id</code> to tool inputs. Select the immutable UUID or an easy name such as
-          <code>Jelly-Applepie</code>. This chooses a Chromium instance; <code>target</code> still chooses a page
-          inside that browser. The native backend omits this field. Remote download policies are
-          <code>remote-only</code>, <code>shared-volume</code> and <code>transfer</code>. Explicit
-          <code>download</code> <code>action: "transfer"</code> uses a separately configured HTTP(S) file bridge; HTTP transfers are unencrypted and warned about.
-          Browser connection and sandbox security choices are independent of the MCP client authentication policy.
-        </p>
-      </section>
-      <section>
-        <h2>
-          Jump to a tool
-        </h2>
-        <p>
-          <a href="#browser-schema"><code>browser-schema</code></a> · <a
-          href="#browser-call"><code>browser-call</code></a> · <a href="#browser-events"><code>browser-events</code></a> ·
-          <a href="#open-browser"><code>open-browser</code></a> · <a href="#close-browser"><code>close-browser</code></a>
-          · <a href="#browser-task"><code>browser-task</code></a> · <a
-          href="#profile-import"><code>profile-import</code></a> · <a href="#screenshot"><code>screenshot</code></a> · <a
-          href="#record-browser"><code>record-browser</code></a> · <a href="#download"><code>download</code></a> · <a
-          href="#downloads"><code>downloads</code></a> · <a href="#verify-artifact"><code>verify-artifact</code></a> · <a
-          href="#wait-download"><code>wait-download</code></a> · <a
-          href="#inspect-network"><code>inspect-network</code></a> · <a href="#call-routine"><code>call-routine</code></a>
-          · <a href="#hitl"><code>hitl</code></a>
-        </p>
+        </details>
       </section>
       <section class="tool-record" id="browser-schema">
         <h2>
@@ -102,6 +163,8 @@
         <p>
           Discover semantic browser operations
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -152,14 +215,18 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="browser-call">
         <h2>
           <code>browser-call</code>
         </h2>
         <p>
-          Execute ordered semantic operations or privileged raw CDP
+          Read pages, interact with controls, and explicitly check results. Raw CDP is an advanced option.
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -217,6 +284,8 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="browser-events">
         <h2>
@@ -225,6 +294,8 @@
         <p>
           Subscribe/poll/unsubscribe retained Chromium events
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -279,6 +350,8 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="open-browser">
         <h2>
@@ -287,6 +360,8 @@
         <p>
           Start native Chromium, or connect to the selected remote CDP browser, and optionally open a URL
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -335,6 +410,8 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="close-browser">
         <h2>
@@ -343,6 +420,8 @@
         <p>
           Stop managed native Chromium; remote mode detaches Jelly without stopping external Chromium
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -389,6 +468,8 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="browser-task">
         <h2>
@@ -397,6 +478,8 @@
         <p>
           Open page and perform a scoped CLI operation
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -446,6 +529,8 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="profile-import">
         <h2>
@@ -454,6 +539,8 @@
         <p>
           Copy a closed Chromium profile into Jelly
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -502,6 +589,8 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="screenshot">
         <h2>
@@ -510,6 +599,8 @@
         <p>
           Capture viewport or selected page target
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -558,6 +649,8 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="record-browser">
         <h2>
@@ -566,6 +659,8 @@
         <p>
           Start/stop a browser-only video recording
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -616,6 +711,8 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="download">
         <h2>
@@ -624,6 +721,8 @@
         <p>
           List, inspect, wait for, explicitly transfer, or cancel Chromium downloads
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -673,6 +772,8 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="downloads">
         <h2>
@@ -681,6 +782,8 @@
         <p>
           List files in legacy download directories
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -727,6 +830,8 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="verify-artifact">
         <h2>
@@ -735,6 +840,8 @@
         <p>
           Check an existing screenshot/download artifact
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -783,6 +890,8 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="wait-download">
         <h2>
@@ -791,6 +900,8 @@
         <p>
           Wait for a recently initiated download
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -839,6 +950,8 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="inspect-network">
         <h2>
@@ -847,6 +960,8 @@
         <p>
           Start, stop or inspect CDP request capture
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -895,6 +1010,8 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="call-routine">
         <h2>
@@ -903,6 +1020,8 @@
         <p>
           Start or resume a saved guarded workflow
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -955,6 +1074,8 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
       </section>
       <section class="tool-record" id="hitl">
         <h2>
@@ -963,6 +1084,8 @@
         <p>
           Request human intervention via Telegram
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show parameters, permissions, and example request</summary>
         <dl class="tool-fields">
           <dt>
             Parameters
@@ -1012,6 +1135,23 @@
             method <code>tools/call</code>.
           </p>
         </details>
+        </details>
+        <p class="tool-back-link"><a href="#tool-list">↑ Back to tool list</a></p>
+      </section>
+      <section id="remote-browser-selection">
+        <h2>Advanced: multiple browsers and remote downloads</h2>
+        <details class="tool-advanced-details">
+          <summary>Show browser IDs, remote storage, and security details</summary>
+        <p>
+          When the remote CDP backend is configured, <code>tools/list</code> adds optional top-level
+          <code>browser_id</code> to tool inputs. Select the immutable UUID or an easy name such as
+          <code>Jelly-Applepie</code>. This chooses a Chromium instance; <code>target</code> still chooses a page
+          inside that browser. The native backend omits this field. Remote download policies are
+          <code>remote-only</code>, <code>shared-volume</code> and <code>transfer</code>. Explicit
+          <code>download</code> <code>action: "transfer"</code> uses a separately configured HTTP(S) file bridge; HTTP transfers are unencrypted and warned about.
+          Browser connection and sandbox security choices are independent of the MCP client authentication policy.
+        </p>
+        </details>
       </section>
       <section id="tool-surfaces">
         <h2>Choosing a tool surface</h2>
@@ -1044,6 +1184,8 @@
           is a JSON <code>params.arguments</code> object for a <code>tools/call</code> request with
           <code>params.name</code> equal to the corresponding primitive name.
         </p>
+        <details class="tool-advanced-details">
+          <summary>Show the expanded browser operations, arguments and raw CDP reference</summary>
         <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable reference table">
           <table>
             <thead>
@@ -1965,6 +2107,7 @@
             Example cdp-call arguments
           </summary>
           <pre><code>{"calls":[{"scope":"browser","call":{"method":"Target.getTargets","params":{}}}]}</code></pre>
+        </details>
         </details>
       </section>
     </main>
